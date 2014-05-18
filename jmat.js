@@ -250,7 +250,10 @@ important, please check the results first in the applicable input domain.
 Contact
 -------
 
-Feel free to contact me about bugs, improvements, comments, ...
+Feel free to comment about bugs, improvements, experiences, ... as well as to
+contribute.
+
+GitHub page: https://github.com/lvandeve/jmat
 
 My email address is first name DOT last name AT gmail DOT com, and my first and
 last name are: Lode Vandevenne.
