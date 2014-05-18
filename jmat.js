@@ -1,5 +1,5 @@
 /*
-Jmat
+Jmat.js
 
 Copyright (c) 2011-2014, Lode Vandevenne
 All rights reserved.
@@ -27,7 +27,7 @@ THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 --------------------------------------------------------------------------------
 
-Jmat is a numerical library in JavaScript for complex, matrix and statistical
+Jmat.js is a numerical library in JavaScript for complex, matrix and statistical
 arithmetic.
 
 --------------------------------------------------------------------------------
@@ -38,8 +38,9 @@ NIST DLMF, various papers, and books "Handbook of Mathematical Functions" and
 
 Two algorithms use code from third party open source libraries, converted to
 JavaScript. Their licenses and attribution are included at the implementation.
-It are KISS FFT (see Jmat.Matrix.kiss_...) and linpack zsvdc (see Jmat.Matrix.zsvdc_). They
-are included in this source file to keep it self contained.
+It are KISS FFT (see Jmat.Matrix.kiss_...) and linpack zsvdc (see
+Jmat.Matrix.zsvdc_). They are included in this source file to keep it self
+contained.
 
 --------------------------------------------------------------------------------
 
@@ -151,16 +152,17 @@ matrix.h: 2 (number of rows or "height")
 matrix.w: 2 (number of columns or "width")
 matrix.e: 2D array of 2x2 elements, first index is row, second is column
 
-*) Create a complex matrix [[1+2i], [3+4i], [5+6i], [7+8i]]
+*) Create a complex matrix [[1+2i, 3+4i], [5+6i, 7+8i]]
 var matrix = new Matrix(2, 2);
 matrix.e[0][0] = new Complex(1, 2);
 matrix.e[0][1] = new Complex(3, 4);
 matrix.e[1][0] = new Complex(5, 6);
 matrix.e[1][1] = new Complex(7, 8);
-shorthand for all the above:
+shorthands for all the above:
 var matrix = Matrix([[Complex(1, 2), Complex(3, 4)], [Complex(5, 6), Complex(7, 8)]])
 var matrix = Matrix([[1, 3], [5, 7]], [[2, 4], [6, 8]])
 var matrix = Matrix(2, 2, Complex(1, 2), Complex(3, 4), Complex(5, 6), Complex(7, 8))
+var matrix = Matrix('[[1+2i, 3+4i], [5+6i, 7+8i]]')
 
 *) Calculating with matrices
 Matrix([[1, 2], [3, 4]]).mul(Matrix([[5, 6], [7, 8]])).toString()
@@ -1774,10 +1776,11 @@ and nice expressions like a + b have to become a.add(b) instead.
 */
 Jmat.Complex = function(re, im) {
   if(this instanceof Jmat.Complex) {
-    // Does not do any checks, to be "fast"
+    // Keyword "new" in front. Does not do any checks, to be "fast"
     this.re = re;
     this.im = im;
   } else {
+    // No keyword "new" in front, use the convenience factory function instead
     return Jmat.Complex.make(re, im); // This supports several argument types
   }
 };
@@ -5538,7 +5541,8 @@ Jmat.Complex.qf_laplace = function(x, mu, b) {
 
 /*
 Constructor
-height first because that's the math convention: a 2x3 matrix is 2 rows high, 3 columns wide, and made as new Jmat.Matrix(2, 3)
+height first because that's the math convention: a 2x3 matrix is 2 rows high, 3 columns wide, and made as new Jmat.Matrix(2, 3).
+Does NOT initialize elements if keyword "new" is in front. If keyword "new" is _not_ in front, then uses Jmat.Matrix.make and all its options to initialize elements instead.
 
 Aliased as simply "Matrix" at the end of the file - disable that if it causes name clashes
 
@@ -5547,45 +5551,63 @@ functions are implemented as static functions in here.
 */
 Jmat.Matrix = function(height, width, var_arg) {
   if(this instanceof Jmat.Matrix) {
+    // Keyword "new" in front, use basic constructor
     this.h = height; //number of rows
     this.w = width; //number of columns
     this.e = []; //array of arrays. first index is row (y), second index is column (x)
     for(var y = 0; y < height; y++) {
-      this.e[y] = [];
-      for(var x = 0; x < width; x++) {
-        this.e[y][x] = Jmat.Complex(0);
-      }
+      this.e[y] = []; // Make the rows available, but elements are NOT initialized. They must be initialized after using the "new" constructor.
     }
   } else {
-    return Jmat.Matrix.make(height, width, var_arg);
+    // No keyword "new" in front, use the convenience factory function instead
+    return Jmat.Matrix.make.apply(this, arguments); // pass on the variable length arguments with apply. Note that "this" is not the Matrix here, but a browser Window or so.
   }
 }
 
-// Makes a matrix from many types of combinations of arguments
-// numerical values can either be JS numbers, or Jmat.Complex numbers
-// a = integer, b = integer: a*b matrix if 0's
-// a = 1D/2D array of numerical values: column vector or 2D matrix
-// a = 1D/2D array or undefined, b = 1D/2D array: column vector or 2D matrix with complex values made from real parts of a, imaginary parts of b
-// a and b positive integers, var_arg = 1D array or implicit 1D array in arguments: 2D matrix with elements from var_arg, height a, width b. If size of array <= min(a,b), uses it as diagonal instead.
-// a = numerical value: 1x1 matrix with that element
-// a, b, and var_arg all contain Jmat.Complex numbers: square matrix with those elements, the square size is Math.ceil(Math.sqrt(arguments.length))
-// a = a Jmat.Matrix object: copy the matrix to a new Jmat.Matrix
-// TODO: parse function for matrices
 /*
-here are some examples of how to make matrix, with Jmat.Matrix JS notation on the left, and a sort of mathematical notation on the right
-Jmat.Matrix(2, 2).toString()                        --> [[0, 0], [0, 0]]
-Jmat.Matrix([[1, 2], [3, 4]]).toString()            --> [[1, 2], [3, 4]]
-Jmat.Matrix(undefined, [[1, 2], [3, 4]]).toString() --> [[1i, 2i], [3i, 4i]]
-Jmat.Matrix([[1, 2], [3, 4]]).mulc(Jmat.Complex.I).toString()            --> [[1i, 2i], [3i, 4i]]
-Jmat.Matrix(2, 2, 1, 2, 3, 4).toString()            --> [[1, 2], [3, 4]]
-Jmat.Matrix([1, 2, 3, 4]).toString()                --> [[1],[2],[3],[4]]: a column matrix
-Jmat.Matrix([[1, 2], [3, 4]], [[5, 6], [7, 8]]).toString()                       --> [[1+5i, 2+6i], [3+7i, 4+8i]]
+Makes a matrix from many types of combinations of arguments
+numerical values can either be JS numbers, or Jmat.Complex numbers
+Here are all the combinations:
+
+*) a = integer, b = integer: a*b matrix of _uninitialized_ elements (undefined, similar to the new Matrix constructor)
+Jmat.Matrix(2, 2).toString()               --> [[undefined, undefined], [undefined, undefined]]
+
+*) a = string: matrix parsed from string (if valid) - the string uses square brackets around the whole matrix and around each row, with rows and elements separated by commas.
+Jmat.Matrix('[[1, 1e2], [3, 4i]]').toString()         --> [[1, 100], [3, 4i]]
+
+*) a = 1D/2D array of numerical values: column vector or 2D matrix
+Jmat.Matrix([[1, 2], [3, 4]]).toString()   --> [[1, 2], [3, 4]]
+Jmat.Matrix([1, 2, 3, 4]).toString()       --> [[1],[2],[3],[4]]: a column matrix
+Jmat.Matrix([[1, 2, 3, 4]]).toString()     --> [[1, 2, 3, 4]]: a row matrix
 Jmat.Matrix([[Jmat.Complex(1, 5), Jmat.Complex(2, 6)], [Jmat.Complex(3, 7), Jmat.Complex(4, 8)]]).toString() --> [[1+5i, 2+6i], [3+7i, 4+8i]]
-Jmat.Matrix(4, 4, 1, 2, 3, 4).toString()            --> [[1, 0, 0, 0], [0, 2, 0, 0], [0, 0, 3, 0], [0, 0, 0, 4]]: diagonal matrix
-Jmat.Matrix(0).toString()                           --> [0]
+
+*) a = 1D/2D array or undefined, b = 1D/2D array: column vector or 2D matrix with complex values made from real parts of a, imaginary parts of b
+Jmat.Matrix([[1, 2], [3, 4]], [[5, 6], [7, 8]]).toString() --> [[1+5i, 2+6i], [3+7i, 4+8i]]
+Jmat.Matrix(undefined, [[1, 2], [3, 4]]).toString()        --> [[1i, 2i], [3i, 4i]]
+
+*) a and b positive integers, var_arg = 1D array or implicit 1D array in arguments ...
+**) ... with a*b elements: 2D matrix with elements from var_arg, height a, width b
+Jmat.Matrix(2, 2, 1, 2, 3, 4).toString()   --> [[1, 2], [3, 4]]
+**) ... with size of array == min(a,b), creates diagonal matrix from those elements
+Jmat.Matrix(4, 4, 1, 2, 3, 4).toString()   --> [[1, 0, 0, 0], [0, 2, 0, 0], [0, 0, 3, 0], [0, 0, 0, 4]]: diagonal matrix
+**) ... with size of array == 1, creates diagonal matrix with that one element repeated
+Jmat.Matrix(3, 3, 0).toString()            --> [[0, 0, 0], [0, 0, 0], [0, 0, 0]]
+Jmat.Matrix(3, 3, 1).toString()            --> [[1, 0, 0], [0, 1, 0], [0, 0, 1]]
+**) ... with any other size: not allowed, returns invalid
+Jmat.Matrix(3, 3, 1, 2)                    --> null
+
+*) a = numerical value: 1x1 matrix with that element
+Jmat.Matrix(0).toString()                  --> [0]
+
+*) a = a Jmat.Matrix object: copy the matrix to a new Jmat.Matrix
+Jmat.Matrix(Jmat.Matrix(0)).toString()     --> [0]
+
+TODO: parse function for matrices
 */
 Jmat.Matrix.make = function(a, b, var_arg) {
   if(a instanceof Jmat.Matrix) return Jmat.Matrix.copy(a);
+
+  if(typeof a == 'string') return Jmat.Matrix.parse(a);
 
   // Tolerant to all kinds of unexisting array
   // Also supports a 1D array representing an Nx1 2D array
@@ -5608,13 +5630,27 @@ Jmat.Matrix.make = function(a, b, var_arg) {
   // shift >= 0 ==> a is 1D array of which the 2D elements are read, first element at a[shift]
   // shift >= 0 and a.length - shift is min(h, w) ==> makes diagonal matrix with those elements on the diagonal instead
   var loop = function(h, w, a, shift, opt_b) {
-    var result = new Jmat.Matrix(h, w);
-    if(shift >= 0 && a.length - shift <= Math.min(h, w)) {
-      for(var x = 0; x < w && x < h; x++) {
-        result.e[x][x] = Jmat.Complex.cast(a[x + shift]);
+    var result;
+    if(shift >= 0 && a.length < h * w) {
+      result = Jmat.Matrix.zero(h, w);
+      if(shift >= 0 && a.length - shift == 1) {
+        // repeat same element on diagonal
+        for(var x = 0; x < w && x < h; x++) {
+          result.e[x][x] = Jmat.Complex.cast(a[shift]);
+        }
+        return result;
       }
-      return result;
+      if(shift >= 0 && a.length - shift == Math.min(h, w)) {
+        // fill diagonal
+        for(var x = 0; x < w && x < h; x++) {
+          result.e[x][x] = Jmat.Complex.cast(a[x + shift]);
+        }
+        return result;
+      }
+      return null; //invalid size
     }
+    // full 2D matrix
+    result = new Jmat.Matrix(h, w);
     for(var y = 0; y < result.h; y++) {
       for(var x = 0; x < result.w; x++) {
         if(shift < 0) result.e[y][x] = (opt_b ? softget2(a, opt_b, y, x) : softget(a, y, x));
@@ -5640,6 +5676,7 @@ Jmat.Matrix.make = function(a, b, var_arg) {
 
   // a and b contain dimensions, then elements in array or variable arguments
   if(a != undefined && b != undefined) {
+    if(var_arg == undefined) return new Jmat.Matrix(a, b); // simple constructor with uninitialized elements
     var h = a;
     var w = b;
     if(var_arg && var_arg.length) return loop(h, w, var_arg, 0);
@@ -5670,6 +5707,35 @@ Jmat.Matrix.prototype.toString = function() {
   return Jmat.Matrix.toString(this);
 };
 
+Jmat.Matrix.parse = function(text) {
+  var e = [];
+  var stack = [e];
+  var text2 = '';
+  for(var i = 1; i < text.length - 1 && stack.length > 0; i++) {
+    var c = text.charAt(i);
+    if(c == '[') {
+      var a = [];
+      stack[stack.length - 1].push(a);
+      stack.push(a);
+    } else if(c == ']') {
+      if(text2 != '') {
+        stack[stack.length - 1].push(Jmat.Complex.parse(text2));
+        text2 = '';
+      }
+      stack.pop();
+    } else if(c == ',') {
+      if(text2 != '') {
+        stack[stack.length - 1].push(Jmat.Complex.parse(text2));
+        text2 = '';
+      }
+    } else {
+      text2 += c;
+    }
+  }
+  if(text2 != '') stack[stack.length - 1].push(Jmat.Complex.parse(text2));
+  return Jmat.Matrix.make(e);
+};
+
 
 // Does not copy if a is of type Jmat.Matrix.
 Jmat.Matrix.cast = function(a) {
@@ -5687,10 +5753,25 @@ Jmat.Matrix.copy = function(a) {
   return result;
 };
 
-// Returns new nxn identity matrix
-Jmat.Matrix.identity = function(n) {
-  var r = new Jmat.Matrix(n, n);
-  for(var i = 0; i < n; i++) r.e[i][i] = Jmat.Complex(1);
+// Returns new h*w identity matrix
+Jmat.Matrix.identity = function(h, w) {
+  var r = new Jmat.Matrix(h, w);
+  for(var y = 0; y < h; y++) {
+    for(var x = 0; x < w; x++) {
+      r.e[y][x] = Jmat.Complex(x == y ? 1 : 0);
+    }
+  }
+  return r;
+};
+
+// Returns new h*w zero matrix
+Jmat.Matrix.zero = function(h, w) {
+  var r = new Jmat.Matrix(h, w);
+  for(var y = 0; y < h; y++) {
+    for(var x = 0; x < w; x++) {
+      r.e[y][x] = Jmat.Complex(0);
+    }
+  }
   return r;
 };
 
@@ -6020,7 +6101,7 @@ Jmat.Matrix.determinant = function(a) {
 //Adjugate aka adjoint matrix
 Jmat.Matrix.adj = function(a) {
   if(a.w != a.h) return NaN; //square matrices only
-  if(a.w == 1) return Jmat.Matrix.identity(1);
+  if(a.w == 1) return Jmat.Matrix.identity(1, 1);
 
   //result matrix
   var r = new Jmat.Matrix(a.h, a.w);
@@ -6297,7 +6378,7 @@ Jmat.Matrix.qr = function(m) {
       var w = xhv.e[0][0].div(vhx.e[0][0]);
       vv = Jmat.Matrix.mulc(Jmat.Matrix.mul(v, Jmat.Matrix.transjugate(v)), w.inc());
     }
-    var id = Jmat.Matrix.identity(a.h);
+    var id = Jmat.Matrix.identity(a.h, a.h);
     var qk = Jmat.Matrix.sub(id, vv); // here, qk*x = [alpha, 0,...,0]^T
 
     if (k + 1 < t) {
@@ -6308,7 +6389,7 @@ Jmat.Matrix.qr = function(m) {
     if(k == 0) {
       q = Jmat.Matrix.transjugate(qk);
     } else {
-      qk = Jmat.Matrix.overlap(Jmat.Matrix.identity(k), qk, k, k);
+      qk = Jmat.Matrix.overlap(Jmat.Matrix.identity(k, k), qk, k, k);
       q = Jmat.Matrix.mul(q, Jmat.Matrix.transjugate(qk)); //Q1^h * Q2^h * ... * Qt^h
     }
     //r = Jmat.Matrix.mul(qk, r); // Qt * ... * Q2 * Q1 * A //not needed to calculate here, done below instead, is q^t * m
@@ -6331,6 +6412,7 @@ Jmat.Matrix.eig11 = function(m) {
   if(m.w != 1 || m.h != 1) return null;
   var result = {};
   result.l = new Jmat.Matrix(1, 1);
+  result.l.e[0][0] = Jmat.Complex(0);
   result.v = new Jmat.Matrix(1, 1);
   result.v.e[0][0] = Jmat.Complex(1);
   return result;
@@ -6361,9 +6443,9 @@ Jmat.Matrix.eig22 = function(m) {
 
   var result = {};
   result.l = new Jmat.Matrix(2, 1);
-  result.v = new Jmat.Matrix(2, 2);
   result.l.e[0][0] = l1;
   result.l.e[1][0] = l2;
+  result.v = new Jmat.Matrix(2, 2);
   result.v.e[0][0] = v11;
   result.v.e[1][0] = v12;
   result.v.e[0][1] = v21;
@@ -6408,7 +6490,7 @@ Jmat.Matrix.eig = function(m) {
 
   // QR with double shifting. This because with single shift or no shift, it does not support complex eigenvalues of real matrix, e.g. [[1,-1],[5,-1]]
   // TODO: this is slow, optimize like with Hessenberg form
-  var id = Jmat.Matrix.identity(n);
+  var id = Jmat.Matrix.identity(n, n);
   for(var i = 0; i < 15; i++) {
     // var s = a.e[a.h - 1][a.w - 1]; //value that would be chosen for single shift
     // double shift: choose two sigma's, the eigenvalues of the bottom right 2x2 matrix (for which we have the explicit solution)
@@ -6437,7 +6519,7 @@ Jmat.Matrix.eig = function(m) {
     var e = Jmat.Matrix.copy(m); //TODO: this makes it even slower, copy only the needed columns
     for(var i = 0; i < n; i++) e.e[i][i] = e.e[i][i].sub(value);
     for(var i = 0; i < n; i++) e.e[e.h - 1][i] = Jmat.Complex(i == n - 1 ? 1 : 0);
-    var f = new Jmat.Matrix(n, 1);
+    var f = Jmat.Matrix.zero(n, 1);
     f.e[f.h - 1][0] = Jmat.Complex(1);
     var g = Jmat.Matrix.solve(e, f);
     for(var i = 0; i < n; i++) v.e[i][j] = g.e[i][0];
@@ -6462,7 +6544,7 @@ Jmat.Matrix.eigd = function(m) {
 // Puts all the elements of d in a single diagonal matrix
 Jmat.Matrix.diag = function(d) {
   var n = d.w * d.h;
-  var result = new Jmat.Matrix(n, n);
+  var result = Jmat.Matrix.zero(n, n);
   var i = 0;
   for(var y = 0; y < d.h; y++) {
     for(var x = 0; x < d.w; x++) {
@@ -7296,7 +7378,7 @@ Jmat.Matrix.ifft = function(m) {
 Jmat.Matrix.exp = function(m) {
   if(m.h != m.w) return null; //must be square
 
-  var result = m.add(Jmat.Matrix.identity(m.w));
+  var result = m.add(Jmat.Matrix.identity(m.w, m.w));
   var mm = m;
   var k = 1;
 
@@ -7322,7 +7404,7 @@ Jmat.Matrix.toString(c) + ' ' + Jmat.Matrix.toString(s) + ' ' + Jmat.Matrix.toSt
 Jmat.Matrix.cos = function(m) {
   if(m.h != m.w) return null; //must be square
 
-  var result = Jmat.Matrix.identity(m.w);
+  var result = Jmat.Matrix.identity(m.w, m.w);
   var mm = m.mul(m);
   var mmm = null;
   var k = 1;
@@ -7372,7 +7454,7 @@ Jmat.Matrix.sqrt = function(m) {
   if(m.h != m.w) return null; //must be square
 
   // Babylonian method. Does not work for [[1,2][3,4]], because that one has complex result. Left commented out for demonstration purpose only.
-  /*var result = m.add(Jmat.Matrix.identity(m.w)).mulr(0.5);
+  /*var result = m.add(Jmat.Matrix.identity(m.w, m.w)).mulr(0.5);
   for(var i = 0; i <= 30; i++) {
     result = result.add(m.div(result)).mulr(0.5);
   }

@@ -1,5 +1,5 @@
 /*
-Jmat
+Jmat.js
 
 Copyright (c) 2011-2014, Lode Vandevenne
 All rights reserved.
