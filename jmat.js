@@ -229,6 +229,11 @@ Color wheel legend: red = positive, cyan = negative, black = zero, white = infin
     lighter = higher abs, acid green = positive imaginary, purple = negative imaginary,
     other hues = other complex arguments, grey = NaN
 
+*) Plot a Mandelbrot set:
+Jmat.plotComplex(function(c) {
+  var i = 0; var z = Complex(0); for(;;) { if(z.absr() > 2) break; z = z.mul(z).add(c); i++; if(i > 60) return Complex(0); } return Complex.polar(1, i * Math.PI / 60);
+}, plotContainerEl, {p:1, s:4});
+
 
 Precision
 ---------
@@ -330,6 +335,10 @@ Jmat.near = function(x, y, epsilon) {
   if(Jmat.matrixIn_(x) && Jmat.matrixIn_(y)) return Jmat.Matrix.near(Jmat.Matrix.cast(x), Jmat.Matrix.cast(y), Jmat.Real.caststrict(epsilon));
   return Jmat.Complex.near(Jmat.Complex.cast(x), Jmat.Complex.cast(y), Jmat.Real.caststrict(epsilon));
 };
+
+// Categories
+
+Jmat.isNaN = function(x) { return Jmat.matrixIn_(x) ? Jmat.Matrix.isNaN(Jmat.Matrix.cast(x)) : Jmat.Complex.isNaN(Jmat.Complex.cast(x)); };
 
 // Power & Logarithms
 
@@ -783,17 +792,25 @@ Jmat.rootfind_newton = function(f, df, z0, maxiter) { return Jmat.Complex.rootfi
 
 // Test if input is a matrix, this makes it decide e.g. whether to call the matrix-specific or complex number specific function if there is functionname collision
 Jmat.matrixIn_ = function(v) {
+  if(!v) return false;
+  if(typeof v == 'string') {
+    if(v.length < 2) return false; // smallest possible valid matrix string is []
+    if(v[0] == '[') return true;
+    if(v[0] == '-') return false;
+    if(v.charCodeAt(0) >= 48 && v.charCodeAt(0) <= 57) return false;
+    return v.indexOf('[') != -1;
+  }
   return v && (v instanceof Jmat.Matrix || v.length != undefined);
 };
 
-// debug string of anything, like the arrays of matrices returned by svd
-Jmat.dbg_ = function(a) {
+// Nice string of any known object, like Complex and Matrix and the objects of named matrices returned by svd or array returned by factorize
+Jmat.toString = function(a) {
   if(!a) return '' + a;
   var result = '';
   // For arrays of known types
-  if(a.length) {
+  if(typeof a == 'array') {
     result += '[';
-    for(var i = 0; i < a.length; i++) result += (Jmat.dbg_(a[i]) + (i + 1 == a.length ? '' : ', '));
+    for(var i = 0; i < a.length; i++) result += (Jmat.toString(a[i]) + (i + 1 == a.length ? '' : ', '));
     result += ']';
     return result;
   }
@@ -805,7 +822,7 @@ Jmat.dbg_ = function(a) {
       if(!it || !a[it]) continue;
       if(comma) result += ', ';
       result += it + ': ';
-      result += Jmat.dbg_(a[it]);
+      result += Jmat.toString(a[it]);
       comma = true;
     }
     result += '}';
@@ -5955,6 +5972,16 @@ Jmat.Matrix.isValid = function(a) {
   return true;
 };
 
+//returns true if any NaN in matrix. For the rest, must be valid object.
+Jmat.Matrix.isNaN = function(a) {
+  for(var y = 0; y < a.h; y++) {
+    for(var x = 0; x < a.w; x++) {
+      if(Jmat.Complex.isNaN(a.e[y][x])) return true;
+    }
+  }
+  return false;
+};
+
 // TODO: functions like isSymmetrical, isHermitian, isDiagonal, ...
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -7008,7 +7035,7 @@ Jmat.Matrix.svd = function(m) {
   Checks in console:
   function testSvd(m) {
     var result = Jmat.Matrix.svd(Jmat.Matrix(m));
-    console.log(Jmat.dbg_(result) + ' | ' + Jmat.Matrix.mul(Jmat.Matrix.mul(result.u, result.s), Jmat.Matrix.transpose(result.v)).toString());
+    console.log(Jmat.toString(result) + ' | ' + Jmat.Matrix.mul(Jmat.Matrix.mul(result.u, result.s), Jmat.Matrix.transpose(result.v)).toString());
   }
   testSvd(Jmat.Matrix(2,2,1,2,3,4))
   testSvd(Jmat.Matrix(2,2,1,2,3,4).mulc(Jmat.Complex.I))
