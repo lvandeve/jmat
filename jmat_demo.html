@@ -109,7 +109,7 @@ var fun1d = [
     '--',
     'gamma', 'digamma', 'trigamma', 'loggamma', 'gamma_inv',
     'airy', 'bairy', 'airy_deriv', 'bairy_deriv',
-    'erf', 'erfc', 'erfinv', 'erfi', 'dawson', 'faddeeva',
+    'erf', 'erfc', 'erf_inv', 'erfi', 'dawson', 'faddeeva',
     'zeta', 'eta', 'dilog', 'trilog',
     'exp', 'log', 'sqrt',
     'lambertw', 'lambertwm',
@@ -119,7 +119,7 @@ var fun1d = [
     'asinh', 'acosh', 'atanh',
     'sinc',
     'abs', 'arg', 'frac', 'fracn',
-    'bitinv',
+    'bitnot',
     'minkowski',
     'x', 'inv',
 ];
@@ -228,8 +228,8 @@ examples.style.width = '1000px';
 examples.style.fontSize = 'small';
 examples.innerHTML = 'Examples:<br/>' +
     '<ul>' +
-    '<li>jmatc(1, 2).add(jmatc(3, 4)) </li>' +
-    '<li>Jmat.besselj(5, jmatc(5.5, 1)) </li>' +
+    '<li>Complex(\'1+2i\').add(Complex(\'3+4i\')) </li>' +
+    '<li>Jmat.besselj(5, Complex(5.5, 1)) </li>' +
     '<li>Jmat.fft([[1,2],[3,4]]).toString()</li>' +
     '<li>Jmat.eig([[1,2],[3,4]]).l.toString()</li>' +
     '<li>Jmat.gamma(5.5).add(Jmat.trigamma(5.5)) </li>' +
