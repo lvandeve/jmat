@@ -1,4 +1,4 @@
-# Jmat
+# Jmat.js
 
 Complex special functions, numerical linear algebra and statistics in JavaScript
 
