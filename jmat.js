@@ -270,7 +270,7 @@ last name are: Lode Vandevenne.
 
 // Constructor
 function Jmat() {
-  // Emtpy, this is a namespace, no need to ever call this
+  // Empty, this is a namespace, no need to ever call this
 }
 
 /*
@@ -481,7 +481,7 @@ Jmat.beta_i_inv = function(x, a, b) { return Jmat.Complex.beta_i_inv(Jmat.Comple
 Jmat.re = function(z) { return Jmat.Complex(Jmat.Complex.cast(z).re); };
 /* Imaginary part. z:{number|Complex}. returns {Complex} */
 Jmat.im = function(z) { return Jmat.Complex(Jmat.Complex.cast(z).im); };
-/* Absolute value or complex odulus. z:{number|Complex}. returns {Complex} */
+/* Absolute value or complex modulus. z:{number|Complex}. returns {Complex} */
 Jmat.abs = function(z) { return Jmat.Complex.abs(Jmat.Complex.cast(z)); }; // absolute value, modulus
 /* Complex argument or phase. z:{number|Complex}. returns {Complex} */
 Jmat.arg = function(z) { return Jmat.Complex.arg(Jmat.Complex.cast(z)); };
@@ -595,11 +595,11 @@ Jmat.qf_uniform = function(x, a, b) { return Jmat.Complex.qf_uniform(Jmat.Comple
 Jmat.pdf_standardnormal = function(x) { return Jmat.Complex.pdf_standardnormal(Jmat.Complex.cast(x)); };
 Jmat.cdf_standardnormal = function(x) { return Jmat.Complex.cdf_standardnormal(Jmat.Complex.cast(x)); };
 Jmat.qf_standardnormal = function(x) { return Jmat.Complex.qf_standardnormal(Jmat.Complex.cast(x)); };
-/* Normal distribution with mean mu and variance signa. x,mu,sigma:{number|Complex}. returns {Complex} */
+/* Normal distribution with mean mu and variance sigma. x,mu,sigma:{number|Complex}. returns {Complex} */
 Jmat.pdf_normal = function(x, mu, sigma) { return Jmat.Complex.pdf_normal(Jmat.Complex.cast(x), Jmat.Complex.cast(mu), Jmat.Complex.cast(sigma)); };
 Jmat.cdf_normal = function(x, mu, sigma) { return Jmat.Complex.cdf_normal(Jmat.Complex.cast(x), Jmat.Complex.cast(mu), Jmat.Complex.cast(sigma)); };
 Jmat.qf_normal = function(x, mu, sigma) { return Jmat.Complex.qf_normal(Jmat.Complex.cast(x), Jmat.Complex.cast(mu), Jmat.Complex.cast(sigma)); };
-/* Log-normal distribution with mean mu and variance signa. x,mu,sigma:{number|Complex}. returns {Complex} */
+/* Log-normal distribution with mean mu and variance sigma. x,mu,sigma:{number|Complex}. returns {Complex} */
 Jmat.pdf_lognormal = function(x, mu, sigma) { return Jmat.Complex.pdf_lognormal(Jmat.Complex.cast(x), Jmat.Complex.cast(mu), Jmat.Complex.cast(sigma)); };
 Jmat.cdf_lognormal = function(x, mu, sigma) { return Jmat.Complex.cdf_lognormal(Jmat.Complex.cast(x), Jmat.Complex.cast(mu), Jmat.Complex.cast(sigma)); };
 Jmat.qf_lognormal = function(x, mu, sigma) { return Jmat.Complex.qf_lognormal(Jmat.Complex.cast(x), Jmat.Complex.cast(mu), Jmat.Complex.cast(sigma)); };
@@ -663,7 +663,7 @@ Jmat.ghm = function(a, b) { return Jmat.Complex.ghm(Jmat.Complex.cast(a), Jmat.C
 // Prime numbers. NOTE: Use the Jmat.Real versions to get results as simple JS numbers rather than Jmat.Complex objects.
 
 /* Primality test. x:{number|Complex}. returns {boolean} */
-Jmat.isPrime = function(x) { return Jmat.Complex.isPrime(Jmat.Complex.cast(x)); }
+Jmat.isPrime = function(x) { return Jmat.Complex.isPrime(Jmat.Complex.cast(x)); };
 /* Smallest prime factor of integer. x:{number|Complex} real. returns {Complex} */
 Jmat.smallestPrimeFactor = function(x) { return Jmat.Complex(Jmat.Real.smallestPrimeFactor(Jmat.Real.cast(x))); };
 /* Factorize into prime factors, returned as array. x:{number|Complex} integer. returns {Array.<Complex>} */
@@ -714,7 +714,7 @@ Jmat.rshift = function(x, y) { return Jmat.Complex.rshift(Jmat.Complex.cast(x), 
 /* Modulo division. a,b:{number|Complex}. returns {Complex} */
 Jmat.mod = function(a, b) { return Jmat.Complex.mod(Jmat.Complex.cast(a), Jmat.Complex.cast(b)); }; // result has sign of divisor (unlike JS '%' operator)
 /* Remainder. a,b:{number|Complex}. returns {Complex} */
-Jmat.rem = function(a, b) { return Jmat.Complex.rem(Jmat.Complex.cast(a), Jmat.Complex.cast(b)); }; // result has sign of divident (same result as JS '%' operator on real numbers)
+Jmat.rem = function(a, b) { return Jmat.Complex.rem(Jmat.Complex.cast(a), Jmat.Complex.cast(b)); }; // result has sign of dividend (same result as JS '%' operator on real numbers)
 /* Wrap x between from and to (to excluded). x,to,from:{number|Complex}. returns {Complex} */
 Jmat.wrap = function(x, from, to) { return Jmat.Complex.wrap(Jmat.Complex.cast(x), Jmat.Complex.cast(from), Jmat.Complex.cast(to)); };
 /* Clamp x between from and to (to included). x,to,from:{number|Complex}. returns {Complex} */
@@ -811,7 +811,7 @@ Jmat.toString = function(a) {
   if(!a) return '' + a;
   var result = '';
   // For arrays of known types
-  if(typeof a == 'array') {
+  if(typeof a == 'object' && Array.isArray(a)) {
     result += '[';
     for(var i = 0; i < a.length; i++) result += (Jmat.toString(a[i]) + (i + 1 == a.length ? '' : ', '));
     result += ']';
@@ -858,7 +858,7 @@ as cos and exp, are not implemented here for that reason.
 
 //Constructor, but not to be actually used, just a namespace for real functions
 Jmat.Real = function() {
-}
+};
 
 // cast all known numeric types to JS number
 Jmat.Real.cast = function(v) {
@@ -1007,7 +1007,7 @@ Jmat.Real.factorialmem_ = [1]; //memoization for factorial of small integers
 
 Jmat.Real.useFactorialLoop_ = function(x) {
   return Jmat.Real.isPositiveIntOrZero(x) && x < 200;
-}
+};
 
 Jmat.Real.factorial = function(a) {
   if(!Jmat.Real.useFactorialLoop_(a)) {
@@ -1038,7 +1038,7 @@ Jmat.Real.isPrimeInit_ = function(n) {
     if(n % Jmat.Real.firstPrimes_[i] == 0) return 0;
   }
   return -1;
-}
+};
 
 //Returns 1 if prime, 0 if not prime, NaN if error. Naive slow algorithm. However, faster than miller rabin for n < 1500000
 Jmat.Real.isPrimeSlow_ = function(n) {
@@ -1065,7 +1065,7 @@ Jmat.Real.isPrimeMillerRabin_ = function(n) {
   if(init != -1) return init;
 
   // Miller-Rabin test
-  var base = undefined;
+  var base;
   if(n < 1373653) base = [2, 3];
   else if(n < 9080191) base = [31, 73];
   else if(n < 4759123141) base = [2, 7, 61];
@@ -1114,8 +1114,8 @@ Jmat.Real.isPrimeMillerRabin_ = function(n) {
       x = y;
       s--;
     }
-    if(y != 1) return false;
-    return true;
+    //if(y != 1) return false;
+    return y != 1;
   };
 
   for(var i = 0; i < base.length; i++) {
@@ -1132,7 +1132,7 @@ function benchfun(n) {
   console.log('fast: ' + (ta1 - ta0) + ' slow: ' + (tb1 - tb0) + ' both: ' + (tc1 - tc0) + ' test: ' + ra + ' = ' + rb + ' = ' + rc);
 };
 benchfun(100000);
---> it will report that slow if faster than miller rabin. That's because miller rabin is only faster for very large numbers. E.g. here you can see that miller rabin is fater:
+--> it will report that slow if faster than miller rabin. That's because miller rabin is only faster for very large numbers. E.g. here you can see that miller rabin is faster:
 Jmat.Real.isPrimeSlow_(4444280714420857)
 Jmat.Real.isPrimeMillerRabin_(4444280714420857)
 
@@ -1160,7 +1160,7 @@ Nice primes to test:
 Jmat.Real.isPrime = function(n) {
   // below that, the "slow" method is faster. For higher values, Miller Rabin becomes more and more significantly faster.
   // However, for values above 0x010000000000000, a sum in the miller rabin overflows, so does not work either
-  // ==> Jmat.Real.isPrime(9007199254740881) is noticably slower than Jmat.Real.isPrime(4444280714420857)
+  // ==> Jmat.Real.isPrime(9007199254740881) is noticeably slower than Jmat.Real.isPrime(4444280714420857)
   return (n < 1500000 || n > 0x010000000000000) ? Jmat.Real.isPrimeSlow_(n) : Jmat.Real.isPrimeMillerRabin_(n);
 };
 
@@ -1315,11 +1315,11 @@ Jmat.Real.eulerTotient = function(value) {
     prev = f[i];
     result *= (1 - (1 / f[i]));
   }
-  return jmatresult;
+  return result;
 };
 
 // The first integer binomials, allows fast calculation of those by just looking up in the array, e.g. binomial(5, 8) = Jmat.Complex.pascal_triangle_cache_[5][8]
-// some rows area prefilled to start it off (just prefilling the first one would be sufficient normally, the rest is just for the shows)
+// some rows area pre-filled to start it off (just pre-filling the first one would be sufficient normally, the rest is just for the shows)
 Jmat.Real.pascal_triangle_cache_ = [
     [1],
     [1, 1],
@@ -1347,9 +1347,9 @@ Jmat.Real.pascal_triangle = function(n, p) {
     }
   }
   return t[n][p];
-}
+};
 
-//geatest common divisor
+//greatest common divisor
 Jmat.Real.gcd = function(x, y) {
  //Euclid's algorithm
  while(true) {
@@ -1380,7 +1380,7 @@ Jmat.Real.decompose = function(x, max) {
 
   var result;
 
-  var a = 0
+  var a = 0;
   var b = 1;
   var c = 1;
   var d = 1;
@@ -1402,7 +1402,7 @@ Jmat.Real.decompose = function(x, max) {
     }
   }
   if (!result) {
-    if (b > max) result = [c, d]
+    if (b > max) result = [c, d];
     else result = [a, b];
   }
 
@@ -1482,7 +1482,7 @@ Jmat.Real.lambertw = function(x) {
     }
     return wj;
   } else if (x > 0) {
-    //Since the above method works only up to 703, use some kind of binary search instead (it's a monotously increasing function at this point)
+    //Since the above method works only up to 703, use some kind of binary search instead (it's a monotonously increasing function at this point)
     // TODO: probably just use Halley's method here instead
     var step = 1;
     var lastDir = 0;
@@ -1539,7 +1539,7 @@ Jmat.Real.tetration = function(a, x) {
       if(i > 1000) return NaN; //avoid infinite loop
     }
     return result;
-  }
+  };
 
   // This supports power tower as well
   // It supports it better than the lambertw formula above because the domain here is real numbers only, the lambertw formula fails on, for example, -1 and returns nan instead of -1
@@ -1713,7 +1713,7 @@ Jmat.Real.dd = function(a) {
   var mins = Math.floor((a * 100 - deg * 100));
   var sec = Math.floor(a * 10000 - deg * 10000 - mins * 100);
 
-  var result = deg + mins / 60.0 + sec / 3600.0
+  var result = deg + mins / 60.0 + sec / 3600.0;
 
   if(neg) result = -result;
   return result;
@@ -2403,7 +2403,7 @@ Jmat.Complex.atan2 = function(x, y) {
   if(!Jmat.Complex.isReal(x) || !Jmat.Complex.isReal(y)) {
     if(y.eqr(0)) return Jmat.Complex(Math.PI / 2);
 
-    // For complex values, an alternate form of the defintion can be used:
+    // For complex values, an alternate form of the definition can be used:
     // 2 * atan(y / (sqrt(x^2+y^2)+x))
     return Jmat.Complex.atan(Jmat.Complex.sqrt(x.mul(x).add(y.mul(y))).sub(x).div(y)).mulr(2);
   } else {
@@ -2445,7 +2445,7 @@ Jmat.Complex.atanh = function(z) {
   return Jmat.Complex.log(z.inc().div(z.dec())).mulr(0.5);
 };
 
-// This is NOT the logsine function (the intergral). It's simply ln(sin(z))
+// This is NOT the logsine function (the integral). It's simply ln(sin(z))
 //ln(sin(z)), with good approximation for large |Im(z)|. The thing is, for large imaginary values, sin(z) becomes huge, because it involves an exponential of the imaginary parts
 // For large imaginary part (or very small below 0), log(sin(x)) fails while this function is then very accurate
 Jmat.Complex.logsin = function(z) {
@@ -2705,7 +2705,7 @@ Jmat.Complex.gamma_inv = function(value) {
 // digamma function: psi_0(z)
 Jmat.Complex.digamma = function(z) {
   // digamma(z) = gamma'(z) / gamma(z)
-  // the derivtive gamma'(z) is approximated here as (gamma(z+epsilon) - gamma(z-epsilon)) / (2*epsilon). TODO: use better approximation
+  // the derivative gamma'(z) is approximated here as (gamma(z+epsilon) - gamma(z-epsilon)) / (2*epsilon). TODO: use better approximation
   // TODO: for real z, use an approximation such as the Euler Maclaurin formula which gives ln(x) -1/2 x - 1/12 xx + 1/120 xxxx + ....
 
   // METHOD A: simple approximate derivative of gamma function - works in fact quite well
@@ -2716,7 +2716,7 @@ Jmat.Complex.digamma = function(z) {
     if(z.re < -98) return Jmat.Complex.loggamma(z.addr(0.0003)).sub(Jmat.Complex.loggamma(z.addr(0.0001))).divr(0.0002);
     // Near integer or half integer real part, 3 gammas required
     var result = Jmat.Complex.gamma(z.addr(0.0001)).sub(Jmat.Complex.gamma(z.subr(0.0001))).divr(0.0002).div(Jmat.Complex.gamma(z));
-    // Again, sometimes 0/0 happens simply because the nubmers are underflowing. Approximate with nearby value.
+    // Again, sometimes 0/0 happens simply because the numbers are underflowing. Approximate with nearby value.
     if(Jmat.Complex.isInfOrNaN(result) && !Jmat.Complex.isInf(z) && z.im != 0) return Jmat.Complex.loggamma(z.addr(0.0003)).sub(Jmat.Complex.loggamma(z.addr(0.0001))).divr(0.0002);
     return result;
   }
@@ -2887,11 +2887,11 @@ Jmat.Complex.gammaDiv_ = function(x, y) {
 
     if(x.re > 0 && y.re > 0 && Jmat.Real.dist(x.re, y.re) < 16) {
       if(x.re > y.re) {
-        var result = y.re
+        var result = y.re;
         for(var z = y.re + 1; z < x.re; z++) result *= z;
         return Jmat.Complex(result);
       } else {
-        var result = 1 / x.re
+        var result = 1 / x.re;
         for(var z = x.re + 1; z < y.re; z++) result /= z;
         return Jmat.Complex(result);
       }
@@ -3070,7 +3070,7 @@ Jmat.Complex.besselj = function(n, z) {
     return a.mul(Jmat.Complex.cos(b));
   } else {
     // Something is wrong with this formula, see the 2D plot
-    var s = z.im > 0 ? -1 : 1
+    var s = z.im > 0 ? -1 : 1;
     var a = z.sub(n.mulr(pi/2)).subr(pi/4);
     var b = Jmat.Complex.sqrt(z.mulr(pi*2));
     return Jmat.Complex.exp(Jmat.Complex.newi(s).mul(a)).div(b);
@@ -3100,7 +3100,7 @@ Jmat.Complex.bessely = function(n, z) {
     return a.mul(Jmat.Complex.sin(b));
   } else {
     // Something is wrong with this formula, see the 2D plot
-    var s = z.im > 0 ? -1 : 1
+    var s = z.im > 0 ? -1 : 1;
     var a = z.sub(n.mulr(pi/2)).subr(pi/4);
     var b = Jmat.Complex.sqrt(z.mulr(pi*2));
     return Jmat.Complex.newi(-s).mul(Jmat.Complex.exp(Jmat.Complex.newi(s).mul(a)).div(b));
@@ -3335,7 +3335,7 @@ Jmat.Complex.zetaint_ = function(s) {
     var q1 = it(s, q);
     var q2 = it(s, q.inc());
     if(q1.abssqr() < 1e-4 && q1.abssqr() < 1e-4) break;
-    if(q.re > 1000) break; //don't do too much doublings or we're doing as much calculations in here as in the integral...
+    if(q.re > 1000) break; // do not do too many doublings or we are doing as many calculations in here as in the integral...
   
     q = q.mulr(2);
   }
@@ -3366,7 +3366,7 @@ Jmat.Complex.zeta = function(s) {
   // Borwein algorithm for s close to real line
   // Riemann-Siegel formula for s with large imaginary party
   // Euler-Maclaurin summation in all other cases
-  // The reflection formula where appliccable
+  // The reflection formula where applicable
 
   var a1 = s.dec().absr();
   if(a1 < 10) {
@@ -3459,7 +3459,7 @@ Jmat.Complex.eta = function(s) {
 
   /*
   NOTE:
-  Riemman zeta, Direchlet lambda and Direchlet eta are related as follows:
+  Riemann zeta, Direchlet lambda and Direchlet eta are related as follows:
   zeta(s)/(2^s) = lambda(s)/(2^s - 1) = eta(s)/(2^s - 2)
   also:
   zeta(s) + eta(s) = 2*lambda(s)
@@ -3555,7 +3555,7 @@ Jmat.Complex.hurwitzzeta_simple_series_ = function(s, q) {
 };
 
 // Euler-Maclaurin algorithm for hurwitz zeta, basically a sped up version of the simple series
-// See (7.1) in paper "efficient algorithm for accelerating the convergence of ..." by linas vepstas.
+// See (7.1) in paper "efficient algorithm for accelerating the convergence of ..." by Linas Vepstas.
 // This algorithm works for: complex s with s.re > 0, and complex q with q.re > -20 (or even > -1). For q with very large negative real part, it goes numerically very wrong.
 Jmat.Complex.hurwitzzeta_euler_ = function(s, q) {
   var result = Jmat.Complex.ZERO;
@@ -3603,7 +3603,7 @@ Jmat.Complex.hurwitzzeta = function(s, q) {
   // Only a very limited zone in which this works.....
   if(s.re < 0 && q.im == 0 && q.re > 0 && q.re <= 1) {
     // TODO: try the formula with both cos and sin (formula 8 at http://mathworld.wolfram.com/HurwitzZetaFunction.html)
-    //       does support complex q. Then use the formulas for Distante neighbors at http://functions.wolfram.com/ZetaFunctionsandPolylogarithms/Zeta2/17/01/ShowAll.html
+    //       does support complex q. Then use the formulas for Distant neighbors at http://functions.wolfram.com/ZetaFunctionsandPolylogarithms/Zeta2/17/01/ShowAll.html
     //       to bring real part of q in range 0-1, and see if that would make it support all complex q for all complex negative s...
     //       or just make q.re > 2 to make hurwitzzeta_hasse_series_ work ...
     return Jmat.Complex.hurwitzzeta_cos_series_(s, q);
@@ -3743,7 +3743,7 @@ Jmat.Complex.hypergeometric0F1 = function(a, z) {
   var result = Jmat.Complex.ZERO;
   for(var n = 0; n < 30; n++) {
     if (n > 0) {
-      if(!r.eqr(0)) r = r.div(a.addr(n - 1)); // the pochammer. The if avoids 0/0
+      if(!r.eqr(0)) r = r.div(a.addr(n - 1)); // the Pochhammer. The if avoids 0/0
       r = r.mul(z); // the z^n
       r = r.divr(n); // the n!
     }
@@ -3796,7 +3796,7 @@ Jmat.Complex.hypergeometric = function(a, b, c, z) {
       return Jmat.Complex.ONE.sub(z).pow(a.neg()).mul(Jmat.Complex.hypergeometric(a, c.sub(b), c, z2));
     } else {
       // 1 / z
-      var quirckyGammaDiv22_ = function(a, b, c, d) {
+      var quirkyGammaDiv22_ = function(a, b, c, d) {
         // For some cases where a, b, c - a or c - b are negative integers, the formula doesn't work and requires a rather complicated other formula for the solution.
         // For now, I temporarily instead twiddle the parameters a bit. TODO: that is evil, do it properly (but it is surprisingly somewhat accurate though... well, not for everything)
         var result = Jmat.Complex.gammaDiv22_(a, b, c, d);
@@ -3813,8 +3813,8 @@ Jmat.Complex.hypergeometric = function(a, b, c, z) {
       var zi = z.inv();
       var za = z.neg().pow(a.neg());
       var zb = z.neg().pow(b.neg());
-      var ga = quirckyGammaDiv22_(c, b.sub(a), b, c.sub(a));
-      var gb = quirckyGammaDiv22_(c, a.sub(b), a, c.sub(b));
+      var ga = quirkyGammaDiv22_(c, b.sub(a), b, c.sub(a));
+      var gb = quirkyGammaDiv22_(c, a.sub(b), a, c.sub(b));
       var fa = Jmat.Complex.hypergeometric(a, Jmat.Complex.ONE.sub(c).add(a), Jmat.Complex.ONE.sub(b).add(a), zi);
       var fb = Jmat.Complex.hypergeometric(b, Jmat.Complex.ONE.sub(c).add(b), Jmat.Complex.ONE.sub(a).add(b), zi);
       var va = ga.mul(za).mul(fa);
@@ -4104,7 +4104,7 @@ Jmat.Complex.polylog_integral_ = function(s, z) {
     var lz = Jmat.Complex.log(z);
     var f = function(t) {
       var ta = Jmat.Complex.sin(s.mul(Jmat.Complex.atan(t)).sub(t.mul(lz)));
-      var na = (Jmat.Complex.ONE.add(t.mul(t))).pow(s.divrdivr(2));
+      var na = (Jmat.Complex.ONE.add(t.mul(t))).pow(s.divr(2));
       var nb = Jmat.Complex.exp(t.mulr(2*Math.PI)).sub(1);
       var result = ta.div(na).div(nb);
       if(Jmat.Complex.isNaN(result)) result = Jmat.Complex.ZERO;
@@ -4128,8 +4128,8 @@ Jmat.Complex.polylog_integral_ = function(s, z) {
 // I'm keeping it here, because for s.re > -3, and with the adaptive n, it works better than most other polylog code here and is quite accurate... The function "polylog_borwein_ok_" returns whether it's usable for the given values.
 // Uses the following formula:
 // Li_s(z) = SUM_k=1..n(z^k / k^s) + 1/(1-z)^n * SUM_k=n+1..2n(z^k / k^s * SUM_j=0..2n-k((-z)^j * binomial(n, j))) + error(s, z)
-// where the error term is negligable in the zone of convergence
-// NOTE: changing z to -1 makes this the borwein algorithm for riemann zeta.
+// where the error term is negligible in the zone of convergence
+// NOTE: changing z to -1 makes this the Borwein algorithm for riemann zeta.
 Jmat.Complex.polylog_borwein_ = function(s, z) {
   var kidney_radius = z.mul(z).div(z.dec()).absr(); //radius of the kidney shaped region of convergence. Theoretically works for < 4, in practice with double precision only for < 3 and then only if not too much n!
   if(kidney_radius >= 3.7) return Jmat.Complex(NaN); //yeah right... it sucks way before this
@@ -4187,7 +4187,7 @@ Jmat.Complex.polylog_borwein_ = function(s, z) {
   return result;
 };
 
-// Is it ok to use borwein method?
+// Is it ok to use Borwein method?
 Jmat.Complex.polylog_borwein_ok_ = function(s, z) {
   var kidney_radius = z.mul(z).div(z.dec()).absr();
   return (s.re >= -5 && z.im == 0 && kidney_radius <= 1.5) || (s.re >= 0 && Math.abs(s.im) < s.re && kidney_radius <=2) || z.absr() <= 0.5;
@@ -4444,14 +4444,14 @@ Jmat.Complex.stirling2 = function(n, k) {
   return result.div(Jmat.Complex.factorial(k));
 };
 
-// manhattan distance of complex numbers, returned as a real number (JS float)
+// Manhattan distance of complex numbers, returned as a real number (JS float)
 Jmat.Complex.manhattan = function(a, b) {
   return Math.max(Math.abs(a.re - b.re), Math.abs(a.im - b.im));
 };
 
 Jmat.Complex.near = function(x, y, precision) {
   //return Jmat.Complex.manhattan(x, y) <= precision;
-  // Manhatton NOT used, because then this function returns false for equal infinities
+  // Manhattan NOT used, because then this function returns false for equal infinities
   return x.re - precision <= y.re && x.re + precision >= y.re && x.im - precision <= y.im && x.im + precision >= y.im;
 };
 
@@ -4550,7 +4550,7 @@ Jmat.Complex.tetration = function(a, z) {
       if(i > 1000) return Jmat.Complex(NaN); //avoid infinite loop
     }
     return result;
-  }
+  };
 
   // This supports power tower as well
   // It supports it better than the lambertw formula above because the domain here is real numbers only, the lambertw formula fails on, for example, -1 and returns nan instead of -1
@@ -4592,7 +4592,7 @@ Jmat.Complex.tetration = function(a, z) {
              0.00000264145664, 0.00000104446533, 0.00000041068839, 0.00000016048059,
              0.00000006239367, 0.00000002412797, 0.00000000928797, 0.00000000355850,
              0.00000000135774, 0.00000000051587];
-    // TODO: does javascript always reexecute all these constructors? Make object contant outside of this function instead
+    // TODO: does JavaScript always re-execute all these constructors? Make object constant outside of this function instead
     var t = [Jmat.Complex(0.37090658903229, 1.33682167078891), Jmat.Complex(0.01830048268799, 0.06961107694975),
              Jmat.Complex(-0.04222107960160, 0.02429633404907), Jmat.Complex(-0.01585164381085, -0.01478953595879),
              Jmat.Complex(0.00264738081895, -0.00657558130520), Jmat.Complex(0.00182759574799, -0.00025319516391),
@@ -4714,7 +4714,7 @@ Jmat.Complex.erf = function(z) {
   } else if(z.re == 0) {
     return Jmat.Complex.I.mulr(Jmat.Real.erfi(z.im));
   } else {
-    var a = Jmat.Complex.exp(z.mul(z).neg()); // If abs of z is very large, and |im| > |re|, then this becomes some NaN or Infinity. That is ok, erf is also some unrepresentably huge value there.
+    var a = Jmat.Complex.exp(z.mul(z).neg()); // If abs of z is very large, and |im| > |re|, then this becomes some NaN or Infinity. That is ok, erf is also some unrepresentable huge value there.
     if (z.re >= 0) return Jmat.Complex.ONE.sub(a.mul(Jmat.Complex.faddeeva(z.mul(Jmat.Complex.I))));
     else return a.mul(Jmat.Complex.faddeeva(z.mul(Jmat.Complex.I.neg()))).sub(Jmat.Complex.ONE);
 
@@ -4756,7 +4756,7 @@ Jmat.Complex.erf_inv = function(z) {
     // derivative of erf is: 2/sqrt(pi) * e^(-x^2)
     var derf = function(x) {
       return Jmat.Complex.TWO.divr(Jmat.Real.SQRTPI).mul(Jmat.Complex.exp(x.mul(x).neg()));
-    }
+    };
 
     var neg = z.re < 0;
     if(neg) z = z.neg();
@@ -4857,7 +4857,7 @@ Jmat.Complex.rootfind_bisection = function(valuex, valuey, f, maxit, prec) {
   var lastp = 0;
   var lastn = 0;
   for(var i = 0; i < steps; i++) {
-    var z = x + i * (y - x) / steps; //exclude the leftmost point by adding precision. Otherwise annoyingness can occur.
+    var z = x + i * (y - x) / steps; //exclude the leftmost point by adding precision. Otherwise annoying things can occur.
     var fz = f(Jmat.Complex(z)).re;
     if(Jmat.Real.near(fz, 0, precision)) return Jmat.Complex(z);
 
@@ -4911,7 +4911,7 @@ Jmat.Complex.rootfind = function(f, o) {
   var prec = (o.prec == undefined ?  0.000000001 : o.prec);
 
   // TODO: work in progress. Find better start values. Try other root finding algorithms. Etc...
-  if(o.real && o.z1 != undefined) return Jmat.Complex.rootfind_bisection(z0, z1, f, maxit, prec);
+  if(o.real && o.z1 != undefined) return Jmat.Complex.rootfind_bisection(z0, o.z1, f, maxit, prec);
   if(o.df) return Jmat.Complex.rootfind_newton(f, o.df, z0, maxit);
   return Jmat.Complex.rootfind_secant(f, z0, maxit);
 };
@@ -4944,7 +4944,7 @@ Jmat.Complex.newtonStartValue_ = function(f) {
 
 Jmat.Complex.newtonStartValuesAround_ = [ Jmat.Complex(1), Jmat.Complex(-1), Jmat.Complex.newi(1), Jmat.Complex.newi(-1), ];
 
-//Find a new value to start at after having accidently encountered a bad point like NaN or Inf
+//Find a new value to start at after having accidentally encountered a bad point like NaN or Inf
 //dist: e.g. 0.1 or 0.01
 // This is really not that good. TODO: better root finding
 Jmat.Complex.newtonStartValueAround_ = function(f, z0, dist) {
@@ -5012,7 +5012,7 @@ Jmat.Complex.finvert_secant = function(z, f, z0,  maxiter) {
 
 
 //numerical integration, aka quadrature
-//integrate function f using simpsons rule, from x to y, with amount of steps given by steps parameter (higher = more precision, number of evaluations is throughly steps * 2)
+//integrate function f using simpsons rule, from x to y, with amount of steps given by steps parameter (higher = more precision, number of evaluations is thoroughly steps * 2)
 //NOTE: this is the real version, real JS numbers only. Complex version is Jmat.Complex.integrate_simpson
 Jmat.Real.integrate_simpson = function(x, y, steps, f, stopLoop) {
   var step = (y - x) / steps;
@@ -5044,7 +5044,7 @@ Jmat.Real.integrate = function(x, y, f, steps) {
 };
 
 //numerical integration, aka quadrature
-//integrate function f using simpsons rule, from x to y, with amount of steps given by steps parameter (higher = more precision, number of evaluations is throughly steps * 2)
+//integrate function f using simpsons rule, from x to y, with amount of steps given by steps parameter (higher = more precision, number of evaluations is thoroughly steps * 2)
 Jmat.Complex.integrate_simpson = function(x, y, steps, f, stopLoop) {
   var step = y.sub(x).divr(steps);
   var result = Jmat.Complex(0);
@@ -5582,7 +5582,7 @@ Jmat.Matrix = function(height, width, var_arg) {
     // No keyword "new" in front, use the convenience factory function instead
     return Jmat.Matrix.make.apply(this, arguments); // pass on the variable length arguments with apply. Note that "this" is not the Matrix here, but a browser Window or so.
   }
-}
+};
 
 /*
 Makes a matrix from many types of combinations of arguments
@@ -5629,7 +5629,7 @@ Jmat.Matrix.make = function(a, b, var_arg) {
 
   if(typeof a == 'string') return Jmat.Matrix.parse(a);
 
-  // Tolerant to all kinds of unexisting array
+  // Tolerant to all kinds of nonexisting array
   // Also supports a 1D array representing an Nx1 2D array
   var softget = function(a, y, x) {
     return (a && a[y]) ? Jmat.Complex.cast(a[y][x] == undefined ? a[y] : a[y][x]) : Jmat.Complex();
@@ -5642,7 +5642,7 @@ Jmat.Matrix.make = function(a, b, var_arg) {
   };
   var arrayw = function(a) {
     if(!a || !a[0]) return 0; // empty array
-    if(a[0].length == undefined) return 1; // this means it's a 1D array, such array has witdh 1, not width 0
+    if(a[0].length == undefined) return 1; // this means it's a 1D array, such array has width 1, not width 0
     return a[0].length;
   };
   // a is array, b is optional second array (only supported for shift == -1)
@@ -6065,7 +6065,7 @@ Jmat.Matrix.subcol = function(a, col) {
   return m;
 };
 
-// The submatrix for a minor, that is, with onw row and one column removed
+// The submatrix for a minor, that is, with one row and one column removed
 Jmat.Matrix.minorsub = function(a, row, col) {
   if(a.h < 2 || a.w < 2) return null;
   var m = new Jmat.Matrix(a.h - 1, a.w - 1);
@@ -6128,7 +6128,7 @@ Jmat.Matrix.determinant = function(a) {
   return result;
 };
 
-//Adjugate aka adjoint matrix
+//Adjugate aka Adjoint matrix
 Jmat.Matrix.adj = function(a) {
   if(a.w != a.h) return NaN; //square matrices only
   if(a.w == 1) return Jmat.Matrix.identity(1, 1);
@@ -6379,7 +6379,7 @@ Jmat.Matrix.qr = function(m) {
   var t = Math.min(m.h - 1, m.w);
   var real = Jmat.Matrix.isReal(m);
   var a = Jmat.Matrix.copy(m);
-  var r = a;
+  var r;
   var q;
 
   for(var k = 0; k < t; k++) {
@@ -6513,10 +6513,10 @@ Jmat.Matrix.eig = function(m) {
   var a = Jmat.Matrix.copy(m); //will contain the eigenvalues on the diagonal
 
   // Naive implicit QR without shifts, does not work in many cases, left commented out for demo purpose only
-  //for(var i = 0; i < 30; i++) {
+  // for(var i = 0; i < 30; i++) {
   //  var qr = Jmat.Matrix.qr(a);
   //  a = Jmat.Matrix.mul(qr.r, qr.q); // RQ instead of QR: A_k -> QR, A_(k+1) = RQ
-  //}
+  // }
 
   // QR with double shifting. This because with single shift or no shift, it does not support complex eigenvalues of real matrix, e.g. [[1,-1],[5,-1]]
   // TODO: this is slow, optimize like with Hessenberg form
@@ -6542,7 +6542,7 @@ Jmat.Matrix.eig = function(m) {
   // Find eigenvectors by solving system of linear equations.
   // TODO: this is not very efficient...
   // Normally, the product of all the qr.q's of the loop above should give the eigenvectors, but that applies only for symmetric matrices while this is supposed to support all
-  // So, instead, solve system eqation (A - lamba * I) * x = 0, but with last element of 0 set to 1, and bottom row of (A - lamba * I) set to 0,0,...,0,1.
+  // So, instead, solve system equation (A - lambda * I) * x = 0, but with last element of 0 set to 1, and bottom row of (A - lambda * I) set to 0,0,...,0,1.
   // That makes the system solvable, and makes each vector have its last element be 1.
   for(var j = 0; j < n; j++) {
     var value = a.e[j][j];
@@ -6593,7 +6593,7 @@ Jmat.Matrix.get1 = function(m, i) {
 };
 Jmat.Matrix.prototype.get1 = function(i) {
   return Jmat.Matrix.get1(this, i);
-}
+};
 
 // Set element using a one-dimensional index. See Jmat.Matrix.get1.
 Jmat.Matrix.set1 = function(m, i, v) {
@@ -6657,7 +6657,7 @@ Jmat.Matrix.dot = function(a, b) {
 // NOTE: "leading dimension" means first dimension of a 2D array, but the arrays are 1D.
 //        Normally, leading dimension is the height, or higher if superfluous values were allocated in between.
 Jmat.Matrix.zsvdc_ = function(x, ldx, n, p, s, e, u, ldu, v, ldv, work, job) {
-  var i,iter,j,jobu,k,kase,kk,l,ll,lls,lm1,lp1,ls,lu,m,maxit,
+  var i,iter,j,jobu,k,kase,kk,l,ll,lls,lm1,lp1,ls,lu,m,
       mm,mm1,mp1,nct,ncu,nrt,info; // integers
   var maxit = 30;
   var t,r; //complex
@@ -6730,7 +6730,7 @@ Jmat.Matrix.zsvdc_ = function(x, ldx, n, p, s, e, u, ldu, v, ldv, work, job) {
   var wantu = false;
   var wantv = false;
   jobu = Math.floor((job % 100) / 10);
-  ncu = 1 < jobu ? Math.min(n, p) : n;
+  ncu = jobu > 1 ? Math.min(n, p) : n;
   if(jobu != 0) wantu = true;
   if((job % 10) != 0) wantv = true;
   // reduce x to bidiagonal form, storing the diagonal elements
@@ -6820,7 +6820,12 @@ Jmat.Matrix.zsvdc_ = function(x, ldx, n, p, s, e, u, ldu, v, ldv, work, job) {
     }
     for(ll = 0; ll < nct; ll++) {
       l = nct - ll - 1;
-      if(cabs1(s[l]) != 0.0) {
+      if(cabs1(s[l]) == 0.0) {
+        for(i = 0; i < n; i++) {
+          u[i + l * ldu] = Jmat.Complex(0.0);
+        }
+        u[l + l * ldu] = Jmat.Complex(1.0);
+      } else {
         lp1 = l + 1;
         for(j = lp1; j < ncu; j++) {
           t = zdotc(n - l, u, l + l * ldu, u, l + j * ldu).neg().div(u[l + l * ldu]);
@@ -6831,11 +6836,6 @@ Jmat.Matrix.zsvdc_ = function(x, ldx, n, p, s, e, u, ldu, v, ldv, work, job) {
         for(i = 0; i < l; i++) {
           u[i + l * ldu] = Jmat.Complex(0.0);
         }
-      } else {
-        for(i = 0; i < n; i++) {
-          u[i + l * ldu] = Jmat.Complex(0.0);
-        }
-        u[l + l * ldu] = Jmat.Complex(1.0);
       }
     }
   }
@@ -7019,7 +7019,7 @@ Jmat.Matrix.zsvdc_ = function(x, ldx, n, p, s, e, u, ldu, v, ldv, work, job) {
         s[l] = t;
         if(wantv && l < p) zswap(p, v, (l - 1) * ldv, v, l * ldv);
         if(wantu && l < n) zswap(n, u, (l - 1) * ldu, u, l * ldu);
-        l = l++;
+        l++;
       }
       iter = 0;
       m--;
@@ -7065,7 +7065,7 @@ Jmat.Matrix.svd = function(m) {
   
   // Solve numerical problems: singular values < eta should be 0
   var eta = 1e-15; //TODO: check if this tolerance can be improved 
-  for(i = 0; i < s.length; i++) if(Math.abs(s[i]) < eta) s[i] = 0;
+  for(var i = 0; i < s.length; i++) if(Math.abs(s[i]) < eta) s[i] = 0;
 
   var result = { u: new Jmat.Matrix(m.h, m.h), s: new Jmat.Matrix(m.h, m.w), v: new Jmat.Matrix(m.w, m.w) };
 
@@ -7129,7 +7129,7 @@ Jmat.Matrix.solve = function(a, b) {
   if(a.h != b.h) return null;
   var ag = Jmat.Matrix.pseudoinverse(a);
 
-  aag = Jmat.Matrix.mul(a, ag);
+  var aag = Jmat.Matrix.mul(a, ag);
   var aagb = Jmat.Matrix.mul(aag, b);
   if(!Jmat.Matrix.near(b, aagb)) return null; //inconsistent system with no solution
 
@@ -7530,9 +7530,9 @@ Jmat.Matrix.powc = function(m, s) {
 
 // Expose everything with easier names (disable this if it would cause name clashes with other libraries)
 
-Real = Jmat.Real;
-Complex = Jmat.Complex;
-Matrix = Jmat.Matrix;
+var Real = Jmat.Real;
+var Complex = Jmat.Complex;
+var Matrix = Jmat.Matrix;
 
 // Expose some of the Real functions into JS Math
 ['gamma', 'factorial', 'lambertw', 'erf', 'erfc'].map(function(fun) { if(!Math[fun]) Math[fun] = Jmat.Real[fun]; });
