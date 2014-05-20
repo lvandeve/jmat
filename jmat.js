@@ -3047,18 +3047,20 @@ Jmat.Complex.besselj = function(n, z) {
 
   if(z.im == 0 && n.im == 0 && z.re < 0 && z.re * z.re < (n.re + 1) / 10) {
     return Jmat.Complex.inv(Jmat.Complex.gamma(n.inc())).mul(z.divr(2).pow(n));
-  } else if(Jmat.Complex.abs(z).re < 20) {
+  } else if(z.absr() < 20) {
     // The gamma functions give NaN if n is negative integer < -1. TODO: also for n = 0 and neg won't help there, fix that
     var negintn = Jmat.Complex.isNegativeInt(n);
     if(negintn) n = n.neg();
     var result = Jmat.Complex(0);
     var m = 1;
+    var gn = Jmat.Complex.gamma(n.inc()); // during the loop: gamma(n + i + 1)
     for(var i = 0; i < 50; i++) {
       var i1 = Jmat.Complex(i + 1);
-      var d = Jmat.Complex.gamma(i1).mul(Jmat.Complex.gamma(n.add(i1)));
+      var d = Jmat.Complex.gamma(i1).mul(gn); //calling gamma(i1) is no problem, all integer solutions in this range are cached
       var term = Jmat.Complex(m).div(d).mul(z.divr(2).pow(Jmat.Complex(2 * i).add(n)));
       m = -m;
       result = result.add(term);
+      gn = gn.mul(n.add(i1));
     }
     if(negintn && Jmat.Real.isOdd(n.re)) result = result.neg(); //besselj(-n, x) = (-1)^n * besselj(n, x)
     return result;
@@ -3069,11 +3071,21 @@ Jmat.Complex.besselj = function(n, z) {
     return a.mul(Jmat.Complex.cos(b));
   } else {
     // Something is wrong with this formula, see the 2D plot
-    var s = z.im > 0 ? -1 : 1;
+    var s = z.im > 0 ? -1 : 1
     var a = z.sub(n.mulr(pi/2)).subr(pi/4);
     var b = Jmat.Complex.sqrt(z.mulr(pi*2));
     return Jmat.Complex.exp(Jmat.Complex.newi(s).mul(a)).div(b);
   }
+
+  // METHOD B: in terms of confluent hypergeometric
+  /*var neg = 1;
+  if(Jmat.Complex.isNegativeInt(n)) {
+    if(Jmat.Complex.isOdd(n)) neg = -1;
+    n = n.neg(); // Formula does not work for negative n, but J_-n(z) = (-1)^n*J_n(z) for integer n
+  }
+  var a = z.mulr(0.5).pow(n).div(Jmat.Complex.gamma(n.inc()));
+  var b = Jmat.Complex.hypergeometric0F1(n.inc(), z.mul(z).mulr(-0.25));
+  return a.mul(b).mulr(neg);*/
 };
 
 // Bessel function of the second kind
