@@ -3097,7 +3097,7 @@ Jmat.Complex.bessely = function(n, z) {
   if(Jmat.Complex.abs(z).re < 15) {
     // Y_a(x) = (J_a(x)*cos(a*pi) - J_-a(x)) / sin(a*pi)
     // For integer n, Y_n(x) = lim_a_to_n(Y_a(x)
-    if(n.re == Math.floor(n.re)) n = n.addr(0.000000001);
+    if(n.re == Math.floor(n.re)) n = n.addr(0.000001); // TODO: really fix this, find better formula for bessel Y of integer order
 
     var a = Jmat.Complex.besselj(n, z);
     var b = Jmat.Complex.cos(n.mulr(Math.PI));
