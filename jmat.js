@@ -1501,7 +1501,6 @@ Jmat.Real.lambertw = function(x) {
         lastDir = -1;
       }
     }
-    return result;
   }
   return NaN;
 };
