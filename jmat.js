@@ -3039,11 +3039,202 @@ Jmat.Complex.ghm = function(a, b) {
   return a;
 };
 
+// The bessel0 and bessel1 functions below are inspired by "Computation of Special Functions" by Shanjie Zhang and Jianming Jin.
+
+//besselj_0 and bessely_0 for large values. Only supports positive z.re.
+Jmat.Complex.bessel0big_ = function(z) {
+  var C = Jmat.Complex;
+  var a = [-0.703125e-1, 0.112152099609375, -0.5725014209747314, 0.6074042001273483,
+           -0.1100171402692467e3, 0.03038090510922384e4, -0.1188384262567832e6, 0.06252951493434797e7,
+           -0.4259392165047669e9, 0.03646840080706556e11, -0.3833534661393944e13, 0.04854014686852901e15];
+  var b = [0.732421875e-1, -0.2271080017089844, 0.1727727502584457e1, -0.2438052969955606e2,
+           0.5513358961220206e3, -0.1825775547429318e5, 0.8328593040162893e6, -0.5006958953198893e8,
+           0.3836255180230433e10, -0.3649010818849833e12, 0.4218971570284096e14, -0.5827244631566907e16];
+  var za = z.absr();
+  var num = za >= 50 ? 8 : za >= 35 ? 10 : 12; // number of iterations
+
+  var ca = C.ONE;
+  var cb = C(-0.125).div(z);
+  var zi = z.inv();
+  var zi2 = zi.mul(zi);
+  var zz = C.ONE; // zz = z ^ (-2k-2) throughout the loop
+  for(var k = 0; k < num; k++) {
+    zz = zz.mul(zi2);
+    ca = ca.add(zz.mulr(a[k]));
+    cb = cb.add(zz.mul(zi).mulr(b[k]));
+  }
+
+  var sz = C.sqrt(z.mulr(Math.PI / 2).inv());
+  var p = z.subr(Math.PI * 0.25);
+  var j0 = sz.mul(ca.mul(C.cos(p)).sub(cb.mul(C.sin(p))));
+  var y0 = sz.mul(ca.mul(C.sin(p)).add(cb.mul(C.cos(p))));
+  return [j0, y0];
+};
+
+// besselj_0 for any complex z
+Jmat.Complex.besselj0_ = function(z) {
+  var C = Jmat.Complex;
+  if(z.eqr(0)) return C(1);
+  if(z.re < 0) z = z.neg();
+
+  if(z.absr() < 12) {
+    var j0 = C.ONE;
+    var r = C.ONE;
+    var z2 = z.mul(z);
+    for(var k = 1; k <= 40; k++) {
+      r = r.mul(z2).mulr(-0.25 / (k * k));
+      j0 = j0.add(r);
+      if(r.abssqr() < j0.abssqr() * 1e-30) break;
+    }
+    return j0;
+  } else {
+    return Jmat.Complex.bessel0big_(z)[0];
+  }
+};
+
+// bessely_0 for any complex z
+Jmat.Complex.bessely0_ = function(z) {
+  var C = Jmat.Complex;
+  if(z.eqr(0)) return C(-Infinity);
+  var j0, y0;
+
+  var neg = z.re < 0;
+  if(neg) z = z.neg();
+
+  if(z.absr() < 12) {
+    j0 = C.besselj0_(z);
+    var w = 0;
+    var r = C.ONE;
+    var s = C.ZERO;
+    var z2 = z.mul(z);
+    for(var k = 1; k <= 40; k++) {
+      w = w + 1.0 / k;
+      r = r.mulr(-0.25 / (k * k)).mul(z2);
+      var cp = r.mulr(w);
+      s = s.add(cp);
+      if(cp.abssqr() < s.abssqr() * 1e-30) break;
+     }
+     var p = C(2 / Math.PI);
+     y0 = p.mul(C.log(z.divr(2)).add(C.EM)).mul(j0).sub(p.mul(s));
+  } else {
+    var jy = Jmat.Complex.bessel0big_(z);
+    j0 = jy[0];
+    y0 = jy[1];
+  }
+  if(neg) {
+    if(-z.im < 0) y0 = y0.sub(C.I.mul(j0).mulr(2));
+    if(-z.im > 0) y0 = y0.add(C.I.mul(j0).mulr(2));
+  }
+
+  return y0;
+};
+
+//besselj_1 and bessely_1 for large values. Only supports positive z.re.
+Jmat.Complex.bessel1big_ = function(z) {
+  var C = Jmat.Complex;
+  var a = [0.1171875,-0.144195556640625, 0.6765925884246826,-0.6883914268109947e1,
+           0.1215978918765359e3, -0.3302272294480852e4, 0.1276412726461746e6, -0.6656367718817688e7,
+           0.4502786003050393e9, -0.3833857520742790e11, 0.4011838599133198e13, -0.5060568503314727e15];
+  var b = [-0.1025390625,.2775764465332031, -0.1993531733751297e1,0.2724882731126854e2,
+           -0.6038440767050702e3, 0.1971837591223663e5, -0.8902978767070678e6, 0.5310411010968522e8,
+           -0.4043620325107754e10, 0.3827011346598605e12, -0.4406481417852278e14, 0.6065091351222699e16];
+  var za = z.absr();
+  var num = za >= 50 ? 8 : za >= 35 ? 10 : 12; // number of iterations
+
+  var ca = C.ONE;
+  var cb = C(0.375).div(z);
+  var zi = z.inv();
+  var zi2 = zi.mul(zi);
+  var zz = C.ONE; // zz = z ^ (-2k-2) throughout the loop
+  for(var k = 0; k < num; k++) {
+    zz = zz.mul(zi2);
+    ca = ca.add(zz.mulr(a[k]));
+    cb = cb.add(zz.mul(zi).mulr(b[k]));
+  }
+
+  var sz = C.sqrt(z.mulr(Math.PI / 2).inv());
+  var p = z.subr(Math.PI * 0.75);
+  var j1 = sz.mul(ca.mul(C.cos(p)).sub(cb.mul(C.sin(p))));
+  var y1 = sz.mul(ca.mul(C.sin(p)).add(cb.mul(C.cos(p))));
+  return [j1, y1];
+};
+
+// besselj_1 for any complex z
+Jmat.Complex.besselj1_ = function(z) {
+  var C = Jmat.Complex;
+  if(z.eqr(0)) return C(-Infinity);
+  var j1;
+
+  var neg = z.re < 0;
+  if(neg) z = z.neg();
+
+  if(z.absr() < 12) {
+    j1 = C.ONE;
+    var r = C.ONE;
+    var z2 = z.mul(z);
+    for(var k = 1; k <= 40; k++) {
+      r = r.mul(z2).mulr(-0.25 / (k * (k + 1)));
+      j1 = j1.add(r);
+      if(r.abssqr() < j1.abssqr() * 1e-30) break;
+    }
+    j1 = j1.mul(z).mulr(0.5);
+  } else {
+    j1 = Jmat.Complex.bessel1big_(z)[0];
+  }
+
+  if(neg) j1 = j1.neg();
+  return j1;
+};
+
+// bessely_1 for any complex z
+Jmat.Complex.bessely1_ = function(z) {
+  var C = Jmat.Complex;
+  if(z.eqr(0)) return C(-Infinity);
+  var j1, y1;
+
+  var neg = z.re < 0;
+  if(neg) z = z.neg();
+
+  if(z.absr() < 12) {
+    j1 = C.besselj1_(z);
+    var w = 0;
+    var r = C.ONE;
+    var s = C.ONE;
+    var z2 = z.mul(z);
+    for(var k = 1; k <= 40; k++) {
+      w = w + 1.0 / k;
+      r = r.mulr(-0.25 / (k * (k + 1))).mul(z2);
+      var cp = r.mulr(2 * w + 1.0 / (k + 1));
+      s = s.add(cp);
+      if(cp.abssqr() < s.abssqr() * 1e-30) break;
+     }
+     var p = C(2 / Math.PI);
+     y1 = p.mul((C.log(z.divr(2)).add(C.EM)).mul(j1).sub(z.inv()).sub(z.mul(s).mulr(0.25)));
+  } else {
+    var jy = Jmat.Complex.bessel1big_(z);
+    j1 = jy[0];
+    y1 = jy[1];
+  }
+
+  if(neg) {
+    if(-z.im < 0) y1 = y1.sub(C.I.mul(j1).mulr(2)).neg();
+    if(-z.im > 0) y1 = y1.add(C.I.mul(j1).mulr(2)).neg();
+  }
+
+  return y1;
+};
+
+// End of bessel0 and bessel1 functions
+
+
 // Bessel function of the first kind
 // Mostly an approximation, there are problems with high z
 // TODO: make faster and fix problems
 Jmat.Complex.besselj = function(n, z) {
   var pi = Math.PI;
+
+  if(n.eqr(0)) return Jmat.Complex.besselj0_(z);
+  if(n.eqr(1)) return Jmat.Complex.besselj1_(z);
 
   if(z.im == 0 && n.im == 0 && z.re < 0 && z.re * z.re < (n.re + 1) / 10) {
     return Jmat.Complex.inv(Jmat.Complex.gamma(n.inc())).mul(z.divr(2).pow(n));
@@ -3093,6 +3284,9 @@ Jmat.Complex.besselj = function(n, z) {
 // TODO: make faster and fix problems
 Jmat.Complex.bessely = function(n, z) {
   var pi = Math.PI;
+
+  if(n.eqr(0)) return Jmat.Complex.bessely0_(z);
+  if(n.eqr(1)) return Jmat.Complex.bessely1_(z);
 
   if(Jmat.Complex.abs(z).re < 15) {
     // Y_a(x) = (J_a(x)*cos(a*pi) - J_-a(x)) / sin(a*pi)
