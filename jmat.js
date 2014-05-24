@@ -2000,6 +2000,9 @@ Jmat.Complex.prototype.divr = function(a) {
 Jmat.Complex.rdiv = function(a, z) {
   return Jmat.Complex.div(Jmat.Complex(a), z);
 };
+Jmat.Complex.prototype.rdiv = function(a) {
+  return Jmat.Complex.div(Jmat.Complex(a), this);
+};
 
 //rotate complex number z by a radians. That is, change its argument. a is real (JS number).
 Jmat.Complex.rotate = function(z, a) {
@@ -3122,8 +3125,8 @@ Jmat.Complex.bessely0_ = function(z) {
     y0 = jy[1];
   }
   if(neg) {
-    if(-z.im < 0) y0 = y0.sub(C.I.mul(j0).mulr(2));
-    if(-z.im > 0) y0 = y0.add(C.I.mul(j0).mulr(2));
+    if(z.im <= 0) y0 = y0.add(C(0, 2).mul(j0));
+    else y0 = y0.sub(C(0, 2).mul(j0));
   }
 
   return y0;
@@ -3217,8 +3220,8 @@ Jmat.Complex.bessely1_ = function(z) {
   }
 
   if(neg) {
-    if(-z.im < 0) y1 = y1.sub(C.I.mul(j1).mulr(2)).neg();
-    if(-z.im > 0) y1 = y1.add(C.I.mul(j1).mulr(2)).neg();
+    if(z.im <= 0) y1 = y1.add(C(0, 2).mul(j1)).neg();
+    else y1 = y1.sub(C(0, 2).mul(j1)).neg();
   }
 
   return y1;
@@ -3229,7 +3232,7 @@ Jmat.Complex.bessely1_ = function(z) {
 
 // Bessel function of the first kind
 // Mostly an approximation, there are problems with high z
-// TODO: make faster and fix problems
+// TODO: fix for |z| > 20 with complex n
 Jmat.Complex.besselj = function(n, z) {
   var pi = Math.PI;
 
@@ -3239,7 +3242,8 @@ Jmat.Complex.besselj = function(n, z) {
   if(z.im == 0 && n.im == 0 && z.re < 0 && z.re * z.re < (n.re + 1) / 10) {
     return Jmat.Complex.inv(Jmat.Complex.gamma(n.inc())).mul(z.divr(2).pow(n));
   } else if(z.absr() < 20) {
-    // The gamma functions give NaN if n is negative integer < -1. TODO: also for n = 0 and neg won't help there, fix that
+    // Works for all complex n except 0 (0 is already handled above)
+    // The gamma functions give NaN if n is negative integer < -1.
     var negintn = Jmat.Complex.isNegativeInt(n);
     if(negintn) n = n.neg();
     var result = Jmat.Complex(0);
@@ -3279,41 +3283,75 @@ Jmat.Complex.besselj = function(n, z) {
   return a.mul(b).mulr(neg);*/
 };
 
+// bessely for integer n >= 2
+Jmat.Complex.besselyn_ = function(n, z) {
+  var y0 = Jmat.Complex.bessely0_(z);
+  var y1 = Jmat.Complex.bessely1_(z);
+
+  // Miller's algorithm
+  for(var i = 1; i < n.re; i++) {
+    var y = y1.mulr(2 * i).div(z).sub(y0);
+    y0 = y1;
+    y1 = y;
+  }
+  return y1;
+};
+
 // Bessel function of the second kind
 // Mostly an approximation, there are problems with high z
-// TODO: make faster and fix problems
+// TODO: fix for |z| > 20 with complex n
 Jmat.Complex.bessely = function(n, z) {
+  var C = Jmat.Complex;
   var pi = Math.PI;
 
-  if(n.eqr(0)) return Jmat.Complex.bessely0_(z);
-  if(n.eqr(1)) return Jmat.Complex.bessely1_(z);
+  if(n.eqr(0)) return C.bessely0_(z);
+  if(n.eqr(1)) return C.bessely1_(z);
 
-  if(Jmat.Complex.abs(z).re < 15) {
+  if(C.isInt(n)) {
+    // Supports integer n not equal to 0 or 1
+
+    var neg = z.re < 0;
+    if(neg) z = z.neg();
+    var result;
+
+    //Y_n(z) = (-1)^n * Y_-n(z), for integer n, and besselyn_ only supports n >= 2
+    if(n.re < 0) result = C.besselyn_(n.neg(), z).mulr(C.isOdd(n) ? -1 : 1);
+    else result = C.besselyn_(n, z);
+
+    if(neg) {
+      // For integer n: Y_n(z) = (-1)^n * (Y_n(-z) +- i*2*J_n(-z)) --> the +- is sign of z.im, or + if real
+      var j = C.besselj(n, z);
+      if(z.im <= 0) result = result.add(C(0, 2).mul(j));
+      else result = result.sub(C(0, 2).mul(j));
+      if(C.isOdd(n)) result = result.neg();
+    }
+
+    return result;
+  } else if(C.abs(z).re < 15) {
+    // Supports all complex n except integers, for small z
     // Y_a(x) = (J_a(x)*cos(a*pi) - J_-a(x)) / sin(a*pi)
-    // For integer n, Y_n(x) = lim_a_to_n(Y_a(x)
-    if(n.re == Math.floor(n.re)) n = n.addr(0.000001); // TODO: really fix this, find better formula for bessel Y of integer order
-
-    var a = Jmat.Complex.besselj(n, z);
-    var b = Jmat.Complex.cos(n.mulr(Math.PI));
-    var c = Jmat.Complex.besselj(n.neg(), z);
-    var d = Jmat.Complex.sin(n.mulr(Math.PI));
+    // (For integer n, Y_n(x) = lim_a_to_n(Y_a(x), but that is not supported here)
+    var a = C.besselj(n, z);
+    var b = C.cos(n.mulr(Math.PI));
+    var c = C.besselj(n.neg(), z);
+    var d = C.sin(n.mulr(Math.PI));
     return a.mul(b).sub(c).div(d);
   } else if(z.im == 0) {
     // Something is wrong with this formula, see the 2D plot
-    var a = Jmat.Complex.sqrt(Jmat.Complex(2/pi).div(z));
+    var a = C.sqrt(C(2/pi).div(z));
     var b = z.sub(n.mulr(pi/2)).subr(pi/4);
-    return a.mul(Jmat.Complex.sin(b));
+    return a.mul(C.sin(b));
   } else {
     // Something is wrong with this formula, see the 2D plot
     var s = z.im > 0 ? -1 : 1;
     var a = z.sub(n.mulr(pi/2)).subr(pi/4);
-    var b = Jmat.Complex.sqrt(z.mulr(pi*2));
-    return Jmat.Complex.newi(-s).mul(Jmat.Complex.exp(Jmat.Complex.newi(s).mul(a)).div(b));
+    var b = C.sqrt(z.mulr(pi*2));
+    return C.newi(-s).mul(C.exp(C.newi(s).mul(a)).div(b));
   }
 };
 
 // Hankel function of the first kind (approximation)
-// TODO: this one is very slow. Make faster and more precise
+// TODO: fix for |z| > 20 with complex n
 Jmat.Complex.hankel1 = function(n, z) {
   // There are numerical imprecisions for e.g. hankel2(-8-8i, i).
   // So when needed, apply the formula: H1_-a(x) = exp(a*pi*i)*H1_a(x)
@@ -3323,7 +3361,7 @@ Jmat.Complex.hankel1 = function(n, z) {
 };
 
 // Hankel function of the second kind (approximation)
-// TODO: this one is very slow. Make faster and more precise
+// TODO: fix for |z| > 20 with complex n
 Jmat.Complex.hankel2 = function(n, z) {
   // There are numerical imprecisions for e.g. hankel2(-8-8i, i).
   // So when needed, apply the formula: H2_-a(x) = exp(-a*pi*i)*H2_a(x)
@@ -3333,7 +3371,7 @@ Jmat.Complex.hankel2 = function(n, z) {
 };
 
 // Modified bessel function of the first kind (approximation)
-// TODO: this one is very slow. Make faster and more precise
+// TODO: fix for |z| > 20 with complex n
 Jmat.Complex.besseli = function(n, z) {
   var result = Jmat.Complex.I.pow(n.neg()).mul(Jmat.Complex.besselj(n, z.mul(Jmat.Complex.I)));
   if(z.im == 0 && n.im == 0 && Jmat.Real.near(result.im, 0, 1e-10)) result.im = 0;
@@ -3341,7 +3379,7 @@ Jmat.Complex.besseli = function(n, z) {
 };
 
 // Modified bessel function of the second kind (approximation)
-// TODO: this one is very slow. Make faster and more precise
+// TODO: fix for |z| > 20 with complex n
 Jmat.Complex.besselk = function(n, z) {
   var result;
   if(z.im >= 0) {
