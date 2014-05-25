@@ -123,8 +123,8 @@ Complex.gamma(Complex(5))
 more convenient (but slightly less efficient):
 Jmat.gamma(5) --> The Jmat wrapper automatically casts to Complex if regular JS number is given
 
-*) Example of a function with many arguments: hypergeometric
-Jmat.hypergeometric(0.5, 2, 3, 4).toString()
+*) Example of a function with many arguments: hypergeometric2F1
+Jmat.hypergeometric2F1(0.5, 2, 3, 4).toString()
 --> 0.1667-0.866i
 
 *) Student T distribution (others are e.g. normal, standardnormal, gamma, weibull, chi_square, fisher, cauchy, ...)
@@ -297,6 +297,9 @@ The comments below use closure-style types, e.g. {number|Complex} means the type
 is either a plain JS number of a Jmat.Complex object, and {Array.<Complex>} means an array
 of Jmat.Complex objects. Jmat.Complex is aliased as Complex, Jmat.Matrix is aliased as Matrix.
 The shorter aliases are used in these comments.
+
+NOTE: The input types {number|Complex} and {Array|Matrix} almost always also accept a string
+formatted in such way that it can be parsed to a number or a matrix, e.g. '5+2i' or '[[1,2],[3,4+5i]]'
 */
 
 // Elementary operators
@@ -508,18 +511,18 @@ Jmat.decompose = function(x, max) { return Jmat.Complex.decompose(Jmat.Complex.c
 
 // Cylindrical functions
 
-/* Bessel function of the first kind.  n,z:{number|Complex}. returns {Complex} */
-Jmat.besselj = function(n, z) { return Jmat.Complex.besselj(Jmat.Complex.cast(n), Jmat.Complex.cast(z)); };
-/* Bessel function of the second kind.  n,z:{number|Complex}. returns {Complex} */
-Jmat.bessely = function(n, z) { return Jmat.Complex.bessely(Jmat.Complex.cast(n), Jmat.Complex.cast(z)); };
-/* Modified bessel function of the first kind.  n,z:{number|Complex}. returns {Complex} */
-Jmat.besseli = function(n, z) { return Jmat.Complex.besseli(Jmat.Complex.cast(n), Jmat.Complex.cast(z)); };
-/* Modified bessel function of the second kind.  n,z:{number|Complex}. returns {Complex} */
-Jmat.besselk = function(n, z) { return Jmat.Complex.besselk(Jmat.Complex.cast(n), Jmat.Complex.cast(z)); };
-/* Hankel function of the first kind.  n,z:{number|Complex}. returns {Complex} */
-Jmat.hankel1 = function(n, z) { return Jmat.Complex.hankel1(Jmat.Complex.cast(n), Jmat.Complex.cast(z)); };
-/* Hankel function of the second kind.  n,z:{number|Complex}. returns {Complex} */
-Jmat.hankel2 = function(n, z) { return Jmat.Complex.hankel2(Jmat.Complex.cast(n), Jmat.Complex.cast(z)); };
+/* Bessel function of the first kind.  nu,z:{number|Complex}. returns {Complex} */
+Jmat.besselj = function(nu, z) { return Jmat.Complex.besselj(Jmat.Complex.cast(nu), Jmat.Complex.cast(z)); };
+/* Bessel function of the second kind.  nu,z:{number|Complex}. returns {Complex} */
+Jmat.bessely = function(nu, z) { return Jmat.Complex.bessely(Jmat.Complex.cast(nu), Jmat.Complex.cast(z)); };
+/* Modified bessel function of the first kind.  nu,z:{number|Complex}. returns {Complex} */
+Jmat.besseli = function(nu, z) { return Jmat.Complex.besseli(Jmat.Complex.cast(nu), Jmat.Complex.cast(z)); };
+/* Modified bessel function of the second kind.  nu,z:{number|Complex}. returns {Complex} */
+Jmat.besselk = function(nu, z) { return Jmat.Complex.besselk(Jmat.Complex.cast(nu), Jmat.Complex.cast(z)); };
+/* Hankel function of the first kind.  nu,z:{number|Complex}. returns {Complex} */
+Jmat.hankel1 = function(nu, z) { return Jmat.Complex.hankel1(Jmat.Complex.cast(nu), Jmat.Complex.cast(z)); };
+/* Hankel function of the second kind.  nu,z:{number|Complex}. returns {Complex} */
+Jmat.hankel2 = function(nu, z) { return Jmat.Complex.hankel2(Jmat.Complex.cast(nu), Jmat.Complex.cast(z)); };
 /* Airy function Ai. z:{number|Complex}. returns {Complex} */
 Jmat.airy = function(z) { return Jmat.Complex.airy(Jmat.Complex.cast(z)); };
 /* Bairy function Bi. z:{number|Complex}. returns {Complex} */
@@ -563,8 +566,14 @@ Jmat.hurwitzzeta = function(s, q) { return Jmat.Complex.hurwitzzeta(Jmat.Complex
 Jmat.hypergeometric0F1 = function(a, z) { return Jmat.Complex.hypergeometric0F1(Jmat.Complex.cast(a), Jmat.Complex.cast(z)); };
 /* Confluent Hypergeometric function (Kummer). a,b,z:{number|Complex}. returns {Complex} */
 Jmat.hypergeometric1F1 = function(a, b, z) { return Jmat.Complex.hypergeometric1F1(Jmat.Complex.cast(a), Jmat.Complex.cast(b), Jmat.Complex.cast(z)); };
-/* Hypergeometric function 2F1. a,b,c,z:{number|Complex}. returns {Complex} */
-Jmat.hypergeometric = function(a, b, c, z) { return Jmat.Complex.hypergeometric(Jmat.Complex.cast(a), Jmat.Complex.cast(b), Jmat.Complex.cast(c), Jmat.Complex.cast(z)); };
+/* Hypergeometric function 2F1. Also works outside of convergence zone. a,b,c,z:{number|Complex}. returns {Complex} */
+Jmat.hypergeometric2F1 = function(a, b, c, z) { return Jmat.Complex.hypergeometric2F1(Jmat.Complex.cast(a), Jmat.Complex.cast(b), Jmat.Complex.cast(c), Jmat.Complex.cast(z)); };
+/* Generalized hypergeometric function. a,b are arrays, e.g. a.length == 3, b.length == 2 for 3F2. Only valid if the basic series converges. a,b:{Array.<number|Complex>}. c:{number|Complex}. returns {Complex} */
+Jmat.hypergeometric = function(a, b, z) {
+  var a2 = []; for(var i = 0; i < a.length; i++) a2[i] = Jmat.Complex.cast(a[i]);
+  var b2 = []; for(var i = 0; i < b.length; i++) b2[i] = Jmat.Complex.cast(b[i]);
+  return Jmat.Complex.hypergeometric(a2, b2, Jmat.Complex.cast(z));
+};
 
 // Error and related functions
 
@@ -1977,9 +1986,11 @@ Jmat.Complex.subr = function(z, a) {
 Jmat.Complex.prototype.subr = function(a) {
   return Jmat.Complex(this.re - a, this.im);
 };
+// Subtract z from real.
 Jmat.Complex.rsub = function(a, z) {
   return Jmat.Complex(a - z.re, -z.im);
 };
+// Subtract self from real. This operator exists because it's less awkward to write z.rsub(3) than Complex(3).sub(z) in long formulas
 Jmat.Complex.prototype.rsub = function(a) {
   return Jmat.Complex(a - this.re, -this.im);
 };
@@ -1990,6 +2001,13 @@ Jmat.Complex.mulr = function(z, a) {
 Jmat.Complex.prototype.mulr = function(a) {
   return Jmat.Complex(this.re * a, this.im * a);
 };
+// multiply with imaginary number given as real
+Jmat.Complex.muli = function(z, a) {
+  return Jmat.Complex(-z.im * a, z.re * a);
+};
+Jmat.Complex.prototype.muli = function(a) {
+  return Jmat.Complex(-this.im * a, this.re * a);
+};
 
 Jmat.Complex.divr = function(z, a) {
   return Jmat.Complex(z.re / a, z.im / a);
@@ -1997,9 +2015,11 @@ Jmat.Complex.divr = function(z, a) {
 Jmat.Complex.prototype.divr = function(a) {
   return Jmat.Complex(this.re / a, this.im / a);
 };
+// Divide real a through z.
 Jmat.Complex.rdiv = function(a, z) {
   return Jmat.Complex.div(Jmat.Complex(a), z);
 };
+// Divide real a through self. This operator exists because it's less awkward to write z.rsub(3) than Complex(3).div(z) in long formulas
 Jmat.Complex.prototype.rdiv = function(a) {
   return Jmat.Complex.div(Jmat.Complex(a), this);
 };
@@ -3230,57 +3250,96 @@ Jmat.Complex.bessely1_ = function(z) {
 // End of bessel0 and bessel1 functions
 
 
+// This returns sqrt(2/(pi*z)), with a different branch for negative real z.
+// This is an often occurring value in Bessel formulas.
+Jmat.Complex.bessel_sqrt_ = function(z) {
+  if(Jmat.Complex.isNegative(z)) {
+    return Jmat.Complex.sqrt(z.rdiv(2/Math.PI)).neg();
+  } else {
+    return Jmat.Complex.sqrt(z.rdiv(2/Math.PI));
+  }
+};
+
 // Bessel function of the first kind
 // Mostly an approximation, there are problems with high z
-// TODO: fix for |z| > 20 with complex n
-Jmat.Complex.besselj = function(n, z) {
+Jmat.Complex.besselj = function(nu, z) {
+  var C = Jmat.Complex;
   var pi = Math.PI;
 
-  if(n.eqr(0)) return Jmat.Complex.besselj0_(z);
-  if(n.eqr(1)) return Jmat.Complex.besselj1_(z);
+  if(nu.eqr(0)) return C.besselj0_(z);
+  if(nu.eqr(1)) return C.besselj1_(z);
+  if(nu.eqr(0.5)) return C.bessel_sqrt_(z).mul(C.sin(z));
+  if(nu.eqr(-0.5)) return C.bessel_sqrt_(z).mul(C.cos(z));
 
-  if(z.im == 0 && n.im == 0 && z.re < 0 && z.re * z.re < (n.re + 1) / 10) {
-    return Jmat.Complex.inv(Jmat.Complex.gamma(n.inc())).mul(z.divr(2).pow(n));
-  } else if(z.absr() < 20) {
-    // Works for all complex n except 0 (0 is already handled above)
-    // The gamma functions give NaN if n is negative integer < -1.
-    var negintn = Jmat.Complex.isNegativeInt(n);
-    if(negintn) n = n.neg();
-    var result = Jmat.Complex(0);
+  if(z.absr() < 20) {
+    // Works for all complex nu except 0 (0 is already handled above)
+    // The gamma functions give NaN if nu is negative integer < -1.
+    var negintn = C.isNegativeInt(nu);
+    if(negintn) nu = nu.neg();
+    var result = C(0);
     var m = 1;
-    var gn = Jmat.Complex.gamma(n.inc()); // during the loop: gamma(n + i + 1)
+    var gn = C.gamma(nu.inc()); // during the loop: gamma(nu + i + 1)
     for(var i = 0; i < 50; i++) {
-      var i1 = Jmat.Complex(i + 1);
-      var d = Jmat.Complex.gamma(i1).mul(gn); //calling gamma(i1) is no problem, all integer solutions in this range are cached
-      var term = Jmat.Complex(m).div(d).mul(z.divr(2).pow(Jmat.Complex(2 * i).add(n)));
+      var i1 = C(i + 1);
+      var d = C.gamma(i1).mul(gn); //calling gamma(i1) is no problem, all integer solutions in this range are cached
+      var term = C(m).div(d).mul(z.divr(2).pow(C(2 * i).add(nu)));
       m = -m;
       result = result.add(term);
-      gn = gn.mul(n.add(i1));
+      gn = gn.mul(nu.add(i1));
     }
-    if(negintn && Jmat.Real.isOdd(n.re)) result = result.neg(); //besselj(-n, x) = (-1)^n * besselj(n, x)
+    if(negintn && Jmat.Real.isOdd(nu.re)) result = result.neg(); //besselj(-nu, x) = (-1)^nu * besselj(nu, x)
     return result;
-  } else if(z.im == 0) {
-    // Something is wrong with this formula, see the 2D plot
-    var a = Jmat.Complex.sqrt(Jmat.Complex(2/pi).div(z));
-    var b = z.sub(n.mulr(pi/2)).subr(pi/4);
-    return a.mul(Jmat.Complex.cos(b));
-  } else {
-    // Something is wrong with this formula, see the 2D plot
-    var s = z.im > 0 ? -1 : 1
-    var a = z.sub(n.mulr(pi/2)).subr(pi/4);
-    var b = Jmat.Complex.sqrt(z.mulr(pi*2));
-    return Jmat.Complex.exp(Jmat.Complex.newi(s).mul(a)).div(b);
-  }
+  } else if(z.abssqr() > nu.abssqr()) {
+    // The hankel expansion. Works for large z, but does not work well for large nu.
+    // J_nu(z) ~ sqrt(2/(pi*z)) * [ cos(w) * SUM_k=0..oo (-1)^k*a_2k(nu)/z^2k - sin(w) * SUM_k=0..oo (-1)^k*a_(2k+1)(nu)/z^(2k+1) ]
+    // a_k(nu) = ((4*nu^2 - 1^2) * ... * (4*nu^2 - (2k-1)^2)) / (k! * 8^k)
+    // w = z - pi/2 * nu - pi/4
+    var neg = Math.abs(z.argr()) > 3; //pi - some delta
+    if(neg) z = z.neg();
 
-  // METHOD B: in terms of confluent hypergeometric
-  /*var neg = 1;
-  if(Jmat.Complex.isNegativeInt(n)) {
-    if(Jmat.Complex.isOdd(n)) neg = -1;
-    n = n.neg(); // Formula does not work for negative n, but J_-n(z) = (-1)^n*J_n(z) for integer n
+    var ak = Jmat.Complex.ONE; // a_k(nu)
+    var zz = C.ONE;
+    var w = z.sub(nu.mulr(pi / 2)).subr(pi / 4); // omega
+    var s = C.ZERO, c = C.ZERO; // the sum for the sine and the sum for the cosine
+    var nu4 = nu.mul(nu).mulr(4); // 4 * nu^2
+    var prevt;
+    var num = Math.max(4, Math.min(60, Math.abs(nu.re)));
+    for(var k = 0; k < num; k++) {
+      // there are two sums, one uses 2k, the other uses 2k+1. This loop instead alternates between a term of each sum. So k here has the meaning of 2k and 2k+1 in the formula.
+      if(k > 0) {
+        var ak2 = nu4.subr((2 * k - 1) * (2 * k - 1));
+        ak = ak.mul(ak2).divr(8 * k); // divided through the 8^k * k!
+        zz = zz.mul(z);
+        prevt = t;
+      }
+      var sign = ((k % 4) < 2) ? 1 : -1;
+      var t = ak.div(zz).mulr(sign);
+      if(t.abssqr() < 1e-28) break;
+
+      if(k % 2 == 0)  c = c.add(t);
+      else s = s.add(t);
+    }
+    
+    c = C.cos(w).mul(c);
+    s = C.sin(w).mul(s);
+    var result = C.bessel_sqrt_(z).mul(c.sub(s));
+    if(neg) {
+      // J_nu(z) = z^nu * (-z)^(-nu) * J_nu(-z) = e^(-nu*pi*i) * J_nu(-z). This alters phase.
+      // note that z was negated above.
+      result = result.mul(C.exp(nu.muli(pi)));
+    }
+    return result;
+  } else {
+    // In terms of confluent hypergeometric. This is a last resort, it handles large nu better than the hankel expansion. TODO: use a better high-nu formula. E.g. J(110, 100) is wrong.
+    var neg = 1;
+    if(C.isNegativeInt(nu)) {
+      if(C.isOdd(nu)) neg = -1;
+      nu = nu.neg(); // Formula does not work for negative nu, but J_-nu(z) = (-1)^nu*J_n(z) for integer nu
+    }
+    var a = z.mulr(0.5).pow(nu).div(C.gamma(nu.inc()));
+    var b = C.hypergeometric0F1(nu.inc(), z.mul(z).mulr(-0.25));
+    return a.mul(b).mulr(neg);
   }
-  var a = z.mulr(0.5).pow(n).div(Jmat.Complex.gamma(n.inc()));
-  var b = Jmat.Complex.hypergeometric0F1(n.inc(), z.mul(z).mulr(-0.25));
-  return a.mul(b).mulr(neg);*/
 };
 
 // bessely for integer n >= 2
@@ -3299,95 +3358,121 @@ Jmat.Complex.besselyn_ = function(n, z) {
 
 // Bessel function of the second kind
 // Mostly an approximation, there are problems with high z
-// TODO: fix for |z| > 20 with complex n
-Jmat.Complex.bessely = function(n, z) {
+Jmat.Complex.bessely = function(nu, z) {
   var C = Jmat.Complex;
   var pi = Math.PI;
 
-  if(n.eqr(0)) return C.bessely0_(z);
-  if(n.eqr(1)) return C.bessely1_(z);
+  if(nu.eqr(0)) return C.bessely0_(z);
+  if(nu.eqr(1)) return C.bessely1_(z);
 
-  if(C.isInt(n)) {
-    // Supports integer n not equal to 0 or 1
+  if(C.isInt(nu)) {
+    // Supports integer nu not equal to 0 or 1
 
     var neg = z.re < 0;
     if(neg) z = z.neg();
     var result;
 
-    //Y_n(z) = (-1)^n * Y_-n(z), for integer n, and besselyn_ only supports n >= 2
-    if(n.re < 0) result = C.besselyn_(n.neg(), z).mulr(C.isOdd(n) ? -1 : 1);
-    else result = C.besselyn_(n, z);
+    //Y_n(z) = (-1)^nu * Y_-nu(z), for integer nu, and besselyn_ only supports nu >= 2
+    if(nu.re < 0) result = C.besselyn_(nu.neg(), z).mulr(C.isOdd(nu) ? -1 : 1);
+    else result = C.besselyn_(nu, z);
 
     if(neg) {
-      // For integer n: Y_n(z) = (-1)^n * (Y_n(-z) +- i*2*J_n(-z)) --> the +- is sign of z.im, or + if real
-      var j = C.besselj(n, z);
+      // For integer nu: Y_n(z) = (-1)^nu * (Y_n(-z) +- i*2*J_n(-z)) --> the +- is sign of z.im, or + if real
+      var j = C.besselj(nu, z);
       if(z.im <= 0) result = result.add(C(0, 2).mul(j));
       else result = result.sub(C(0, 2).mul(j));
-      if(C.isOdd(n)) result = result.neg();
+      if(C.isOdd(nu)) result = result.neg();
     }
 
     return result;
-  } else if(C.abs(z).re < 15) {
-    // Supports all complex n except integers, for small z
+  } else if(z.absr() < 20) {
+    // Supports all complex nu except integers, for small z
     // Y_a(x) = (J_a(x)*cos(a*pi) - J_-a(x)) / sin(a*pi)
-    // (For integer n, Y_n(x) = lim_a_to_n(Y_a(x), but that is not supported here)
-    var a = C.besselj(n, z);
-    var b = C.cos(n.mulr(Math.PI));
-    var c = C.besselj(n.neg(), z);
-    var d = C.sin(n.mulr(Math.PI));
+    // (For integer nu, Y_n(x) = lim_a_to_n(Y_a(x), but that is not supported here)
+    var a = C.besselj(nu, z);
+    var b = C.cos(nu.mulr(Math.PI));
+    var c = C.besselj(nu.neg(), z);
+    var d = C.sin(nu.mulr(Math.PI));
     return a.mul(b).sub(c).div(d);
   } else if(z.im == 0) {
-    // Something is wrong with this formula, see the 2D plot
-    var a = C.sqrt(C(2/pi).div(z));
-    var b = z.sub(n.mulr(pi/2)).subr(pi/4);
-    return a.mul(C.sin(b));
-  } else {
-    // Something is wrong with this formula, see the 2D plot
-    var s = z.im > 0 ? -1 : 1;
-    var a = z.sub(n.mulr(pi/2)).subr(pi/4);
-    var b = C.sqrt(z.mulr(pi*2));
-    return C.newi(-s).mul(C.exp(C.newi(s).mul(a)).div(b));
+    // The hankel expansion
+    // TODO: remove some of this code duplication with besselJ hankel expansion
+    // TODO: for large nu, still another formula is needed, this one gives wrong values for that
+    // J_nu(z) ~ sqrt(2/(pi*z)) * [ sin(w) * SUM_k=0..oo (-1)^k*a_2k(nu)/z^2k + cos(w) * SUM_k=0..oo (-1)^k*a_(2k+1)(nu)/z^(2k+1) ]
+    // a_k(nu) = ((4*nu^2 - 1^2) * ... * (4*nu^2 - (2k-1)^2)) / (k! * 8^k)
+    // w = z - pi/2 * nu - pi/4
+    var neg = Math.abs(z.argr()) > 3; //pi - some delta
+    if(neg) z = z.neg();
+
+    var ak = Jmat.Complex.ONE; // a_k(nu)
+    var zz = C.ONE;
+    var w = z.sub(nu.mulr(pi / 2)).subr(pi / 4); // omega
+    var s = C.ZERO, c = C.ZERO; // the sum for the sine and the sum for the cosine
+    var nu4 = nu.mul(nu).mulr(4); // 4 * nu^2
+    var prevt;
+    var num = Math.max(4, Math.min(60, Math.abs(nu.re)));
+    for(var k = 0; k < num; k++) {
+      // there are two sums, one uses 2k, the other uses 2k+1. This loop instead alternates between a term of each sum. So k here has the meaning of 2k and 2k+1 in the formula.
+      if(k > 0) {
+        var ak2 = nu4.subr((2 * k - 1) * (2 * k - 1));
+        ak = ak.mul(ak2).divr(8 * k); // divided through the 8^k * k!
+        zz = zz.mul(z);
+        prevt = t;
+      }
+      var sign = ((k % 4) < 2) ? 1 : -1;
+      var t = ak.div(zz).mulr(sign);
+      if(t.abssqr() < 1e-28) break;
+
+      if(k % 2 == 0)  c = c.add(t);
+      else s = s.add(t);
+    }
+    
+    c = C.sin(w).mul(c);
+    s = C.cos(w).mul(s);
+    var result = C.bessel_sqrt_(z).mul(c.add(s));
+    if(neg) {
+      // J_nu(z) = e^(-nu*pi*i) * Y_nu(-z) + i*z*cos(pi*nu) * J_nu(z)
+      var j = C.besselj(nu, z);
+      result = result.mul(C.exp(nu.muli(-pi))).add(C.cos(nu.mulr(pi)).mul(j).muli(2));
+    }
+    return result;
   }
 };
 
 // Hankel function of the first kind (approximation)
-// TODO: fix for |z| > 20 with complex n
-Jmat.Complex.hankel1 = function(n, z) {
+Jmat.Complex.hankel1 = function(nu, z) {
   // There are numerical imprecisions for e.g. hankel2(-8-8i, i).
   // So when needed, apply the formula: H1_-a(x) = exp(a*pi*i)*H1_a(x)
-  if(n.im < 0) return Jmat.Complex.exp(n.mul(Jmat.Complex.newi(-Math.PI))).mul(Jmat.Complex.hankel1(n.neg(), z));
+  if(nu.im < 0) return Jmat.Complex.exp(nu.mul(Jmat.Complex.newi(-Math.PI))).mul(Jmat.Complex.hankel1(nu.neg(), z));
 
-  return Jmat.Complex.besselj(n, z).add(Jmat.Complex.bessely(n, z).mul(Jmat.Complex.I));
+  return Jmat.Complex.besselj(nu, z).add(Jmat.Complex.bessely(nu, z).mul(Jmat.Complex.I));
 };
 
 // Hankel function of the second kind (approximation)
-// TODO: fix for |z| > 20 with complex n
-Jmat.Complex.hankel2 = function(n, z) {
+Jmat.Complex.hankel2 = function(nu, z) {
   // There are numerical imprecisions for e.g. hankel2(-8-8i, i).
   // So when needed, apply the formula: H2_-a(x) = exp(-a*pi*i)*H2_a(x)
-  if(n.im > 0) return Jmat.Complex.exp(n.mul(Jmat.Complex.newi(Math.PI))).mul(Jmat.Complex.hankel2(n.neg(), z));
+  if(nu.im > 0) return Jmat.Complex.exp(nu.mul(Jmat.Complex.newi(Math.PI))).mul(Jmat.Complex.hankel2(nu.neg(), z));
 
-  return Jmat.Complex.besselj(n, z).sub(Jmat.Complex.bessely(n, z).mul(Jmat.Complex.I));
+  return Jmat.Complex.besselj(nu, z).sub(Jmat.Complex.bessely(nu, z).mul(Jmat.Complex.I));
 };
 
 // Modified bessel function of the first kind (approximation)
-// TODO: fix for |z| > 20 with complex n
-Jmat.Complex.besseli = function(n, z) {
-  var result = Jmat.Complex.I.pow(n.neg()).mul(Jmat.Complex.besselj(n, z.mul(Jmat.Complex.I)));
-  if(z.im == 0 && n.im == 0 && Jmat.Real.near(result.im, 0, 1e-10)) result.im = 0;
+Jmat.Complex.besseli = function(nu, z) {
+  var result = Jmat.Complex.I.pow(nu.neg()).mul(Jmat.Complex.besselj(nu, z.mul(Jmat.Complex.I)));
+  if(z.im == 0 && nu.im == 0 && Jmat.Real.near(result.im, 0, 1e-10)) result.im = 0;
   return result;
 };
 
 // Modified bessel function of the second kind (approximation)
-// TODO: fix for |z| > 20 with complex n
-Jmat.Complex.besselk = function(n, z) {
+Jmat.Complex.besselk = function(nu, z) {
   var result;
   if(z.im >= 0) {
-    result = Jmat.Complex.I.pow(n.inc()).mulr(Math.PI / 2).mul(Jmat.Complex.hankel1(n, Jmat.Complex.I.mul(z)));
+    result = Jmat.Complex.I.pow(nu.inc()).mulr(Math.PI / 2).mul(Jmat.Complex.hankel1(nu, Jmat.Complex.I.mul(z)));
   } else {
-    result = Jmat.Complex.newi(-1).pow(n.inc()).mulr(Math.PI / 2).mul(Jmat.Complex.hankel2(n, Jmat.Complex.newi(-1).mul(z)));
+    result = Jmat.Complex.newi(-1).pow(nu.inc()).mulr(Math.PI / 2).mul(Jmat.Complex.hankel2(nu, Jmat.Complex.newi(-1).mul(z)));
   }
-  if(z.im == 0 && n.im == 0 && Jmat.Real.near(result.im, 0, 1e-3 /*this one is super imprecise...*/)) result.im = 0;
+  if(z.im == 0 && nu.im == 0 && Jmat.Real.near(result.im, 0, 1e-3 /*this one is super imprecise...*/)) result.im = 0;
   return result;
 };
 
@@ -3937,8 +4022,8 @@ Jmat.Complex.incbeta = function(x, a, b) {
     return x.pow(a).mul(result);
   }
 
-  // METHOD B: in terms of hypergeometric (computationally more expensive, but precise)
-  return x.pow(a).div(a).mul(Jmat.Complex.hypergeometric(a, Jmat.Complex.ONE.sub(b), a.inc(), x));
+  // METHOD B: in terms of hypergeometric2F1 (computationally more expensive, but precise)
+  return x.pow(a).div(a).mul(Jmat.Complex.hypergeometric2F1(a, Jmat.Complex.ONE.sub(b), a.inc(), x));
 
   // METHOD C: with the integral definition. However this one is numerically very imprecise
   // The integral is numerically too imprecise, due to the degenerate value at t=0
@@ -3977,18 +4062,35 @@ Jmat.Complex.beta_i_inv = function(x, a, b) {
   return x2;
 };
 
-// Confluent hypergeometric limit function 0F1(; a; z) --> yep, that's the notation of it
+
+// Confluent hypergeometric limit function 0F1(; a; z) --> no "upper" term
 Jmat.Complex.hypergeometric0F1 = function(a, z) {
+  var C = Jmat.Complex;
+
+  // The series does not converge well for large negative z with smallish a, because then terms with opposite signs are supposed to cancel out.
+  // Use this expansion into two 2F0 calls instead.
+  // TODO: expensive and also doesn't work that well. Find better solution to the problem where hypergeometric0F1(6, -400) is very imprecise.
+  // TODO: also both this and the main series give wrong value for Jmat.hypergeometric0F1(-23.5, -126.5625)
+  // TODO: the values -80 and z.abssqr() / 3 have been chosen to make it work for BesselJ in the zone where it uses 0F1. This may be totally off for other applications. Improve this criterium for algorithm choice.
+  if(z.re < -80 && a.abssqr() < z.abssqr() / 3) {
+    var g = C.gamma(a).divr(2 * C.SQRTPI.re);
+    var s = C.sqrt(z.neg());
+    var c0 = C.exp(s.muli(-2)).mul(s.muli(-1).pow(a.rsub(0.5)));
+    var h0 = C.hypergeometric([a.subr(0.5), a.rsub(3/2)], [], s.muli(4).inv().neg());
+    var c1 = C.exp(s.muli(2)).mul(s.muli(1).pow(a.rsub(0.5)));
+    var h1 = C.hypergeometric([a.subr(0.5), a.rsub(3/2)], [], s.muli(4).inv());
+    return g.mul(c0.mul(h0).add(c1.mul(h1)));
+  }
+
   // The summation is SUM_(n=0..inf) z^n / ((a)_n * n!)
   // See for loop in hypergeometric function for explanation on above notation and how implementation works
   // This loop converges very nicely and result is quite accurate for all complex input values (unlike for 2F1)
-  var r = Jmat.Complex.ONE;
-  var result = Jmat.Complex.ZERO;
+  var r = C.ONE;
+  var result = C.ZERO;
   for(var n = 0; n < 30; n++) {
     if (n > 0) {
       if(!r.eqr(0)) r = r.div(a.addr(n - 1)); // the Pochhammer. The if avoids 0/0
-      r = r.mul(z); // the z^n
-      r = r.divr(n); // the n!
+      r = r.mul(z).divr(n); // the z^n / n!
     }
     if(r.eqr(0)) break;
     result = result.add(r);
@@ -4019,11 +4121,10 @@ Jmat.Complex.hypergeometric1F1 = function(a, b, z) {
   return result;
 };
 
-// Hypergeometric series 2F1(a, b; c; z), aka Gauss hypergeometric function (approximation)
-// Simply called "hypergeometric" instead of "hypergeometric2F1"
+// Hypergeometric series 2F1(a, b; c; z), aka Gauss hypergeometric function or "The hypergeometric". Approximation.
 // Try similar online: http://keisan.casio.com/exec/system/1349143084, or wolframalpha, HyperGeometric2F1[1.5, -0.5, 2.5, 0.25+i]
 // I debugged this function to find all the areas in the complex or real input plane where it goes wrong, by 2D or complexdomain plotting this, and beta_i which uses this
-Jmat.Complex.hypergeometric = function(a, b, c, z) {
+Jmat.Complex.hypergeometric2F1 = function(a, b, c, z) {
   if(Jmat.Complex.absr(z) > 1.0001 /*not 1 to avoid infinite loop if abs 1/z is also > 1 due to numeric problems, e.g. for 0.9726962457337884+i0.23208191126279865*/) {
     // The series converges only for |z| < 1. But there are some linear transformations
     // that can convert it to a different z. There are conditions though, and some are
@@ -4036,7 +4137,7 @@ Jmat.Complex.hypergeometric = function(a, b, c, z) {
     var z2 = z.div(z.dec());
     if(Jmat.Complex.absr(z2) < 0.75) { // the if can in theory do "< 1", but then a value like z=0.3+4i makes z2 very close to 1, and it has bad numeric results for such values
       // z / (z - 1)
-      return Jmat.Complex.ONE.sub(z).pow(a.neg()).mul(Jmat.Complex.hypergeometric(a, c.sub(b), c, z2));
+      return Jmat.Complex.ONE.sub(z).pow(a.neg()).mul(Jmat.Complex.hypergeometric2F1(a, c.sub(b), c, z2));
     } else {
       // 1 / z
       var quirkyGammaDiv22_ = function(a, b, c, d) {
@@ -4058,8 +4159,8 @@ Jmat.Complex.hypergeometric = function(a, b, c, z) {
       var zb = z.neg().pow(b.neg());
       var ga = quirkyGammaDiv22_(c, b.sub(a), b, c.sub(a));
       var gb = quirkyGammaDiv22_(c, a.sub(b), a, c.sub(b));
-      var fa = Jmat.Complex.hypergeometric(a, Jmat.Complex.ONE.sub(c).add(a), Jmat.Complex.ONE.sub(b).add(a), zi);
-      var fb = Jmat.Complex.hypergeometric(b, Jmat.Complex.ONE.sub(c).add(b), Jmat.Complex.ONE.sub(a).add(b), zi);
+      var fa = Jmat.Complex.hypergeometric2F1(a, Jmat.Complex.ONE.sub(c).add(a), Jmat.Complex.ONE.sub(b).add(a), zi);
+      var fb = Jmat.Complex.hypergeometric2F1(b, Jmat.Complex.ONE.sub(c).add(b), Jmat.Complex.ONE.sub(a).add(b), zi);
       var va = ga.mul(za).mul(fa);
       var vb = gb.mul(zb).mul(fb);
       return va.add(vb);
@@ -4070,7 +4171,7 @@ Jmat.Complex.hypergeometric = function(a, b, c, z) {
   if(Jmat.Complex.absr(z2) < Jmat.Complex.absr(z)) {
     // Same z / (z - 1) transform as above. Reason for doing this: the summation below converges faster for smaller absolute values of z. Without this, for e.g. z = -0.75 and c < -3, it converges only after hundreds of steps.
     // TODO: in fact it's almost always possible to make |z| < 0.5 with the linear transformations. Use them better.
-    return Jmat.Complex.ONE.sub(z).pow(a.neg()).mul(Jmat.Complex.hypergeometric(a, c.sub(b), c, z2));
+    return Jmat.Complex.ONE.sub(z).pow(a.neg()).mul(Jmat.Complex.hypergeometric2F1(a, c.sub(b), c, z2));
   }
 
   // TODO: avoid needing more than 30 iterations by always getting |z| < 0.5 with more clever use of transformations
@@ -4109,7 +4210,40 @@ Jmat.Complex.hypergeometric = function(a, b, c, z) {
   return g.mul(i);*/
 };
 
-// TODO: generalized hypergeometric
+
+// Ordinary generalized hypergeometric series
+// a an d b are arrays of complex values. E.g. Jmat.Complex.hypergeometric2F1([a, b, c], [d, e], z) would mean: hypergeometric3F2(a, b, c; d, e; z)
+// Unless specific implementation exists, this uses basic series of the definition of the hypergeometric
+// So if the series diverges (a.length > b.length), it will only be correct for very small |z| (near zero), if a.length == b.length, it will only converge for |z| < 1
+Jmat.Complex.hypergeometric = function(a, b, z) {
+  if(z.eqr(0)) return Jmat.Complex(1);
+  if(a.length == 0 && b.length == 0) return Jmat.Complex.exp(z);
+  if(a.length == 1 && b.length == 0) return Jmat.Complex.pow(z.rsub(1), a[0].neg());
+  if(a.length == 0 && b.length == 1) return Jmat.Complex.hypergeometric0F1(b[0], z);
+  if(a.length == 1 && b.length == 1) return Jmat.Complex.hypergeometric1F1(a[0], b[0], z);
+  if(a.length == 2 && b.length == 1) return Jmat.Complex.hypergeometric2F1(a[0], a[1], b[0], z);
+
+  // TODO: equal elements in a and b cancel out. Sort the arrays and check that. If the arrays are equal, it's the same as 0F0
+  // TODO: if a contains more zeros than b, the result is always 1
+  // TODO: return NaN or so ("unsupported") if diverging. Note that for a.length > b.length, even if in theory it only converges for 0, it returns practical values for tiny values like 1e-4, so give no NaN there.
+
+  var r = z;
+  for(var i = 0; i < a.length; i++) r = r.mul(a[i]);
+  for(var i = 0; i < b.length; i++) r = r.div(b[i]);
+  var result = Jmat.Complex(1);
+  for(var n = 1; n < 30; n++) {
+    if (n > 1) {
+      for(var i = 0; i < a.length; i++) r = r.mul(a[i].addr(n - 1));
+      for(var i = 0; i < b.length; i++) r = (r.eqr(0) ? r : r.div(b[i].addr(n - 1)));
+      r = r.mul(z);
+      r = r.divr(n);
+    }
+    if(r.eqr(0)) break;
+    result = result.add(r);
+  }
+
+  return result;
+}
 
 Jmat.Complex.PIPI6_ = Jmat.Complex(Math.PI * Math.PI / 6);
 
