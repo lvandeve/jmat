@@ -3394,7 +3394,7 @@ Jmat.Complex.bessely = function(nu, z) {
     var c = C.besselj(nu.neg(), z);
     var d = C.sin(nu.mulr(Math.PI));
     return a.mul(b).sub(c).div(d);
-  } else if(z.im == 0) {
+  } else {
     // The hankel expansion
     // TODO: remove some of this code duplication with besselJ hankel expansion
     // TODO: for large nu, still another formula is needed, this one gives wrong values for that
