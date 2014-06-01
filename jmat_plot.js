@@ -213,10 +213,10 @@ Jmat.Plot.getComplexColor = function(y, maxval) {
     // |z| > 1: brigher than that
     // |z| < 1: darker than that
 
-    var h = Jmat.Complex.argr1(y) * 255;
+    var h = Jmat.Complex.arg1(y) * 255;
     var s = 255;
     var l;
-    var a = Jmat.Complex.absr(y) / maxval;
+    var a = y.abs() / maxval;
 
     var m = 254; //max lightness for non-infinity (e.g. 240 or 250)
 
@@ -483,10 +483,10 @@ Jmat.Plot.plotReal_ = function(fun, params, parent, label) {
         Jmat.Plot.makeRealPixel_(div, 320, 320, params, px, y.re, prevy.re, [0,0,0], Jmat.Complex.toString(x) + ': ' + Jmat.Complex.toString(y));
       } else {
         // Abs and arg-color-wheel, always in positive zone
-        var h = Jmat.Complex.argr1(y) * 255;
+        var h = Jmat.Complex.arg1(y) * 255;
         var rgb = Jmat.Plot.hslToRgb(h, 255, 128);
-        var a = Jmat.Complex.abs(y).re;
-        var pa = Jmat.Complex.abs(prevy).re;
+        var a = y.abs();
+        var pa = prevy.abs();
         Jmat.Plot.makeRealPixel_(div, 320, 320, params, px, a, pa, rgb, Jmat.Complex.toString(x) + ': ' + Jmat.Complex.toString(y));
       }
 
@@ -582,10 +582,10 @@ Jmat.Plot.plot2D_ = function(fun, params, parent, label, xlabel, ylabel) {
     if(label) Jmat.Plot.makeAlignedText(parent, label, 0, L + width, L, 2, 2);
 
     d = Jmat.Plot.makeCenteredText(parent, '←', 0, L + width / 2 - 35, L - 10);
-    d.onclick = function() { params.xshift -= params.xsize / 2; Jmat.stopPlotting(); plotfun(); };
+    d.onclick = function() { params.xshift -= params.xsize / 5; Jmat.stopPlotting(); plotfun(); };
     d.style.color = '#ddd';
     d = Jmat.Plot.makeCenteredText(parent, '→', 0, L + width / 2 - 15, L - 10);
-    d.onclick = function() { params.xshift += params.xsize / 2; Jmat.stopPlotting(); plotfun(); };
+    d.onclick = function() { params.xshift += params.xsize / 5; Jmat.stopPlotting(); plotfun(); };
     d.style.color = '#ddd';
 
     d = Jmat.Plot.makeCenteredText(parent, '[+]', 0, L + width / 2 + 15, L - 10);
@@ -596,10 +596,25 @@ Jmat.Plot.plot2D_ = function(fun, params, parent, label, xlabel, ylabel) {
     d.style.color = '#ddd';
 
     d = Jmat.Plot.makeCenteredText(parent, '↑', 0, L + width + 8, L + 70);
-    d.onclick = function() { params.yshift += params.ysize / 2; Jmat.stopPlotting(); plotfun(); };
+    d.onclick = function() { params.yshift += params.ysize / 5; Jmat.stopPlotting(); plotfun(); };
     d.style.color = '#ddd';
     d = Jmat.Plot.makeCenteredText(parent, '↓', 0, L + width + 8, L + 90);
-    d.onclick = function() { params.yshift -= params.ysize / 2; Jmat.stopPlotting(); plotfun(); };
+    d.onclick = function() { params.yshift -= params.ysize / 5; Jmat.stopPlotting(); plotfun(); };
+    d.style.color = '#ddd';
+
+    d = Jmat.Plot.makeCenteredText(parent, 'r', 0, L + width / 2 - 70, L - 10);
+    d.onclick = function() {
+      // This button shifts by 1 half. Some functions have different value, or algorithm, for integers (e.g. negative bessel J). This reveals it when zoomed out.
+      var s = params.xshift;
+      params.xshift = Math.floor(params.xshift);
+      params.yshift = Math.floor(params.yshift);
+      if(s == Math.floor(s)) {
+        params.xshift += 0.5;
+        params.yshift += 0.5;
+      };
+      Jmat.stopPlotting();
+      plotfun();
+    }
     d.style.color = '#ddd';
 
     Jmat.Plot.plot2DNonBlocking_(fun, size, steps, params, div);

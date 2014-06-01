@@ -240,7 +240,7 @@ examples.innerHTML = 'Examples:<br/>' +
     '<li>Jmat.plotReal(function(x) { return Jmat.cdf_studentt(x, 2); }, plotContainerEl, {p:1}); </li>' +
     '<li>Jmat.plotComplex(function(z) { return Jmat.theta2(z, 0.2); }, plotContainerEl, {p:1}); </li>' +
     '<li>Jmat.plotReal(function(x) { return Jmat.pdf_laplace(x, 0, 1); }, plotContainerEl, {xsize:10, ysize:2});  </li>' +
-    '<li>Jmat.plotComplex(function(c) { var i = 0; var z = Complex(0); for(;;) { if(z.absr() > 2) break; z = z.mul(z).add(c); i++; if(i > 60) return Complex(0); } return Complex.polar(1, i * Math.PI / 60); }, plotContainerEl, {p:1, s:4}); </li>' +
+    '<li>Jmat.plotComplex(function(c) { var i = 0; var z = Complex(0); for(;;) { if(z.abs() > 2) break; z = z.mul(z).add(c); i++; if(i > 60) return Complex(0); } return Complex.polar(1, i * Math.PI / 60); }, plotContainerEl, {p:1, s:4}); </li>' +
     '</ul>' +
     'ops: add, sub, mul, div, pow, sqrt, cos, sign, ceil, zeta, ... <br/>' +
     'matrix ops: determinant, eig, eigd, rank, trace, norm, norm2, svd, qr, pseudoinverse, ... <br/>' +

@@ -34,9 +34,15 @@ Jmat.Test = function() {
 };
 
 // Works both for Complex or Matrix objects.
-Jmat.Test.expectNear = function(e, a, epsilon) {
+// Precision is number of decimal digits that should match
+Jmat.Test.expectNear = function(e, a, precision) {
   if(Jmat.isNaN(e) && Jmat.isNaN(a)) return; //both NaN is ok for test
-  if(!Jmat.near(e, a, epsilon)) throw 'fail: expected ' + Jmat.toString(e) + ' got ' + Jmat.toString(a);
+  if(Jmat.eq(e, 0) || Jmat.eq(a, 0) || Jmat.matrixIn_(e) || Jmat.matrixIn_(a)) {
+    // for 0, allow the other to be absolute rather than relative near it. For matrices, always use absolute epsilon as well.
+    if(!Jmat.near(e, a, precision)) throw 'fail: expected ' + Jmat.toString(e) + ' got ' + Jmat.toString(a) + '. Expected precision: ' + precision;
+  } else {
+    if(!Jmat.relnear(e, a, precision)) throw 'fail: expected ' + Jmat.toString(e) + ' got ' + Jmat.toString(a) + '. Expected precision: ' + precision;
+  }
 };
 
 // Expect that the result of the mathematical function f with the arguments of var_arg, is near the expected result. Some numerical intolerance is allowed.
@@ -48,10 +54,21 @@ Jmat.Test.testFunction = function(expected, epsilon, f, var_arg) {
 //u,s,v = expected values
 //m = input matrix
 Jmat.Test.testSVD = function(u, s, v, epsilon, m) {
+  // TODO: This test should tolerate some differences in signs of vectors in
+  // u and v, because multiple solutions are possible and different software
+  // returns different variants.
   var svd = Matrix.svd(Matrix.cast(m));
   Jmat.Test.expectNear(u, svd.u, epsilon);
   Jmat.Test.expectNear(s, svd.s, epsilon);
   Jmat.Test.expectNear(v, svd.v, epsilon);
+};
+
+//l,v = expected values
+//m = input matrix
+Jmat.Test.testEIG = function(l, v, epsilon, m) {
+  var eig = Matrix.eig(Matrix.cast(m));
+  Jmat.Test.expectNear(l, eig.l, epsilon);
+  Jmat.Test.expectNear(v, eig.v, epsilon);
 };
 
 // throws on fail, prints 'success' on success
@@ -68,15 +85,25 @@ Jmat.doUnitTest = function() {
   var eps = 1e-10;
   // basic operators
   Jmat.Test.testFunction(5, eps, Jmat.add, 2, 3);
+  Jmat.Test.testFunction(-1, eps, Jmat.sub, 2, 3);
   Jmat.Test.testFunction(6, eps, Jmat.mul, 2, 3);
+  Jmat.Test.testFunction(0.666666666666666666, eps, Jmat.div, 2, 3);
+  Jmat.Test.testFunction(8, eps, Jmat.pow, 2, 3);
+  Jmat.Test.testFunction(0.20787957635076190854695561, eps, Jmat.pow, 'i', 'i');
 
   // advanced functions
   Jmat.Test.testFunction(0, eps, Jmat.sin, Math.PI);
+  Jmat.Test.testFunction(-1, eps, Jmat.cos, Math.PI);
 
   // special functions
   Jmat.Test.testFunction(24, eps, Jmat.gamma, 5);
   Jmat.Test.testFunction('-0.15494982830181-0.498015668118356i', eps, Jmat.gamma, 'i');
   Jmat.Test.testFunction('0.9303796037430951+0.0389361908951213i', 1e-5, Jmat.erf, '5+5i');
+  Jmat.Test.testFunction('0.2074861066333588576972787235', 1e-9, Jmat.besselj, '10', '10');
+  Jmat.Test.testFunction('0.2068008998147143416959879887', 1e-9, Jmat.besselj, '10.1', '10.1');
+  Jmat.Test.testFunction('9.59012e-135-9.59012e-135i', 1e-6, Jmat.besselj, '112.5', '-5.5i');
+  Jmat.Test.testFunction('-0.359814152183402722051986577', 1e-12, Jmat.bessely, '10', '10');
+  Jmat.Test.testFunction('6.3618456410625559136428432181', 1e-12, Jmat.hypergeometric1F1, 1, 2, 3);
 
   // distributions
   Jmat.Test.testFunction(0.274997, 1e-2, Jmat.qf_chi_square, 0.4, 1); // This one is very imprecise currently :(
@@ -101,11 +128,19 @@ Jmat.doUnitTest = function() {
                     [[2.23607], [0]],
                     [[1]],
                     1e-5, [[1],[2]]);
+  Jmat.Test.testSVD([[0.214837, 0.887231, -0.408248], [0.520587, 0.249644, 0.816497], [0.826338, -0.387943, -0.408248]],
+                    [[16.8481, 0, 0],[0, 1.06837, 0],[0,0,0]],
+                    [[0.479671, -0.776691, 0.408248],[0.572368, -0.0756865, -0.816497], [0.665064, 0.625318, 0.408248]],
+                    1e-5, [[1,2,3],[4,5,6],[7,8,9]]);
+  Jmat.Test.testEIG([[1]], [[1]], 1e-5, [[1]]);
+  Jmat.Test.testEIG([[5.37228], [-0.372281]], [[0.457427, -1.45743],[1, 1]], 1e-5, [[1,2],[3,4]]);
+  Jmat.Test.testEIG([[16.1168], [-1.11684], [0]], [[0.283349, -1.28335, 1],[0.641675, -0.141675, -2], [1, 1, 1]], 1e-4, [[1,2,3],[4,5,6],[7,8,9]]); //wolfram|alpha only gave 4 digits
 
   // matrix parsing
   Jmat.Test.testFunction([[1,2],[3,4]], eps, Jmat.Matrix.parse, '[[1,2],[3,4]]');
   Jmat.Test.testFunction([[1,2,3,4]], eps, Jmat.Matrix.parse, '[[1,2,3,4]]');
   Jmat.Test.testFunction([[1],[2],[3],[4]], eps, Jmat.Matrix.parse, '[1,2,3,4]');
+  Jmat.Test.testFunction([[1],[2],[3],[Complex(0, 4)]], eps, Jmat.Matrix.parse, '[1,2,3,4i]');
 
   // numerical algorithms
   Jmat.Test.testFunction(333.33333333333, eps, Jmat.integrate, 0, 10, function(z) { return z.mul(z); });
