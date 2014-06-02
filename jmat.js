@@ -527,9 +527,9 @@ Jmat.besseli = function(nu, z) { return Jmat.Complex.besseli(Jmat.Complex.cast(n
 /* Modified bessel function of the second kind.  nu,z:{number|Complex}. returns {Complex} */
 Jmat.besselk = function(nu, z) { return Jmat.Complex.besselk(Jmat.Complex.cast(nu), Jmat.Complex.cast(z)); };
 /* Hankel function of the first kind.  nu,z:{number|Complex}. returns {Complex} */
-Jmat.hankel1 = function(nu, z) { return Jmat.Complex.hankel1(Jmat.Complex.cast(nu), Jmat.Complex.cast(z)); };
+Jmat.hankelh1 = function(nu, z) { return Jmat.Complex.hankelh1(Jmat.Complex.cast(nu), Jmat.Complex.cast(z)); };
 /* Hankel function of the second kind.  nu,z:{number|Complex}. returns {Complex} */
-Jmat.hankel2 = function(nu, z) { return Jmat.Complex.hankel2(Jmat.Complex.cast(nu), Jmat.Complex.cast(z)); };
+Jmat.hankelh2 = function(nu, z) { return Jmat.Complex.hankelh2(Jmat.Complex.cast(nu), Jmat.Complex.cast(z)); };
 /* Airy function Ai. z:{number|Complex}. returns {Complex} */
 Jmat.airy = function(z) { return Jmat.Complex.airy(Jmat.Complex.cast(z)); };
 /* Bairy function Bi. z:{number|Complex}. returns {Complex} */
@@ -3204,7 +3204,7 @@ Jmat.Complex.bessel1big_ = function(z) {
 // besselj_1 for any complex z
 Jmat.Complex.besselj1_ = function(z) {
   var C = Jmat.Complex;
-  if(z.eqr(0)) return C(-Infinity);
+  if(z.eqr(0)) return C(0);
   var j1;
 
   var neg = z.re < 0;
@@ -3446,6 +3446,8 @@ Jmat.Complex.besselj = function(nu, z) {
   // Infinities. If any of nu or z is any infinity, the answer is 0
   if(C.isInf(nu)) return C(0);
   if(C.isInf(z)) return C(0);
+  // If z is 0, result is 1 for nu=0; NaN for nu strict imaginary; 0 for nu.re > 0; undirected infinity for nu.re < 0.
+  if(z.eqr(0)) return (nu.re == 0) ? (nu.im == 0 ? C(1) : C(NaN)) : (nu.re < 0 ? C(Infinity, Infinity) : C(0));
 
   if(nu.eqr(0)) return C.besselj0_(z);
   if(nu.eqr(1)) return C.besselj1_(z);
@@ -3495,22 +3497,90 @@ Jmat.Complex.bessely_miller_ = function(n, z) {
   return y1;
 };
 
+Jmat.Complex.bessely_with_besselj_ = function(nu, z) {
+  var C = Jmat.Complex;
+
+  if(C.isInt(nu.addr(0.5))) {
+    // For negative half-integers, the cos is zero (cos(pi/2)), but due to numerical imprecision it isn't, and when multiplied by the huge 'a' that gives a completely incorrect result.
+    // It's not even necessary to calculate a, and the sin is 1 or -1 so that one neither.
+    return C.besselj(nu.neg(), z).mulr(C.isOdd(nu.addr(0.5)) ? -1 : 1);
+  }
+  
+  // Supports all complex nu except integers (and negative half-integers due to numerical problems), for small z
+  // Y_a(x) = (J_a(x)*cos(a*pi) - J_-a(x)) / sin(a*pi)
+  // (For integer nu, Y_n(x) = lim_a_to_n(Y_a(x), but that is not supported here)
+  var a = C.besselj(nu, z);
+  var b = C.cos(nu.mulr(Math.PI));
+  if(C.isInt(b.addr(0.5))) b = C(0);
+  var c = C.besselj(nu.neg(), z);
+  var d = C.sin(nu.mulr(Math.PI));
+  return a.mul(b).sub(c).div(d);
+};
+
+Jmat.Complex.bessely_hankelexpansion_ = function(nu, z) {
+  var C = Jmat.Complex;
+  var pi = Math.PI;
+  // The hankel expansion
+  // TODO: remove some of this code duplication with besselJ hankel expansion
+  // TODO: for large nu, still another formula is needed, this one gives wrong values for that
+  // J_nu(z) ~ sqrt(2/(pi*z)) * [ sin(w) * SUM_k=0..oo (-1)^k*a_2k(nu)/z^2k + cos(w) * SUM_k=0..oo (-1)^k*a_(2k+1)(nu)/z^(2k+1) ]
+  // a_k(nu) = ((4*nu^2 - 1^2) * ... * (4*nu^2 - (2k-1)^2)) / (k! * 8^k)
+  // w = z - pi/2 * nu - pi/4
+  var neg = Math.abs(z.arg()) > 3; //pi - some delta
+  if(neg) z = z.neg();
+
+  var ak = Jmat.Complex.ONE; // a_k(nu)
+  var zz = C.ONE;
+  var w = z.sub(nu.mulr(pi / 2)).subr(pi / 4); // omega
+  var s = C.ZERO, c = C.ZERO; // the sum for the sine and the sum for the cosine
+  var nu4 = nu.mul(nu).mulr(4); // 4 * nu^2
+  var prevt;
+  var num = Math.max(4, Math.min(60, Math.abs(nu.re)));
+  for(var k = 0; k < num; k++) {
+    // there are two sums, one uses 2k, the other uses 2k+1. This loop instead alternates between a term of each sum. So k here has the meaning of 2k and 2k+1 in the formula.
+    if(k > 0) {
+      var ak2 = nu4.subr((2 * k - 1) * (2 * k - 1));
+      ak = ak.mul(ak2).divr(8 * k); // divided through the 8^k * k!
+      zz = zz.mul(z);
+      prevt = t;
+    }
+    var sign = ((k % 4) < 2) ? 1 : -1;
+    var t = ak.div(zz).mulr(sign);
+    if(t.abssq() < 1e-28) break;
+
+    if(k % 2 == 0)  c = c.add(t);
+    else s = s.add(t);
+  }
+  
+  if(t.abssq() > 1e-2) return C(NaN); // no convergence
+  
+  c = C.sin(w).mul(c);
+  s = C.cos(w).mul(s);
+  var result = C.bessel_sqrt2piz_(z).mul(c.add(s));
+  if(neg) {
+    // J_nu(z) = e^(-nu*pi*i) * Y_nu(-z) + i*z*cos(pi*nu) * J_nu(z)
+    var j = C.besselj(nu, z);
+    result = result.mul(C.exp(nu.muli(-pi))).add(C.cos(nu.mulr(pi)).mul(j).muli(2));
+  }
+  return result;
+};
+
 // Bessel function of the second kind
 // Mostly an approximation, there are problems with high z
 Jmat.Complex.bessely = function(nu, z) {
   var C = Jmat.Complex;
   var pi = Math.PI;
 
-  // Infinities
+  // Special values
   if(C.isInf(nu)) return C.isInf(z) ? C(NaN) : (C.isPositive(z) ? C(-Infinity) : C(Infinity, Infinity)); // strictly positive z gives -Infinity, anything else, including 0 and complex values, gives complex infinity
   if(C.isInf(z)) return C(0);
+  if(z.eqr(0)) return (nu.re == 0) ? (nu.im == 0 ? C(-Infinity) : C(NaN)) : C(Infinity, Infinity); // If z is 0, result is -inf for nu=0; NaN for nu strict imaginary (in some software); undirected infinity for other real or complex nu.
 
   if(nu.eqr(0)) return C.bessely0_(z);
   if(nu.eqr(1)) return C.bessely1_(z);
 
   if(C.isInt(nu)) {
     // Supports integer nu not equal to 0 or 1
-
     var neg = z.re < 0;
     if(neg) z = z.neg();
     var result;
@@ -3529,91 +3599,77 @@ Jmat.Complex.bessely = function(nu, z) {
 
     return result;
   } else if(z.abs() < 20) {
-    // Supports all complex nu except integers, for small z
-    // Y_a(x) = (J_a(x)*cos(a*pi) - J_-a(x)) / sin(a*pi)
-    // (For integer nu, Y_n(x) = lim_a_to_n(Y_a(x), but that is not supported here)
-    var a = C.besselj(nu, z);
-    var b = C.cos(nu.mulr(Math.PI));
-    var c = C.besselj(nu.neg(), z);
-    var d = C.sin(nu.mulr(Math.PI));
-    return a.mul(b).sub(c).div(d);
+    return C.bessely_with_besselj_(nu, z);
+  } else if(z.abssq() > nu.abssq()) {
+    return C.bessely_hankelexpansion_(nu, z);
   } else {
-    // The hankel expansion
-    // TODO: remove some of this code duplication with besselJ hankel expansion
-    // TODO: for large nu, still another formula is needed, this one gives wrong values for that
-    // J_nu(z) ~ sqrt(2/(pi*z)) * [ sin(w) * SUM_k=0..oo (-1)^k*a_2k(nu)/z^2k + cos(w) * SUM_k=0..oo (-1)^k*a_(2k+1)(nu)/z^(2k+1) ]
-    // a_k(nu) = ((4*nu^2 - 1^2) * ... * (4*nu^2 - (2k-1)^2)) / (k! * 8^k)
-    // w = z - pi/2 * nu - pi/4
-    var neg = Math.abs(z.arg()) > 3; //pi - some delta
-    if(neg) z = z.neg();
-
-    var ak = Jmat.Complex.ONE; // a_k(nu)
-    var zz = C.ONE;
-    var w = z.sub(nu.mulr(pi / 2)).subr(pi / 4); // omega
-    var s = C.ZERO, c = C.ZERO; // the sum for the sine and the sum for the cosine
-    var nu4 = nu.mul(nu).mulr(4); // 4 * nu^2
-    var prevt;
-    var num = Math.max(4, Math.min(60, Math.abs(nu.re)));
-    for(var k = 0; k < num; k++) {
-      // there are two sums, one uses 2k, the other uses 2k+1. This loop instead alternates between a term of each sum. So k here has the meaning of 2k and 2k+1 in the formula.
-      if(k > 0) {
-        var ak2 = nu4.subr((2 * k - 1) * (2 * k - 1));
-        ak = ak.mul(ak2).divr(8 * k); // divided through the 8^k * k!
-        zz = zz.mul(z);
-        prevt = t;
-      }
-      var sign = ((k % 4) < 2) ? 1 : -1;
-      var t = ak.div(zz).mulr(sign);
-      if(t.abssq() < 1e-28) break;
-
-      if(k % 2 == 0)  c = c.add(t);
-      else s = s.add(t);
-    }
-    
-    c = C.sin(w).mul(c);
-    s = C.cos(w).mul(s);
-    var result = C.bessel_sqrt2piz_(z).mul(c.add(s));
-    if(neg) {
-      // J_nu(z) = e^(-nu*pi*i) * Y_nu(-z) + i*z*cos(pi*nu) * J_nu(z)
-      var j = C.besselj(nu, z);
-      result = result.mul(C.exp(nu.muli(-pi))).add(C.cos(nu.mulr(pi)).mul(j).muli(2));
-    }
-    return result;
+    return C(NaN); // unfortunately not supported. TODO: find stable fast algorithm that does not require arbitrary precision that can solve bessely for large |z| and large |nu|
   }
 };
 
 // Hankel function of the first kind (approximation)
-Jmat.Complex.hankel1 = function(nu, z) {
-  // There are numerical imprecisions for e.g. hankel2(-8-8i, i).
-  // So when needed, apply the formula: H1_-a(x) = exp(a*pi*i)*H1_a(x)
-  if(nu.im < 0) return Jmat.Complex.exp(nu.mul(Jmat.Complex.newi(-Math.PI))).mul(Jmat.Complex.hankel1(nu.neg(), z));
+Jmat.Complex.hankelh1 = function(nu, z) {
+  var C = Jmat.Complex;
 
-  return Jmat.Complex.besselj(nu, z).add(Jmat.Complex.bessely(nu, z).mul(Jmat.Complex.I));
+  // Special values
+  if(C.isInf(nu)) return C(Infinity, Infinity);
+  if(C.isInf(z)) return C(0);
+  if(z.eqr(0)) return (nu.re == 0 && nu.im != 0) ? C(NaN) : C(Infinity, Infinity); // undirected infinity, or nan for strict imaginary nu
+
+  // There are numerical imprecisions for e.g. hankelh2(-8-8i, i).
+  // So when needed, apply the formula: H1_-a(x) = exp(a*pi*i)*H1_a(x)
+  if(nu.im < 0) return C.exp(nu.mul(C.newi(-Math.PI))).mul(C.hankelh1(nu.neg(), z));
+
+  return C.besselj(nu, z).add(C.bessely(nu, z).mul(C.I));
 };
 
 // Hankel function of the second kind (approximation)
-Jmat.Complex.hankel2 = function(nu, z) {
-  // There are numerical imprecisions for e.g. hankel2(-8-8i, i).
-  // So when needed, apply the formula: H2_-a(x) = exp(-a*pi*i)*H2_a(x)
-  if(nu.im > 0) return Jmat.Complex.exp(nu.mul(Jmat.Complex.newi(Math.PI))).mul(Jmat.Complex.hankel2(nu.neg(), z));
+Jmat.Complex.hankelh2 = function(nu, z) {
+  var C = Jmat.Complex;
 
-  return Jmat.Complex.besselj(nu, z).sub(Jmat.Complex.bessely(nu, z).mul(Jmat.Complex.I));
+  // Special values
+  if(C.isInf(nu)) return C(Infinity, Infinity);
+  if(C.isInf(z)) return C(0);
+  if(z.eqr(0)) return (nu.re == 0 && nu.im != 0) ? C(NaN) : C(Infinity, Infinity); // undirected infinity, or nan for strict imaginary nu
+
+  // There are numerical imprecisions for e.g. hankelh2(-8-8i, i).
+  // So when needed, apply the formula: H2_-a(x) = exp(-a*pi*i)*H2_a(x)
+  if(nu.im > 0) return C.exp(nu.mul(C.newi(Math.PI))).mul(C.hankelh2(nu.neg(), z));
+
+  return C.besselj(nu, z).sub(C.bessely(nu, z).mul(C.I));
 };
 
 // Modified bessel function of the first kind (approximation)
 Jmat.Complex.besseli = function(nu, z) {
-  var result = Jmat.Complex.I.pow(nu.neg()).mul(Jmat.Complex.besselj(nu, z.mul(Jmat.Complex.I)));
+  var C = Jmat.Complex;
+
+  // Special values
+  if(C.isInf(nu)) return C.isInf(z) ? C(NaN) : C(0);
+  if(z.eqr(Infinity)) return C(Infinity);
+  if(C.isInf(z)) return C(Infinity, Infinity); // other infinities for z
+  // If z is 0, result is 1 for nu=0; NaN for nu strict imaginary; 0 for nu.re > 0; undirected infinity for nu.re < 0.
+  if(z.eqr(0)) return (nu.re == 0) ? (nu.im == 0 ? C(1) : C(NaN)) : (nu.re < 0 ? C(Infinity, Infinity) : C(0));
+
+  var result = C.I.pow(nu.neg()).mul(C.besselj(nu, z.mul(C.I)));
   if(z.im == 0 && nu.im == 0 && Jmat.Real.near(result.im, 0, 1e-10)) result.im = 0;
   return result;
 };
 
 // Modified bessel function of the second kind (approximation)
 Jmat.Complex.besselk = function(nu, z) {
+  var C = Jmat.Complex;
+
+  // Special values
+  if(C.isInf(nu)) return C.isInf(z) ? C(NaN) : (C.isPositive(z) ? C(Infinity) : C(Infinity, Infinity)); // strictly positive z gives Infinity, anything else, including 0 and complex values, gives complex infinity
+  if(z.eqr(Infinity)) return C(0);
+  if(C.isInf(nu)) return C(Infinity, Infinity); // other infinities for z
+  if(z.eqr(0)) return (nu.re == 0) ? (nu.im == 0 ? C(Infinity) : C(NaN)) : C(Infinity, Infinity); // If z is 0, result is inf for nu=0; NaN for nu strict imaginary (in some software); undirected infinity for other real or complex nu.
+
   var result;
   if(z.im >= 0) {
-    result = Jmat.Complex.I.pow(nu.inc()).mulr(Math.PI / 2).mul(Jmat.Complex.hankel1(nu, Jmat.Complex.I.mul(z)));
+    result = C.I.pow(nu.inc()).mulr(Math.PI / 2).mul(C.hankelh1(nu, C.I.mul(z)));
   } else {
-    result = Jmat.Complex.newi(-1).pow(nu.inc()).mulr(Math.PI / 2).mul(Jmat.Complex.hankel2(nu, Jmat.Complex.newi(-1).mul(z)));
+    result = C.newi(-1).pow(nu.inc()).mulr(Math.PI / 2).mul(C.hankelh2(nu, C.newi(-1).mul(z)));
   }
   if(z.im == 0 && nu.im == 0 && Jmat.Real.near(result.im, 0, 1e-3 /*this one is super imprecise...*/)) result.im = 0;
   return result;
