@@ -1100,13 +1100,13 @@ Jmat.Real.isPrimeMillerRabin_ = function(n) {
   }
 
   // returns (a * b) % c, taking overflow into account
-  var modmul = function(a,b,c) {
+  var modmul = function(a, b, c) {
     var x = 0;
     var y = a % c;
     while(b > 0){
       if(b & 1) x = (x + y) % c;
       y = (y * 2) % c;
-      b= Math.floor(b / 2);
+      b = Math.floor(b / 2);
     }
     return x % c;
   };
@@ -1130,8 +1130,7 @@ Jmat.Real.isPrimeMillerRabin_ = function(n) {
       x = y;
       s--;
     }
-    //if(y != 1) return false;
-    return y != 1;
+    return y == 1;
   };
 
   for(var i = 0; i < base.length; i++) {
@@ -1160,6 +1159,18 @@ function testfun(n) {
     var c = Jmat.Real.isPrime(i);
     if(a != b || a != c) console.log('error: ' + i + ' ' + a + ' ' + b + ' ' + c);
   }
+  console.log('ok: ' + n);
+};
+testfun(100000);
+
+
+function testfun(n) {
+  for(var i = 0; i < n; i++) {
+    var a = Jmat.Real.isPrimeMillerRabin_(i);
+    var b = Jmat.Real.isPrimeSlow_(i);
+    if(a != b) console.log('error: ' + i + ' ' + a + ' ' + b);
+  }
+  console.log('ok: ' + n);
 };
 testfun(100000);
 
