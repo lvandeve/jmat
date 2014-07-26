@@ -952,17 +952,7 @@ Jmat.Real.mod = function(a, b) {
   The sign of mod is that of b, while that of rem is that of a.
   */
 
-  //without branching: return (b + (a % b)) % b OR alternatively and more generic: return a-floor(a/b)*b.
-
-  // with branching (advantage: only one % division is performed)
-  // the -b ==/!= a conditions are important, the else part does not do that one correct
-  if(a <= 0) {
-    if(b < 0 || a == 0 || -b == a) return a % b;
-    else return b - ((-a) % (-b));
-  } else {
-    if(b < 0 && -b != a) return b - ((-a) % (-b));
-    else return a % b;
-  }
+  return a - Math.floor(a / b) * b; // alternative: (b + (a % b)) % b
 };
 
 // Remainder. This is just the % operator. It is here only for reference. Compare with Jmat.Real.mod, which is different.
@@ -1101,9 +1091,10 @@ Jmat.Real.isPrimeMillerRabin_ = function(n) {
 
   // returns (a * b) % c, taking overflow into account
   var modmul = function(a, b, c) {
+    if(a * b < 9007199254740992) return (a * b) % c;
     var x = 0;
     var y = a % c;
-    while(b > 0){
+    while(b > 0) {
       if(b & 1) x = (x + y) % c;
       y = (y * 2) % c;
       b = Math.floor(b / 2);
@@ -3468,7 +3459,8 @@ Jmat.Complex.besselj = function(nu, z) {
   if(nu.re > 300 && Math.abs(nu.im) < nu.re && z.abssq() < 50*50) return C(0); // underflow, 0 is approximate. Also, for integer n would cause too much loops in miller algorithm
   if(nu.re < -300 && C.isInt(nu) && z.abssq() < 50*50); //also 0, however for negative nu if there is the slightest deviation of integer, it becomes huge result instead
 
-  if(nu.re > 50 && nu.re > z.abs() * 16) {
+  // TODO: check if this function can work for complex z and/or nu. It performs bad for Jmat.besselj('112.5', '-5.5i'), besselj_series_ handles that one much better.
+  if(nu.re > 50 && C.isReal(z) && nu.re > z.abs() * 16) {
     return Jmat.Complex.besselj_large_nu_(nu, z);
   }
 

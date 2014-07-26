@@ -437,7 +437,7 @@ Jmat.Plot.plotReal_ = function(fun, params, parent, label) {
     d = Jmat.Plot.makeSizedDiv(div, width / 2, 0, 2, height);
     d.style.backgroundColor = '#ccc';
 
-    Jmat.Plot.addPlotLabels_('x', 'y', xsize/2+params.xshift, -xsize/2+params.xshift, -ysize/2-params.yshift, ysize/2-params.yshift, parent);
+    Jmat.Plot.addPlotLabels_('x', 'y', -xsize/2+params.xshift, xsize/2+params.xshift, -ysize/2-params.yshift, ysize/2-params.yshift, parent);
     if(label) Jmat.Plot.makeAlignedText(parent, label, 0, L + width, L, 2, 2);
 
     d = Jmat.Plot.makeCenteredText(parent, '←', 0, L + width / 2 - 35, L - 10);

@@ -105,6 +105,35 @@ Jmat.doUnitTest = function() {
   Jmat.Test.testFunction('-0.359814152183402722051986577', 1e-12, Jmat.bessely, '10', '10');
   Jmat.Test.testFunction('6.3618456410625559136428432181', 1e-12, Jmat.hypergeometric1F1, 1, 2, 3);
 
+  // mod
+  Jmat.Test.testFunction(0, 0, Jmat.mod, -6, 3);
+  Jmat.Test.testFunction(1, 0, Jmat.mod, -5, 3);
+  Jmat.Test.testFunction(2, 0, Jmat.mod, -4, 3);
+  Jmat.Test.testFunction(0, 0, Jmat.mod, -3, 3);
+  Jmat.Test.testFunction(1, 0, Jmat.mod, -2, 3);
+  Jmat.Test.testFunction(2, 0, Jmat.mod, -1, 3);
+  Jmat.Test.testFunction(0, 0, Jmat.mod, 0, 3);
+  Jmat.Test.testFunction(1, 0, Jmat.mod, 1, 3);
+  Jmat.Test.testFunction(2, 0, Jmat.mod, 2, 3);
+  Jmat.Test.testFunction(0, 0, Jmat.mod, 3, 3);
+  Jmat.Test.testFunction(1, 0, Jmat.mod, 4, 3);
+  Jmat.Test.testFunction(2, 0, Jmat.mod, 5, 3);
+  Jmat.Test.testFunction(0, 0, Jmat.mod, 6, 3);
+
+  Jmat.Test.testFunction(0, 0, Jmat.mod, -6, -3);
+  Jmat.Test.testFunction(-2, 0, Jmat.mod, -5, -3);
+  Jmat.Test.testFunction(-1, 0, Jmat.mod, -4, -3);
+  Jmat.Test.testFunction(-0, 0, Jmat.mod, -3, -3);
+  Jmat.Test.testFunction(-2, 0, Jmat.mod, -2, -3);
+  Jmat.Test.testFunction(-1, 0, Jmat.mod, -1, -3);
+  Jmat.Test.testFunction(-0, 0, Jmat.mod, 0, -3);
+  Jmat.Test.testFunction(-2, 0, Jmat.mod, 1, -3);
+  Jmat.Test.testFunction(-1, 0, Jmat.mod, 2, -3);
+  Jmat.Test.testFunction(-0, 0, Jmat.mod, 3, -3);
+  Jmat.Test.testFunction(-2, 0, Jmat.mod, 4, -3);
+  Jmat.Test.testFunction(-1, 0, Jmat.mod, 5, -3);
+  Jmat.Test.testFunction(-0, 0, Jmat.mod, 6, -3);
+
   // distributions
   Jmat.Test.testFunction(0.274997, 1e-2, Jmat.qf_chi_square, 0.4, 1); // This one is very imprecise currently :(
   Jmat.Test.testFunction(0.198964, 1e-6, Jmat.pdf_studentt, 0.5, 0.5); // This one is very imprecise currently :(
