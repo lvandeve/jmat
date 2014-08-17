@@ -516,6 +516,12 @@ Jmat.rotate = function(z, a) { return Jmat.Complex.rotate(Jmat.Complex.cast(z), 
 /* Approximate with integer numerator and denominator. x:{number|Complex}, max:{number} maximum denominator. returns {Array.<Complex>} numerator, denominator */
 Jmat.decompose = function(x, max) { return Jmat.Complex.decompose(Jmat.Complex.cast(x), Jmat.Real.cast(max)); };
 
+// Interpolation
+
+/* Linear interpolation.  a,b,x:{number|Complex}. returns {Complex} */
+Jmat.lerp = function(a, b, x) { return Jmat.Complex.lerp(Jmat.Complex.cast(a), Jmat.Complex.cast(b), Jmat.Complex.cast(x)); };
+
+
 // Cylindrical functions
 
 /* Bessel function of the first kind.  nu,z:{number|Complex}. returns {Complex} */
@@ -727,9 +733,9 @@ Jmat.rshift = function(x, y) { return Jmat.Complex.rshift(Jmat.Complex.cast(x), 
 
 // Modulo division and related functions
 
-/* Modulo division. a,b:{number|Complex}. returns {Complex} */
+/* Modulo division. a,b:{number|Complex}. Result has sign of b. returns {Complex}. */
 Jmat.mod = function(a, b) { return Jmat.Complex.mod(Jmat.Complex.cast(a), Jmat.Complex.cast(b)); }; // result has sign of divisor (unlike JS '%' operator)
-/* Remainder. a,b:{number|Complex}. returns {Complex} */
+/* Remainder. a,b:{number|Complex}. Result has sign of a. returns {Complex} */
 Jmat.rem = function(a, b) { return Jmat.Complex.rem(Jmat.Complex.cast(a), Jmat.Complex.cast(b)); }; // result has sign of dividend (same result as JS '%' operator on real numbers)
 /* Wrap x between from and to (to excluded). x,to,from:{number|Complex}. returns {Complex} */
 Jmat.wrap = function(x, from, to) { return Jmat.Complex.wrap(Jmat.Complex.cast(x), Jmat.Complex.cast(from), Jmat.Complex.cast(to)); };
@@ -1369,9 +1375,10 @@ Jmat.Real.pascal_triangle = function(n, p) {
 
 //greatest common divisor
 Jmat.Real.gcd = function(x, y) {
+  if(!Jmat.Real.isInt(x) || !Jmat.Real.isInt(y)) return NaN; //prevents infinite loop if both x and y are NaN. Also, reals are not supported here.
  //Euclid's algorithm
  while(true) {
-   if(y == 0) return x;
+   if(y == 0) return Math.abs(x); //if x or y are negative, the result is still positive by the definition
    var z = Jmat.Real.mod(x, y);
    x = y;
    y = z;
@@ -1753,6 +1760,20 @@ Jmat.Real.dd = function(a) {
 
   if(neg) result = -result;
   return result;
+};
+
+// Like Math.round, but for fractional parts of 0.5, it is rounded to the nearest even value.
+Jmat.Real.round = function(x) {
+  // return Math.round(x);
+  var l = Math.floor(x);
+  var f = x - l;
+  if(f == 0.5) return (l % 2 == 0) ? l : (l + 1)
+  return (f < 0.5) ? l : (l + 1);
+};
+
+// Linear interpolation
+Jmat.Real.lerp = function(a, b, x) {
+  return (1 - x) * a + x * b;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -2522,8 +2543,8 @@ Jmat.Complex.ceil = function(x) {
 
 Jmat.Complex.round = function(x) {
   var result = Jmat.Complex(0);
-  result.re = Math.round(x.re);
-  result.im = Math.round(x.im);
+  result.re = Jmat.Real.round(x.re);
+  result.im = Jmat.Real.round(x.im);
   return result;
 };
 
@@ -2543,6 +2564,11 @@ Jmat.Complex.frac = function(x) {
 // Fractional part of x, x - int(x). NOTE: this variant gives negative results for negative x
 Jmat.Complex.fracn = function(x) {
   return Jmat.Complex(Jmat.Real.fracn(x.re), Jmat.Real.fracn(x.im));
+};
+
+// Linear interpolation
+Jmat.Complex.lerp = function(a, b, x) {
+  return x.rsub(1).mul(a).add(x.mul(b));
 };
 
 Jmat.Complex.exp = function(x) {
