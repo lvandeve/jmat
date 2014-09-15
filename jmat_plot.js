@@ -267,7 +267,7 @@ Jmat.Plot.makeSizedDiv = function(parent, x, y, w, h) {
 // if width is given (> 0), it is multiline text. Else it is single line text
 // fontSize is a CSS value like 'small'
 Jmat.Plot.makeAlignedText = function(parent, text, width, x, y, alignx, aligny, fontSize) {
-  var div =  document.createElement('div');
+  var div = document.createElement('div');
   if(fontSize) div.style.fontSize = fontSize;
   div.innerHTML = text;
   div.style.position = 'absolute';

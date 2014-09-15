@@ -981,6 +981,11 @@ Jmat.Real.clamp = function(x, from, to) {
   return Math.max(m0, Math.min(m1, x));
 };
 
+// integer division
+Jmat.Real.idiv = function(a, b) {
+  return Math.floor(a / b);
+};
+
 //Inspired by Wikipedia, Lanczos approximation, precision is around 15 decimal places
 Jmat.Real.gamma = function(z) {
   // Return immediately for some common values, to avoid filling the cache with those
@@ -1069,6 +1074,7 @@ Jmat.Real.isPrimeSlow_ = function(n) {
 };
 
 //Deterministic Miller-Rabin primality test
+//Not probabilistic, but relies on the generalized Riemann hypothesis
 //Returns 1 if prime, 0 if not prime, NaN if error.
 //Supposedly fast, but only faster than the naive method for n > 1500000
 Jmat.Real.isPrimeMillerRabin_ = function(n) {
@@ -1771,6 +1777,11 @@ Jmat.Real.round = function(x) {
   return (f < 0.5) ? l : (l + 1);
 };
 
+// Truncates towards zero
+Jmat.Real.trunc = function(x) {
+  return (x < 0) ? Math.ceil(x) : Math.floor(x);
+};
+
 // Linear interpolation
 Jmat.Real.lerp = function(a, b, x) {
   return (1 - x) * a + x * b;
@@ -1779,7 +1790,7 @@ Jmat.Real.lerp = function(a, b, x) {
 ////////////////////////////////////////////////////////////////////////////////
 
 Jmat.Real.isLeapYear = function(y) {
-  return y % 400 == 0 || (y % 4 == 0 && y % 100 != 0);
+  return (y % 400 == 0) || (y % 4 == 0 && y % 100 != 0);
 };
 
 Jmat.Real.montharray_ = [-1 /*there is no month 0*/, 31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31]; //february must be adjusted for leap year
@@ -1792,16 +1803,15 @@ Jmat.Real.monthLength = function(month, leap) {
 //number of days since the first day of year 0. 1 january of the year 0 is 0. 2 january is 1, etc...
 //only for Gregorian calendar, does not take Julian calendar into account
 Jmat.Real.numDaysSince0 = function(year, month, day) {
-  //calculate number of leap years before this year (year 0 is considered leap)
-  var num400 = Math.floor((year - 1) / 400) + 1;
-  var num100 = Math.floor((year - 1) / 100) + 1 - num400;
-  var num4 = Math.floor((year - 1) / 4) + 1 - num100 - num400;
-  var numleap = num4 + num400;
-  var yeardays = numleap * 366 + (year - numleap) * 365; //days of years before this year
+  var R = Jmat.Real;
 
-  var monthdays = 0; //days of years before this month
-  var leap = Jmat.Real.isLeapYear(year);
-  for (var i = 1; i < month; i++) monthdays += Jmat.Real.monthLength(i, leap);
+  //number of leap years before this year (year 0 is considered leap)
+  var numleap = year == 0 ? 0 : (R.idiv(year - 1, 4) - R.idiv(year - 1, 100) + R.idiv(year - 1, 400) + 1);
+  var yeardays = year * 365 + numleap; //days of years before this year
+
+  var feb = month > 2 ? (Jmat.Real.isLeapYear(year) ? 1 : 2) : 0; //days to subtract from formula below due to february
+  var aug = (month > 8 && month % 2 == 1) ? 1 : 0; //correction because august shifts who has 31 days
+  var monthdays = (month - 1) * 30 + R.idiv(month, 2) - feb + aug;
 
   return yeardays + monthdays + day - 1; //-1 because day 1 is in fact zero
 };
@@ -1816,6 +1826,7 @@ Jmat.Real.daysSince0ToDate = function(days) {
 
   days -= Jmat.Real.numDaysSince0(year, 1, 1);
 
+  // TODO: replace the for loop with shorter expressions
   var month = 0;
   for (var i = 1; i <= 12; i++) {
     month++;
@@ -1828,6 +1839,13 @@ Jmat.Real.daysSince0ToDate = function(days) {
   }
 
   return [year, month, days + 1 /*because month day starts at 1 instead of 0*/];
+};
+
+//determines day of week (0=sun, 1=mon, 2=tue, 3=wed, 4-thu, 5-fri, 6=sat), given year (e.g. 2014), month (1-12), day (1-31).
+Jmat.Real.dayOfWeek = function(y, m, d) {
+  var R = Jmat.Real;
+  d += (m < 3) ? (y--) : (y - 2);
+  return (R.idiv(23 * m, 9) + d + 4 + R.idiv(y, 4) - R.idiv(y, 100) + R.idiv(y, 400)) % 7;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -8307,6 +8325,613 @@ Jmat.Matrix.powc = function(m, s) {
   return v.mul(d).mul(Jmat.Matrix.inv(v));
 };
 
+
+
+////////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////
+// Jmat.BigInt: Big Integer Math
+////////////////////////////////////////////////////////////////////////////////
+
+//Big integer number functions.
+//Only supports non-negative integers.
+//Only has basic math functions, such as mul, div and base conversions. This is NOT intended for crypto.
+//All big numbers work with arrays of digits, or alternatively, strings up to base-36. Arrays is faster.
+//The default base is 10 for strings, 256 for arrays. If there is an opt_base parameter, the function supports other bases.
+
+//Constructor, but not to be actually used, just a namespace for big integer functions
+Jmat.BigInt = function() {
+};
+
+//By default, this converts ARRAYBASE_ array to base-10 string. The optional abase and sbase parameters change this.
+Jmat.BigInt.fromString = function(s, opt_abase, opt_sbase) {
+  var abase = opt_abase || Jmat.BigInt.ARRAYBASE_;
+  var sbase = opt_sbase || Jmat.BigInt.STRINGBASE_;
+  var result = Jmat.BigInt.fromString_(s);
+  return Jmat.BigInt.convertBase(result, sbase, abase);
+};
+
+Jmat.BigInt.toString = function(v, opt_abase, opt_sbase) {
+  var abase = opt_abase || Jmat.BigInt.ARRAYBASE_;
+  var sbase = opt_sbase || Jmat.BigInt.STRINGBASE_;
+  v = Jmat.BigInt.convertBase_(v, abase, sbase);
+  var result = Jmat.BigInt.toString_(v);
+  return result;
+};
+
+Jmat.BigInt.isArray = function(v) {
+  return toString.call(v) === "[object Array]";
+};
+
+Jmat.BigInt.isString = function(v) {
+  return toString.call(v) === "[object String]";
+};
+
+Jmat.BigInt.ensureArray = function(v, opt_abase, opt_sbase) {
+  if(Jmat.BigInt.isString(v)) {
+    return Jmat.BigInt.fromString(v, opt_abase, opt_sbase);
+  }
+  return v;
+};
+
+Jmat.BigInt.fromInt = function(i, opt_base) {
+  var base = opt_base || Jmat.BigInt.ARRAYBASE_;
+  var result = [];
+  while(i > 0) {
+    result.push(i % base);
+    i = Math.floor(i / base);
+  }
+  if(result.length == 0) result = [0];
+  return result;
+};
+
+Jmat.BigInt.toInt = function(v, opt_base) {
+  var base = opt_base || Jmat.BigInt.ARRAYBASE_;
+  var result = 0;
+  var m = 1;
+  for(var i = 0; i < v.length; i++) {
+    result += m * v[v.length - 1 - i];
+    m *= base;
+  }
+  return result;
+};
+
+Jmat.BigInt.convertBase = function(s, from, to) {
+  if(from == to) return s;
+
+  var isString = Jmat.BigInt.isString(s);
+  var input = (isString ? Jmat.BigInt.fromString_(s) : s);
+
+  var r = [];
+  for(var i = 0; i < input.length; i++) {
+    r = Jmat.BigInt.muladd_(r, from, input[i], to);
+  }
+
+  return isString ? Jmat.BigInt.toString_(r) : r;
+};
+
+Jmat.BigInt.clone = function(v) {
+  return v.slice(0);
+};
+
+Jmat.BigInt.cloneTo = function(v, target) {
+  target.length = v.length;
+  for(var i = 0; i < v.length; i++) target[i] = v[i];
+};
+
+Jmat.BigInt.add = function(a, b, opt_base) {
+  var base = opt_base || Jmat.BigInt.ARRAYBASE_;
+  var isString = Jmat.BigInt.isString(a);
+  if(isString) a = Jmat.BigInt.fromString(a, base, opt_base || Jmat.BigInt.STRINGBASE_);
+  b = Jmat.BigInt.ensureArray(b, base, opt_base || Jmat.BigInt.STRINGBASE_);
+
+  var result = Jmat.BigInt.addShifted_(a, 0, 1, b, 0, 1, base);
+
+  return isString ? Jmat.BigInt.toString(result, base, opt_base || Jmat.BigInt.STRINGBASE_) : result;
+};
+
+// b should be smaller than a
+Jmat.BigInt.sub = function(a, b, opt_base) {
+  var base = opt_base || Jmat.BigInt.ARRAYBASE_;
+  var isString = toString.call(a) === "[object String]";
+  if(isString) a = Jmat.BigInt.fromString(a, base, opt_base || Jmat.BigInt.STRINGBASE_);
+  b = ((toString.call(a) === "[object String]") ? Jmat.BigInt.fromString(b, base, opt_base || Jmat.BigInt.STRINGBASE_) : b);
+
+  var result = Jmat.BigInt.addShifted_(a, 0, 1, b, 0, -1, base);
+
+  return isString ? Jmat.BigInt.toString(result, base, opt_base || Jmat.BigInt.STRINGBASE_) : result;
+};
+
+Jmat.BigInt.mul = function(a, b, opt_base) {
+  var base = opt_base || Jmat.BigInt.ARRAYBASE_;
+  var isString = toString.call(a) === "[object String]";
+  if(isString) a = Jmat.BigInt.fromString(a, base, opt_base || Jmat.BigInt.STRINGBASE_);
+  b = ((toString.call(b) === "[object String]") ? Jmat.BigInt.fromString(b, base, opt_base || Jmat.BigInt.STRINGBASE_) : b);
+
+  var l = b.length;//Math.max(a.length, b.length);
+
+  var result = [0];
+
+  var bshift = 0;
+  for(var j = 0; j < a.length; j++) {
+    var d = a[a.length - j - 1];
+    result = Jmat.BigInt.addShifted_(b, bshift, d, result, 0, 1, base);
+    bshift++; // left shift b
+  }
+
+  return isString ? Jmat.BigInt.toString(result, base, opt_base || Jmat.BigInt.STRINGBASE_) : result;
+};
+
+//returns 1 if a > b, -1 if b > a, 0 if equal. Tests only the num most significant digits
+Jmat.BigInt.compare = function(a, b) {
+  a = ((toString.call(a) === "[object String]") ? Jmat.BigInt.fromString_(a) : a);
+  b = ((toString.call(b) === "[object String]") ? Jmat.BigInt.fromString_(b) : b);
+
+  return Jmat.BigInt.compare_(a, 0, b, 0);
+};
+
+Jmat.BigInt.eq = function(a, b) {
+  a = ((toString.call(a) === "[object String]") ? Jmat.BigInt.fromString_(a) : a);
+  b = ((toString.call(b) === "[object String]") ? Jmat.BigInt.fromString_(b) : b);
+
+  return Jmat.BigInt.compare_(a, 0, b, 0) == 0;
+};
+
+/*
+E.g. try:
+Jmat.BigInt.div('1522605027922533360535618378132637429718068114961380688657908494580122963258952897654000350692006139', '37975227936943673922808872755445627854565536638199');
+Should give: '40094690950920881030683735292761468389214899724061'
+*/
+Jmat.BigInt.div = function(a, b, opt_base) {
+  return Jmat.BigInt.divmod(a, b, opt_base)[0];
+};
+
+Jmat.BigInt.mod = function(a, b, opt_base) {
+  return Jmat.BigInt.divmod(a, b, opt_base)[1];
+};
+
+// Returns integer square root (floor)
+Jmat.BigInt.sqrt = function(a, opt_base) {
+  var B = Jmat.BigInt;
+
+  var base = opt_base || Jmat.BigInt.ARRAYBASE_;
+  var isString = toString.call(a) === "[object String]";
+  if(isString) a = Jmat.BigInt.fromString(a, base, opt_base || Jmat.BigInt.STRINGBASE_);
+
+  var low = [0];
+  var high = Jmat.BigInt.copystrip_(a);
+  if(high.length == 1 && high[0] == 1) low = [1]; //the algorithm below fails on [1]
+  high = high.slice(0, Math.ceil(high.length / 2) + 1); // initial estimate for max of sqrt: half amount of digits
+  if(base > 16) high[0] = Math.min(high[0], Math.ceil(Math.sqrt(high[0] + 1))); // further improve estimate by setting most significant digit to sqrt of itself
+  
+  var two = (base == 2) ? [1, 0] : [2];
+
+  var result;
+  for (;;) {
+    var mid = B.div(B.add(low, high, base), two, base);
+    var rr = B.mul(mid, mid, base);
+    var c = B.compare(rr, a);
+    if(c == 0) {
+      result = mid;
+      break;
+    }
+    else if(c < 0) low = mid;
+    else high = mid;
+    if(B.compare(B.sub(high, low), [1]) <= 0) {
+      result = low;
+      break;
+    }
+  }
+
+  return isString ? Jmat.BigInt.toString(result, base, opt_base || Jmat.BigInt.STRINGBASE_) : result;
+};
+
+//multiplies a with b, then adds c, where a is big int, but b and c are regular integers
+Jmat.BigInt.muladd = function(a, b, c, opt_base) {
+  var base = opt_base || Jmat.BigInt.ARRAYBASE_;
+  var isString = toString.call(a) === "[object String]";
+  if(isString) a = Jmat.BigInt.fromString(a, base, opt_base || Jmat.BigInt.STRINGBASE_);
+
+  var result = Jmat.BigInt.muladd_(a, b, c, base);
+
+  return isString ? Jmat.BigInt.toString(result, base, opt_base || Jmat.BigInt.STRINGBASE_) : result;
+};
+
+//opposite of muladd: returns (a - b) / c, with a bigint but b and c normal integers
+Jmat.BigInt.subdiv = function(a, b, c, opt_base) {
+  var base = opt_base || Jmat.BigInt.ARRAYBASE_;
+  var isString = toString.call(a) === "[object String]";
+  if(isString) a = Jmat.BigInt.fromString(a, base, opt_base || Jmat.BigInt.STRINGBASE_);
+
+  var B = Jmat.BigInt;
+  var result = B.div(B.sub(a, B.fromInt(b, base)), B.fromInt(c, base)); //TODO: use algorithms that use the regular integers directly
+
+  return isString ? Jmat.BigInt.toString(result, base, opt_base || Jmat.BigInt.STRINGBASE_) : result;
+};
+
+Jmat.BigInt.divmod = function(a, b, opt_base) {
+  var B = Jmat.BigInt;
+  var base = opt_base || Jmat.BigInt.ARRAYBASE_;
+  var isString = toString.call(a) === "[object String]";
+  if(isString) a = Jmat.BigInt.fromString(a, base, opt_base || Jmat.BigInt.STRINGBASE_);
+  b = ((toString.call(b) === "[object String]") ? Jmat.BigInt.fromString(b, base, opt_base || Jmat.BigInt.STRINGBASE_) : b);
+
+  var radix = 256; //must match the radix in leemondiv_!
+
+  var x = Jmat.BigInt.convertBase(a, base, radix);
+  if(x == a) x = B.clone(x); //don't modify inputs
+  var y = Jmat.BigInt.convertBase(b, base, radix);
+  if(y == b) y = B.clone(y); //don't modify inputs
+
+  // leemondiv_ uses most significant digit last rather than first
+  B.mirror_(x);
+  B.mirror_(y);
+  // leemondiv_ requires 0 in front of first input, and uses two's complement so also ensure second input is seen as positive.
+  x.push(0);
+  y.push(0);
+  while(x.length < y.length) x.push(0);
+  
+  var q = new Array(x.length); //quotient
+  var r = new Array(x.length); //remainder
+
+  Jmat.BigInt.leemondiv_(x, y, q, r);
+
+  B.mirror_(q);
+  B.mirror_(r);
+  B.strip_(q);
+  B.strip_(r);
+  var quotient = Jmat.BigInt.convertBase(q, radix, base);
+  var remainder = Jmat.BigInt.convertBase(r, radix, base);
+
+  if(isString) {
+    quotient = Jmat.BigInt.toString(quotient, base, opt_base || Jmat.BigInt.STRINGBASE_);
+    remainder = Jmat.BigInt.toString(remainder, base, opt_base || Jmat.BigInt.STRINGBASE_);
+  }
+
+  return [quotient, remainder];
+};
+
+////////////////////////////////////////////////////////////////////////////////
+// Private implementation
+
+Jmat.BigInt.ARRAYBASE_ = 256; // the default array base
+Jmat.BigInt.STRINGBASE_ = 10; // the default base for numbers given as string. TODO: support hex strings if they start with 0x
+
+Jmat.BigInt.d_ = ['0', '1', '2', '3', '4', '5', '6', '7', '8', '9', 'A', 'B', 'C', 'D', 'E', 'F',
+                  'G', 'H', 'I', 'J', 'K', 'L', 'M', 'N', 'O', 'P', 'Q', 'R', 'S', 'T', 'U', 'V',
+                  'W', 'X', 'Y', 'Z'];
+
+Jmat.BigInt.di_ = function(c) {
+  var i = c.charCodeAt(0);
+  if(i <= 57) return i - 48;
+  if(i > 90) i -= 32;
+  return i - 65 + 10;
+};
+
+//Without altering base.
+Jmat.BigInt.fromString_ = function(s) {
+  var result = [];
+  for(var i = 0; i < s.length; i++) {
+    var v = Jmat.BigInt.di_(s[i]);
+    result[i] = v;
+  }
+  return result;
+};
+
+//Without altering base.
+Jmat.BigInt.toString_ = function(v) {
+  var result = '';
+  for(var i = 0; i < v.length; i++) {
+    result += Jmat.BigInt.d_[v[i]];
+  }
+  if(v.length == 0) result = '0';
+  return result;
+};
+
+Jmat.BigInt.convertBase_ = function(s, from, to) {
+  var r = [];
+  for(var i = 0; i < s.length; i++) {
+    r = Jmat.BigInt.muladd_(r, from, s[i], to);
+  }
+  return r;
+};
+
+//reverses the array in-place
+Jmat.BigInt.mirror_ = function(array) {
+  for(var i = 0; i < array.length / 2; i++) {
+    var temp = array[i];
+    array[i] = array[array.length - i - 1];
+    array[array.length - i - 1] = temp;
+  }
+};
+
+//ashift and bshift are left shifts, adding implicit zeroes after the arrays (so it shifts in the base of the number)
+//amul and bmul are simple number multipliers for each
+Jmat.BigInt.addShifted_ = function(a, ashift, amul, b, bshift, bmul, base) {
+  var l = Math.max(a.length + ashift, b.length + bshift);
+  
+  var overflow = 0;
+  var result = [];
+  for(var i = 0; i < l; i++) {
+    if(i >= ashift && i < a.length + ashift) overflow += amul * (a[a.length - i - 1 + ashift]);
+    if(i >= bshift && i < b.length + bshift) overflow += bmul * (b[b.length - i - 1 + bshift]);
+    result[i] = (overflow + base) % base; // to also support negative values
+    overflow = Math.floor(overflow / base);
+  }
+  while(overflow > 0) { //if would suffice but with while it supports larger than base values in the array, so that e.g. Jmat.BigInt.add([0], [100], 2) converts 100 to binary [1, 1, 0, 0, 1, 0, 0]
+    result.push((overflow + base) % base);
+    overflow = Math.floor(overflow / base);
+  }
+  Jmat.BigInt.mirror_(result);
+
+  return result;
+};
+
+//multiplies a with b, then adds c, where a is big int, but b and c are regular integers
+Jmat.BigInt.muladd_ = function(a, b, c, base) {
+  var overflow = c;
+  var result = [];
+  for(var i = 0; i < a.length; i++) {
+    overflow += b * (a[a.length - i - 1]);
+    result[i] = (overflow + base) % base; // to also support negative values
+    overflow = Math.floor(overflow / base);
+  }
+  while(overflow > 0) {
+    result.push((overflow + base) % base);
+    overflow = Math.floor(overflow / base);
+  }
+  Jmat.BigInt.mirror_(result);
+
+  return result;
+};
+
+//returns 1 if a > b, -1 if b > a, 0 if equal. Tests only the num most significant digits
+//ashift and bshift may be negative, for right shift, which discards those digits
+Jmat.BigInt.compare_ = function(a, ashift, b, bshift) {
+  var l = Math.max(a.length + ashift, b.length + bshift);
+  for(var i = 0; i < l; i++) {
+    var ai = i - l + a.length + ashift;
+    var bi = i - l + b.length + bshift;
+    var av = a[ai] || 0; // 0 if out of bounds
+    var bv = b[bi] || 0; // 0 if out of bounds
+    if(av < bv) return -1;
+    if(av > bv) return 1;
+  }
+  return 0;
+};
+
+
+/*
+Division from public domain Big Integer Library v. 5.0 by Leemon Baird.
+Divide x by y giving quotient q and remainder r.  (q=floor(x/y),  r=x mod y).
+Note: That library is faster than this one (but harder to use), it uses one
+fixed base while here most algorithms work for any base.
+Conditions:
+*) the numbers are base-256 arrays (but modify bpe to change this), least significant digit first, and two's complement
+*) x must have at least one leading zero element. --> that means at the end of the array since it's most significant last.
+*) y must be nonzero.
+*) q and r must be arrays that are exactly the same length as x.
+*) the x array must have at least as many elements as y.
+*/
+Jmat.BigInt.leemondiv_ = function(x, y, q, r) {
+  var bpe = 8;
+  var radix = 1 << bpe;
+  var mask = radix - 1;
+
+  if(Jmat.BigInt.eq(y, [0])) return undefined; //avoid infinite loop
+
+  //left shift bigInt x by n bits.
+  function leftShift_(x,n) {
+    var i;
+    var k=Math.floor(n/bpe);
+    if (k) {
+      for (i=x.length; i>=k; i--) //left shift x by k elements
+        x[i]=x[i-k];
+      for (;i>=0;i--)
+        x[i]=0;  
+      n%=bpe;
+    }
+    if (!n)
+      return;
+    for (i=x.length-1;i>0;i--) {
+      x[i]=mask & ((x[i]<<n) | (x[i-1]>>(bpe-n)));
+    }
+    x[i]=mask & (x[i]<<n);
+  }
+
+
+  //right shift bigInt x by n bits.  0 <= n < bpe.
+  function rightShift_(x,n) {
+    var i;
+    var k=Math.floor(n/bpe);
+    if (k) {
+      for (i=0;i<x.length-k;i++) //right shift x by k elements
+        x[i]=x[i+k];
+      for (;i<x.length;i++)
+        x[i]=0;
+      n%=bpe;
+    }
+    for (i=0;i<x.length-1;i++) {
+      x[i]=mask & ((x[i+1]<<(bpe-n)) | (x[i]>>n));
+    }
+    x[i]>>=n;
+  }
+
+  //is (x << (shift*bpe)) > y?
+  //x and y are nonnegative bigInts
+  //shift is a nonnegative integer
+  function greaterShift(x,y,shift) {
+    var kx=x.length, ky=y.length;
+    k=((kx+shift)<ky) ? (kx+shift) : ky;
+    for (i=ky-1-shift; i<kx && i>=0; i++) 
+      if (x[i]>0)
+        return 1; //if there are nonzeros in x to the left of the first column of y, then x is bigger
+    for (i=kx-1+shift; i<ky; i++)
+      if (y[i]>0)
+        return 0; //if there are nonzeros in y to the left of the first column of x, then x is not bigger
+    for (i=k-1; i>=shift; i--)
+      if      (x[i-shift]>y[i]) return 1;
+      else if (x[i-shift]<y[i]) return 0;
+    return 0;
+  }
+
+  //do x=x-(y<<(ys*bpe)) for bigInts x and y, and integers a,b and ys.
+  //x must be large enough to hold the answer.
+  function subShift_(x,y,ys) {
+    var i,c,k,kk;
+    k=x.length<ys+y.length ? x.length : ys+y.length;
+    kk=x.length;
+    for (c=0,i=ys;i<k;i++) {
+      c+=x[i]-y[i-ys];
+      x[i]=c & mask;
+      c>>=bpe;
+    }
+    for (i=k;c && i<kk;i++) {
+      c+=x[i];
+      x[i]=c & mask;
+      c>>=bpe;
+    }
+  }
+
+  //do the linear combination x=a*x+b*(y<<(ys*bpe)) for bigInts x and y, and integers a, b and ys.
+  //x must be large enough to hold the answer.
+  function linCombShift_(x,y,b,ys) {
+    var i,c,k,kk;
+    k=x.length<ys+y.length ? x.length : ys+y.length;
+    kk=x.length;
+    for (c=0,i=ys;i<k;i++) {
+      c+=x[i]+b*y[i-ys];
+      x[i]=c & mask;
+      c>>=bpe;
+    }
+    for (i=k;c && i<kk;i++) {
+      c+=x[i];
+      x[i]=c & mask;
+      c>>=bpe;
+    }
+  }
+
+  //do x=x+(y<<(ys*bpe)) for bigInts x and y, and integers a,b and ys.
+  //x must be large enough to hold the answer.
+  function addShift_(x,y,ys) {
+    var i,c,k,kk;
+    k=x.length<ys+y.length ? x.length : ys+y.length;
+    kk=x.length;
+    for (c=0,i=ys;i<k;i++) {
+      c+=x[i]+y[i-ys];
+      x[i]=c & mask;
+      c>>=bpe;
+    }
+    for (i=k;c && i<kk;i++) {
+      c+=x[i];
+      x[i]=c & mask;
+      c>>=bpe;
+    }
+  }
+
+  //is bigInt x negative? (note that this uses two's complement)
+  function negative(x) {
+    return ((x[x.length-1]>>(bpe-1))&1);
+  }
+
+  //do x=y on bigInts x and y.  x must be an array at least as big as y (not counting the leading zeros in y).
+  function copy_(x,y) {
+    var i;
+    var k=x.length<y.length ? x.length : y.length;
+    for (i=0;i<k;i++)
+      x[i]=y[i];
+    for (i=k;i<x.length;i++)
+      x[i]=0;
+  }
+
+  //do x=y on bigInt x and integer y.  
+  function copyInt_(x,n) {
+    var i,c;
+    for (c=n,i=0;i<x.length;i++) {
+      x[i]=c & mask;
+      c>>=bpe;
+    }
+  }
+
+  var kx, ky;
+  var i,j,y1,y2,c,a,b;
+  copy_(r,x);
+  for (ky=y.length;y[ky-1]==0;ky--); //ky is number of elements in y, not including leading zeros
+
+  //normalize: ensure the most significant element of y has its highest bit set  
+  b=y[ky-1];
+  for (a=0; b; a++)
+    b>>=1;  
+  a=bpe-a;  //a is how many bits to shift so that the high order bit of y is leftmost in its array element
+  leftShift_(y,a);  //multiply both by 1<<a now, then divide both by that at the end
+  leftShift_(r,a);
+
+  //Rob Visser discovered a bug: the following line was originally just before the normalization.
+  for (kx=r.length;r[kx-1]==0 && kx>ky;kx--); //kx is number of elements in normalized x, not including leading zeros
+
+  copyInt_(q,0);                      // q=0
+  while (!greaterShift(y,r,kx-ky)) {  // while (leftShift_(y,kx-ky) <= r) {
+    subShift_(r,y,kx-ky);             //   r=r-leftShift_(y,kx-ky)
+    q[kx-ky]++;                       //   q[kx-ky]++;
+  }                                   // }
+
+  for (i=kx-1; i>=ky; i--) {
+    if (r[i]==y[ky-1])
+      q[i-ky]=mask;
+    else
+      q[i-ky]=Math.floor((r[i]*radix+r[i-1])/y[ky-1]);
+
+    //The following for(;;) loop is equivalent to the commented while loop,
+    //except that the uncommented version avoids overflow.
+    //The commented loop comes from HAC, which assumes r[-1]==y[-1]==0
+    //  while (q[i-ky]*(y[ky-1]*radix+y[ky-2]) > r[i]*radix*radix+r[i-1]*radix+r[i-2])
+    //    q[i-ky]--;    
+    for (;;) {
+      y2=(ky>1 ? y[ky-2] : 0)*q[i-ky];
+      c=y2>>bpe;
+      y2=y2 & mask;
+      y1=c+q[i-ky]*y[ky-1];
+      c=y1>>bpe;
+      y1=y1 & mask;
+
+      if (c==r[i] ? y1==r[i-1] ? y2>(i>1 ? r[i-2] : 0) : y1>r[i-1] : c>r[i])
+        q[i-ky]--;
+      else
+        break;
+    }
+
+    linCombShift_(r,y,-q[i-ky],i-ky);    //r=r-q[i-ky]*leftShift_(y,i-ky)
+    if (negative(r)) {
+      addShift_(r,y,i-ky);         //r=r+leftShift_(y,i-ky)
+      q[i-ky]--;
+    }
+  }
+
+  rightShift_(y,a);  //undo the normalization step
+  rightShift_(r,a);  //undo the normalization step
+};
+
+//strips array a, modifying the object
+Jmat.BigInt.strip_ = function(a) {
+  while(a[0] == 0 && a.length > 1) a.shift();
+};
+
+//makes a copy, and stripped of leading zeroes if any (unless it is zero)
+Jmat.BigInt.copystrip_ = function(a) {
+  var numzeroes = 0;
+  for(var i = 0; i < a.length; i++) {
+    if(a[i] != 0) break;
+    numzeroes++;
+  }
+  var result = new Array(a.length - numzeroes);
+  if(result.length == 0) return [0];
+  for(var i = 0; i < result.length; i++) result[i] = a[i + numzeroes];
+  return result;
+};
+
 ////////////////////////////////////////////////////////////////////////////////
 
 // Expose everything with easier names (disable this if it would cause name clashes with other libraries)
@@ -8314,6 +8939,7 @@ Jmat.Matrix.powc = function(m, s) {
 var Real = Jmat.Real;
 var Complex = Jmat.Complex;
 var Matrix = Jmat.Matrix;
+var BigInt = Jmat.BigInt;
 
 // Expose some of the Real functions into JS Math
 ['gamma', 'factorial', 'lambertw', 'erf', 'erfc'].map(function(fun) { if(!Math[fun]) Math[fun] = Jmat.Real[fun]; });
