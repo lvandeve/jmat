@@ -307,11 +307,13 @@ formatted in such way that it can be parsed to a number or a matrix, e.g. '5+2i'
 /* Add. x,y:{number|Complex|Matrix}. returns {Complex|Matrix}. */
 Jmat.add = function(x, y) {
   if(Jmat.matrixIn_(x) && Jmat.matrixIn_(y)) return Jmat.Matrix.add(Jmat.Matrix.cast(x), Jmat.Matrix.cast(y));
+  if(Jmat.quaternionIn_(x) || Jmat.quaternionIn_(y)) return Jmat.Quaternion.add(Jmat.Quaternion.cast(x), Jmat.Quaternion.cast(y));
   return Jmat.Complex.add(Jmat.Complex.cast(x), Jmat.Complex.cast(y));
 };
 /* Subtract. x,y:{number|Complex|Matrix}. returns {Complex|Matrix}. */
 Jmat.sub = function(x, y) {
   if(Jmat.matrixIn_(x) && Jmat.matrixIn_(y)) return Jmat.Matrix.sub(Jmat.Matrix.cast(x), Jmat.Matrix.cast(y));
+  if(Jmat.quaternionIn_(x) || Jmat.quaternionIn_(y)) return Jmat.Quaternion.sub(Jmat.Quaternion.cast(x), Jmat.Quaternion.cast(y));
   return Jmat.Complex.sub(Jmat.Complex.cast(x), Jmat.Complex.cast(y));
 };
 /* Multiply. x,y:{number|Complex|Matrix}. returns {Complex|Matrix}. */
@@ -319,6 +321,7 @@ Jmat.mul = function(x, y) {
   if(Jmat.matrixIn_(x) && Jmat.matrixIn_(y)) return Jmat.Matrix.mul(Jmat.Matrix.cast(x), Jmat.Matrix.cast(y));
   if(Jmat.matrixIn_(x)) return Jmat.Matrix.mulc(Jmat.Matrix.cast(x), Jmat.Complex.cast(y));
   if(Jmat.matrixIn_(y)) return Jmat.Matrix.mulc(Jmat.Matrix.cast(y), Jmat.Complex.cast(x));
+  if(Jmat.quaternionIn_(x) || Jmat.quaternionIn_(y)) return Jmat.Quaternion.mul(Jmat.Quaternion.cast(x), Jmat.Quaternion.cast(y));
   return Jmat.Complex.mul(Jmat.Complex.cast(x), Jmat.Complex.cast(y));
 };
 /* Division. x,y:{number|Jmat.Complex|Jmat.Matrix}. returns {Jmat.Complex|Jmat.Matrix}. */
@@ -326,6 +329,7 @@ Jmat.div = function(x, y) {
   if(Jmat.matrixIn_(x) && Jmat.matrixIn_(y)) return Jmat.Matrix.div(Jmat.Matrix.cast(x), Jmat.Matrix.cast(y));
   if(Jmat.matrixIn_(x)) return Jmat.Matrix.divc(Jmat.Matrix.cast(x), Jmat.Complex.cast(y));
   if(Jmat.matrixIn_(y)) return Jmat.Matrix.divc(Jmat.Matrix.cast(y), Jmat.Complex.cast(x));
+  if(Jmat.quaternionIn_(x) || Jmat.quaternionIn_(y)) return Jmat.Quaternion.div(Jmat.Quaternion.cast(x), Jmat.Quaternion.cast(y));
   return Jmat.Complex.div(Jmat.Complex.cast(x), Jmat.Complex.cast(y));
 };
 
@@ -335,17 +339,20 @@ Jmat.div = function(x, y) {
 Jmat.eq = function(x, y) {
   if(Jmat.matrixIn_(x) && Jmat.matrixIn_(y)) return Jmat.Matrix.eq(Jmat.Matrix.cast(x), Jmat.Matrix.cast(y));
   if(Jmat.matrixIn_(x) || Jmat.matrixIn_(y)) return false; //one is matrix, the other is not
+  if(Jmat.quaternionIn_(x) || Jmat.quaternionIn_(y)) return Jmat.Quaternion.eq(Jmat.Quaternion.cast(x), Jmat.Quaternion.cast(y));
   return Jmat.Complex.eq(Jmat.Complex.cast(x), Jmat.Complex.cast(y));
 };
 /* Nearly equal? x,y:{number|Complex|Matrix}. epsilon:{number}. returns {boolean}. */
 Jmat.near = function(x, y, epsilon) {
   if(Jmat.matrixIn_(x) && Jmat.matrixIn_(y)) return Jmat.Matrix.near(Jmat.Matrix.cast(x), Jmat.Matrix.cast(y), Jmat.Real.caststrict(epsilon));
+  if(Jmat.quaternionIn_(x) || Jmat.quaternionIn_(y)) return Jmat.Quaternion.near(Jmat.Quaternion.cast(x), Jmat.Quaternion.cast(y), Jmat.Real.caststrict(epsilon));
   return Jmat.Complex.near(Jmat.Complex.cast(x), Jmat.Complex.cast(y), Jmat.Real.caststrict(epsilon));
 };
 /* Nearly equal? With relative precision. x,y:{number|Complex|Matrix}. precision:{number}. returns {boolean}.
    Precision must be near 0 but slightly larger, e.g. 0.001 for 3 digits of precision, 1e-5 for 5 digits, ...*/
 Jmat.relnear = function(x, y, precision) {
   if(Jmat.matrixIn_(x) && Jmat.matrixIn_(y)) return Jmat.Matrix.relnear(Jmat.Matrix.cast(x), Jmat.Matrix.cast(y), Jmat.Real.caststrict(precision));
+  if(Jmat.quaternionIn_(x) || Jmat.quaternionIn_(y)) return Jmat.Quaternion.relnear(Jmat.Quaternion.cast(x), Jmat.Quaternion.cast(y), Jmat.Real.caststrict(precision));
   return Jmat.Complex.relnear(Jmat.Complex.cast(x), Jmat.Complex.cast(y), Jmat.Real.caststrict(precision));
 };
 
@@ -358,21 +365,25 @@ Jmat.isNaN = function(x) { return Jmat.matrixIn_(x) ? Jmat.Matrix.isNaN(Jmat.Mat
 /* Power, or matrix power. x:{number|Complex|Matrix}. y:{number|Complex}. returns {Complex}. */
 Jmat.pow = function(x, y) {
   if(Jmat.matrixIn_(x)) return Jmat.Matrix.powc(Jmat.Matrix.cast(x), Jmat.Complex.cast(y)); // matrix raised to any complex number power
+  if(Jmat.quaternionIn_(x) || Jmat.quaternionIn_(y)) return Jmat.Quaternion.pow(Jmat.Quaternion.cast(x), Jmat.Quaternion.cast(y));
   return Jmat.Complex.pow(Jmat.Complex.cast(x), Jmat.Complex.cast(y));
 };
 /* Square root, or matrix square root. z:{number|Complex|Matrix}. returns {Complex|Matrix}. */
 Jmat.sqrt = function(z) {
   if(Jmat.matrixIn_(z)) return Jmat.Matrix.sqrt(Jmat.Matrix.cast(z));
+  if(Jmat.quaternionIn_(z)) return Jmat.Quaternion.sqrt(Jmat.Quaternion.cast(x));
   return Jmat.Complex.sqrt(Jmat.Complex.cast(z));
 };
 /* Exponential, or matrix exponential. z:{number|Complex|Matrix}. returns {Complex|Matrix}. */
 Jmat.exp = function(z) {
   if(Jmat.matrixIn_(z)) return Jmat.Matrix.exp(Jmat.Matrix.cast(z)); // matrix exponential
+  if(Jmat.quaternionIn_(z)) return Jmat.Quaternion.exp(Jmat.Quaternion.cast(x));
   return Jmat.Complex.exp(Jmat.Complex.cast(z));
 };
 /* Logarithm, or matrix logarithm. z:{number|Complex|Matrix}. returns {Complex|Matrix}. */
 Jmat.log = function(z) {
   if(Jmat.matrixIn_(z)) return Jmat.Matrix.log(Jmat.Matrix.cast(z));
+  if(Jmat.quaternionIn_(z)) return Jmat.Quaternion.log(Jmat.Quaternion.cast(x));
   return Jmat.Complex.log(Jmat.Complex.cast(z));
 };
 /* log(z) + 1. z:{number|Complex}. returns {Complex}. */
@@ -397,16 +408,19 @@ Jmat.x = function(x) { return Jmat.Complex.cast(x); };
 /* Negate. z:{number|Complex|Matrix}. returns {Complex|Matrix} */
 Jmat.neg = function(z) {
   if(Jmat.matrixIn_(z)) return Jmat.Matrix.neg(Jmat.Matrix.cast(z));
+  if(Jmat.quaternionIn_(z)) return Jmat.Quaternion.neg(Jmat.Quaternion.cast(x));
   return Jmat.Complex.neg(Jmat.Complex.cast(z));
 };
 /* Reciproke. z:{number|Complex|Matrix}. returns {Complex|Matrix} */
 Jmat.inv = function(z) {
   if(Jmat.matrixIn_(z)) return Jmat.Matrix.inv(Jmat.Matrix.cast(z));
+  if(Jmat.quaternionIn_(z)) return Jmat.Quaternion.inv(Jmat.Quaternion.cast(x));
   return Jmat.Complex.inv(Jmat.Complex.cast(z));
 };
 /* Complex conjugate. z:{number|Complex|Matrix}. returns {Complex|Matrix} */
 Jmat.conj = function(z) {
   if(Jmat.matrixIn_(z)) return Jmat.Matrix.conj(Jmat.Matrix.cast(z));
+  if(Jmat.quaternionIn_(z)) return Jmat.Quaternion.conj(Jmat.Quaternion.cast(x));
   return Jmat.Complex.conj(Jmat.Complex.cast(z));
 };
 
@@ -415,15 +429,20 @@ Jmat.conj = function(z) {
 /* Sine, or matrix-sine. z:{number|Complex|Matrix}. returns {Complex|Matrix} */
 Jmat.sin = function(z) {
   if(Jmat.matrixIn_(z)) return Jmat.Matrix.sin(Jmat.Matrix.cast(z));
+  if(Jmat.quaternionIn_(z)) return Jmat.Quaternion.zin(Jmat.Quaternion.cast(x));
   return Jmat.Complex.sin(Jmat.Complex.cast(z));
 };
 /* Cosine, or matrix-cosine. z:{number|Complex|Matrix}. returns {Complex|Matrix} */
 Jmat.cos = function(z) {
   if(Jmat.matrixIn_(z)) return Jmat.Matrix.cos(Jmat.Matrix.cast(z));
+  if(Jmat.quaternionIn_(z)) return Jmat.Quaternion.cos(Jmat.Quaternion.cast(x));
   return Jmat.Complex.cos(Jmat.Complex.cast(z));
 };
 /* Tangent. z:{number|Complex}. returns {Complex} */
-Jmat.tan = function(z) { return Jmat.Complex.tan(Jmat.Complex.cast(z)); };
+Jmat.tan = function(z) {
+  if(Jmat.quaternionIn_(z)) return Jmat.Quaternion.tan(Jmat.Quaternion.cast(x));
+  return Jmat.Complex.tan(Jmat.Complex.cast(z));
+};
 /* Arcsine. z:{number|Complex}. returns {Complex} */
 Jmat.asin = function(z) { return Jmat.Complex.asin(Jmat.Complex.cast(z)); };
 /* Arccosine. z:{number|Complex}. returns {Complex} */
@@ -492,11 +511,20 @@ Jmat.re = function(z) { return Jmat.Complex(Jmat.Complex.cast(z).re); };
 /* Imaginary part. z:{number|Complex}. returns {Complex} */
 Jmat.im = function(z) { return Jmat.Complex(Jmat.Complex.cast(z).im); };
 /* Absolute value or complex modulus. z:{number|Complex}. returns {Complex} */
-Jmat.abs = function(z) { return Jmat.Complex.abs(Jmat.Complex.cast(z)); }; // absolute value, modulus
+Jmat.abs = function(z) {
+  if(Jmat.quaternionIn_(z)) return Jmat.Quaternion.abs(Jmat.Quaternion.cast(x));
+  return Jmat.Complex.abs(Jmat.Complex.cast(z));
+};
 /* Complex argument or phase. z:{number|Complex}. returns {Complex} */
-Jmat.arg = function(z) { return Jmat.Complex.arg(Jmat.Complex.cast(z)); };
+Jmat.arg = function(z) {
+  if(Jmat.quaternionIn_(z)) return Jmat.Quaternion.qrg(Jmat.Quaternion.cast(x));
+  return Jmat.Complex.arg(Jmat.Complex.cast(z));
+};
 /* Real sign. z:{number|Complex}. returns {Complex} */
-Jmat.sign = function(z) { return Jmat.Complex.sign(Jmat.Complex.cast(z)); };
+Jmat.sign = function(z) {
+  if(Jmat.quaternionIn_(z)) return Jmat.Quaternion.sign(Jmat.Quaternion.cast(x));
+  return Jmat.Complex.sign(Jmat.Complex.cast(z));
+};
 /* Complex sign. z:{number|Complex}. returns {Complex} */
 Jmat.csgn = function(z) { return Jmat.Complex.csgn(Jmat.Complex.cast(z)); };
 /* Floor. x:{number|Complex}. returns {Complex} */
@@ -826,6 +854,15 @@ Jmat.matrixIn_ = function(v) {
     return v.indexOf('[') != -1;
   }
   return v && (v instanceof Jmat.Matrix || v.length != undefined);
+};
+
+// Test if input is a quaternion
+Jmat.quaternionIn_ = function(v) {
+  if(!v) return false;
+  if(typeof v == 'string' && (v.indexOf('j') >= 0 || v.indexOf('k') >= 0)) {
+    return true; //not for 'i', then it is just complex. This function should only return true if it's unambiguously a quaternion
+  }
+  return v && (v instanceof Jmat.Quaternion);
 };
 
 // Nice string of any known object, like Complex and Matrix and the objects of named matrices returned by svd or array returned by factorize
@@ -1782,10 +1819,65 @@ Jmat.Real.trunc = function(x) {
   return (x < 0) ? Math.ceil(x) : Math.floor(x);
 };
 
-// Linear interpolation
+// Linear interpolation from a to b
 Jmat.Real.lerp = function(a, b, x) {
   return (1 - x) * a + x * b;
 };
+
+// ECMAScript 5 doesn't have it
+Jmat.Real.sinh = Math.sinh ? Math.sinh : function(x) {
+  return (Math.exp(x) - Math.exp(-x)) / 2;
+};
+
+// ECMAScript 5 doesn't have it
+Jmat.Real.cosh = Math.cosh ? Math.cosh : function(x) {
+  return (Math.exp(x) + Math.exp(-x)) / 2;
+};
+
+// ECMAScript 5 doesn't have it
+Jmat.Real.tanh = Math.tanh ? Math.tanh : function(x) {
+  return (Math.exp(2 * x) - 1) / (Math.exp(2 * x) + 1);
+};
+
+// ECMAScript 5 doesn't have it
+Jmat.Real.asinh = Math.asinh ? Math.asinh : function(x) {
+  if(x == -Infinity) {
+    return x;
+  } else {
+    return Math.log(x + Math.sqrt(x * x + 1));
+  }
+};
+
+// ECMAScript 5 doesn't have it
+Jmat.Real.acosh = Math.acosh ? Math.acosh : function(x) {
+  return Math.log(x + Math.sqrt(x * x - 1));
+};
+
+// ECMAScript 5 doesn't have it
+Jmat.Real.atanh = Math.atanh ? Math.atanh : function(x) {
+  return Math.log((1 + x) / (1 - x)) / 2;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+// Replicate the rest of JS Math library.
+
+Jmat.Real.abs = Math.abs;
+Jmat.Real.floor = Math.floor;
+Jmat.Real.ceil = Math.ceil;
+Jmat.Real.min = Math.min;
+Jmat.Real.max = Math.max;
+Jmat.Real.exp = Math.exp;
+Jmat.Real.log = Math.log;
+Jmat.Real.sqrt = Math.sqrt;
+Jmat.Real.pow = Math.pow;
+Jmat.Real.sin = Math.sin;
+Jmat.Real.cos = Math.cos;
+Jmat.Real.tan = Math.tan;
+Jmat.Real.asin = Math.asin;
+Jmat.Real.acos = Math.acos;
+Jmat.Real.atan = Math.atan;
+Jmat.Real.atan2 = Math.atan2;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -1912,6 +2004,11 @@ Jmat.Complex.cast = function(v) {
   if(v && v.re != undefined) return v;
   if(v == undefined) return Jmat.Complex(0);
   return Jmat.Complex(v);
+};
+
+//aka clone
+Jmat.Complex.copy = function(v) {
+  return new Jmat.Complex(v.re, v.im);
 };
 
 // Because JS number toFixed appends zeros
@@ -2183,6 +2280,7 @@ Jmat.Complex.prototype.neg = function() {
 };
 
 // Returns 0 if z is 0, 1 if z is positive, -1 if z is negative. For complex z, returns z / abs(z)
+// Another name for this could be "normalize" as it makes the length of the "vector" 1
 Jmat.Complex.sign = function(z) {
   if (z.im == 0) {
     if(z.re == 0) return Jmat.Complex(0);
@@ -6377,7 +6475,7 @@ Jmat.Matrix(2, 2).toString()               --> [[undefined, undefined], [undefin
 Jmat.Matrix('[[1, 1e2], [3, 4i]]').toString()         --> [[1, 100], [3, 4i]]
 
 *) a = 1D/2D array of numerical values: column vector or 2D matrix
-Jmat.Matrix([[1, 2], [3, 4]]).toString()   --> [[1, 2], [3, 4]]
+Jmat.Matrix([[1, 2], [3, 4]]).toString()   --> [[1, 2], [3, 4]]: row [1, 2] and row [3, 4]
 Jmat.Matrix([1, 2, 3, 4]).toString()       --> [[1],[2],[3],[4]]: a column matrix
 Jmat.Matrix([[1, 2, 3, 4]]).toString()     --> [[1, 2, 3, 4]]: a row matrix
 Jmat.Matrix([[Jmat.Complex(1, 5), Jmat.Complex(2, 6)], [Jmat.Complex(3, 7), Jmat.Complex(4, 8)]]).toString() --> [[1+5i, 2+6i], [3+7i, 4+8i]]
@@ -6543,6 +6641,7 @@ Jmat.Matrix.cast = function(a) {
   return a instanceof Jmat.Matrix ? a : Jmat.Matrix.make(a);
 };
 
+//aka clone
 Jmat.Matrix.copy = function(a) {
   var result = new Jmat.Matrix(a.h, a.w);
 
@@ -8932,14 +9031,433 @@ Jmat.BigInt.copystrip_ = function(a) {
   return result;
 };
 
+
+
+////////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////
+// Jmat.Quaternion
+////////////////////////////////////////////////////////////////////////////////
+
+/*
+Constructor.
+Class representing a quaternion value.
+
+Aliased as simply "Quaternion" at the end of the file - disable that if it causes name clashes
+
+The quaternion value is w + x*i + y*j + z*k with i*i = j*j = k*k = i*j*k = -1
+*/
+Jmat.Quaternion = function(w, x, y, z) {
+  if(this instanceof Jmat.Quaternion) {
+    // Keyword "new" in front. Does not do any checks, to be "fast"
+    this.w = w; // real part, aka scalar part, aka s or t
+    this.x = x; // vector x
+    this.y = y; // vector y
+    this.z = z; // vector z
+  } else {
+    // No keyword "new" in front, use the convenience factory function instead
+    return Jmat.Quaternion.make(w, x, y, z); // This supports several argument types
+  }
+};
+
+/*
+Can make a quaternion from:
+-a single real number
+-up to 4 real numbers for all components
+-string representation
+-one or two complex numbers
+-2x2 matrix
+-4x4 matrix
+-another quaternion
+*/
+Jmat.Quaternion.make = function(w, x, y, z) {
+  if(typeof w == 'number') return new Jmat.Quaternion(w, x || 0, y || 0, z || 0);
+  if(typeof w == 'string') return Jmat.Quaternion.parse(w);
+  if(w.re != undefined) return new Jmat.Quaternion(w.re, w.im || 0, (x && x.re) || 0, (x && x.im) || 0);
+  if(w.e && w.w == 2 && w.h == 2) return Jmat.Quaternion.from2x2(w);
+  if(w.e && w.w == 4 && w.h == 4) return Jmat.Quaternion.from4x4(w);
+  return new Jmat.Quaternion(w.w, w.x, w.y, w.z); // Copy value object
+};
+
+
+Jmat.Quaternion.cast = function(v) {
+  if(v && v.w != undefined) return v;
+  if(v == undefined) return Jmat.Quaternion(0);
+  return Jmat.Quaternion(v);
+};
+
+//aka clone
+Jmat.Quaternion.copy = function(v) {
+  return new Jmat.Quaternion(v.w, v.x, v.y, v.z);
+};
+
+Jmat.Quaternion.toString = function(value, opt_precision) {
+  if(!value) return value == 0 ? 'invalid0' : ('' + value);
+  var w = (opt_precision ? Jmat.Complex.formatFloat_(value.w, opt_precision) : ('' + value.w));
+  var x = (opt_precision ? Jmat.Complex.formatFloat_(value.x, opt_precision) : ('' + value.x));
+  var y = (opt_precision ? Jmat.Complex.formatFloat_(value.x, opt_precision) : ('' + value.y));
+  var z = (opt_precision ? Jmat.Complex.formatFloat_(value.x, opt_precision) : ('' + value.z));
+
+  var result = '';
+
+  if(value.w != 0) result += w;
+  if(value.x != 0) result += ((result.length == 0 || value.x < 0) ? (x) : ('+' + x)) + 'i';
+  if(value.y != 0) result += ((result.length == 0 || value.y < 0) ? (y) : ('+' + y)) + 'j';
+  if(value.z != 0) result += ((result.length == 0 || value.z < 0) ? (z) : ('+' + z)) + 'k';
+
+  return result;
+};
+Jmat.Quaternion.prototype.toString = function(opt_precision) {
+  return Jmat.Quaternion.toString(this, opt_precision);
+};
+
+// Parses strings of the form '5', '5+i+2j+3k', '5-2.3i', '1.25e-25+17.37e5i-2.31k', 'i + j - k'
+Jmat.Quaternion.parse = function(text) {
+  text = text.replace(/ /g, ''); //no whitespace
+  var s = text.split(/\b/);
+  var t = [];
+  var e = false;
+  for(var i = 0; i < s.length; i++) {
+    var p = s[i];
+    if(i == 0 || (!e && (p[0] == '-' || p[0] == '+'))) t.push('');
+    t[t.length - 1] += p;
+    e = (p[p.length - 1] == 'e' || p[p.length - 1] == 'E');
+  }
+
+  var w = 0;
+  var x = 0;
+  var y = 0;
+  var z = 0;
+
+  for(var i = 0; i < t.length; i++) {
+    var p = t[i];
+    var h = p[p.length - 1];
+    if(h == 'i' || h == 'j' || h == 'k') {
+      p = p.substr(0, p.length - 1);
+      if(p == '' || p == '+') p = '1';
+      if(p == '-') p = '-1';
+      if(h == 'i') x = parseFloat(p);
+      if(h == 'j') y = parseFloat(p);
+      if(h == 'k') z = parseFloat(p);
+    } else {
+      w = parseFloat(p);
+    }
+    
+  }
+
+  return new Jmat.Quaternion(w, x, y, z);
+};
+
+//Basic operators
+
+Jmat.Quaternion.add = function(x, y) {
+  return new Jmat.Quaternion(x.w + y.w, x.x + y.x, x.y + y.y, x.z + y.z);
+};
+Jmat.Quaternion.prototype.add = function(y) {
+  return new Jmat.Quaternion(this.w + y.w, this.x + y.x, this.y + y.y, this.z + y.z);
+};
+
+Jmat.Quaternion.sub = function(x, y) {
+  return new Jmat.Quaternion(x.w - y.w, x.x - y.x, x.y - y.y, x.z - y.z);
+};
+Jmat.Quaternion.prototype.sub = function(y) {
+  return new Jmat.Quaternion(this.w - y.w, this.x - y.x, this.y - y.y, this.z - y.z);
+};
+
+// Hamilton product
+Jmat.Quaternion.mul = function(x, y) {
+  var rw = x.w * y.w - x.x * y.x - x.y * y.y - x.z * y.z;
+  var rx = x.w * y.x + x.x * y.w + x.y * y.z - x.z * y.y;
+  var ry = x.w * y.y - x.x * y.z + x.y * y.w + x.z * y.x;
+  var rz = x.w * y.z + x.x * y.y - x.y * y.x + x.z * y.w;
+  return new Jmat.Quaternion(rw, rx, ry, rz);
+};
+Jmat.Quaternion.prototype.mul = function(y) {
+  return Jmat.Quaternion.mul(this, y);
+};
+
+Jmat.Quaternion.mulr = function(x, y) {
+  return new Jmat.Quaternion(x.w * y, x.x * y, x.y * y, x.z * y);
+};
+Jmat.Quaternion.prototype.mulr = function(y) {
+  return new Jmat.Quaternion(this.w * y, this.x * y, this.y * y, this.z * y);
+};
+
+Jmat.Quaternion.divr = function(x, y) {
+  return new Jmat.Quaternion(x.w / y, x.x / y, x.y / y, x.z / y);
+};
+Jmat.Quaternion.prototype.divr = function(y) {
+  return new Jmat.Quaternion(this.w / y, this.x / y, this.y / y, this.z / y);
+};
+
+Jmat.Quaternion.neg = function(q) {
+  return Jmat.Quaternion(-q.w, -q.x, -q.y, -q.z);
+};
+Jmat.Quaternion.prototype.neg = function() {
+  return Jmat.Quaternion(-this.w, -this.x, -this.y, -this.z);
+};
+
+Jmat.Quaternion.conj = function(q) {
+  return Jmat.Quaternion(q.w, -q.x, -q.y, -q.z);
+};
+Jmat.Quaternion.prototype.conj = function() {
+  return Jmat.Quaternion(this.w, -this.x, -this.y, -this.z);
+};
+
+// absolute value, aka norm or modulus, as a Jmat.Quaternion object (with zero imaginary parts)
+Jmat.Quaternion.abs = function(q) {
+  return Jmat.Quaternion(q.abs());
+};
+// returned as real (regular JS number)
+Jmat.Quaternion.prototype.abs = function() {
+  return Math.sqrt(this.abssq());
+};
+
+// absolute value squared
+Jmat.Quaternion.abssq = function(q) {
+  return Jmat.Quaternion(q.abssq());
+};
+Jmat.Quaternion.prototype.abssq = function() {
+  if(this.w == -Infinity || this.x == -Infinity || this.y == -Infinity || this.z == -Infinity) {
+    return Infinity;
+  }
+
+  return this.w * this.w + this.x * this.x + this.y * this.y + this.z * this.z;
+};
+
+// absolute value of the vector part (returned as Quaternion object)
+Jmat.Quaternion.absv = function(q) {
+  return Jmat.Quaternion(q.absv());
+};
+// returned as real (regular JS number)
+Jmat.Quaternion.prototype.absv = function() {
+  return Math.sqrt(this.absvsq());
+};
+
+// absolute value of vector part squared
+Jmat.Quaternion.absvsq = function(q) {
+  return Jmat.Quaternion(q.abssq());
+};
+Jmat.Quaternion.prototype.absvsq = function() {
+  if(this.x == -Infinity || this.y == -Infinity || this.z == -Infinity) {
+    return Infinity;
+  }
+
+  return this.x * this.x + this.y * this.y + this.z * this.z;
+};
+
+// argument: atan2(|v|, w) where v is the vector part
+Jmat.Quaternion.arg = function(q) {
+  return Jmat.Quaternion(q.arg());
+};
+Jmat.Quaternion.prototype.arg = function() {
+  return Math.atan2(this.absv(), this.w);
+};
+
+// inverse aka reciproke
+Jmat.Quaternion.inv = function(q) {
+  return q.conj().divr(q.abssq());
+};
+Jmat.Quaternion.prototype.inv = function() {
+  return this.conj().divr(this.abssq());
+};
+
+
+// returns a/b = a * b^-1
+Jmat.Quaternion.div = function(a, b) {
+  return a.mul(b.inv());
+};
+Jmat.Quaternion.prototype.div = function(b) {
+  return this.mul(b.inv());
+};
+
+
+// returns a/b = b^-1 * a
+Jmat.Quaternion.leftdiv = function(a, b) {
+  return a.inv().mul(b);
+};
+Jmat.Quaternion.prototype.leftdiv = function(b) {
+  return this.inv().mul(b);
+};
+
+//aka versor aka normalize
+Jmat.Quaternion.sign = function(q) {
+  var a = q.abs();
+  if(a == 0) return q;
+  return q.divr(a);
+};
+
+Jmat.Quaternion.normalize = Jmat.Quaternion.sign;
+Jmat.Quaternion.prototype.normalize = function() {
+  return normalize = Jmat.Quaternion.sign(this);
+};
+
+// Convert to 2x2 matrix representation
+Jmat.Quaternion.to2x2 = function(q) {
+  var C = Jmat.Complex;
+  return Jmat.Matrix([[C(q.w, q.x), C(q.y, q.z)],
+                      [C(-q.y, q.z), C(q.w, -q.x)]]);
+};
+
+Jmat.Quaternion.from2x2 = function(m) {
+  var e0 = m.e[0][0];
+  var e1 = m.e[0][1];
+  return new Jmat.Quaternion(e0.re, e0.im, e1.re, e1.im)
+};
+
+// Convert to 4x4 matrix representation
+Jmat.Quaternion.to4x4 = function(q) {
+  return Jmat.Matrix([[q.w, q.x, q.y, q.z],
+                      [-q.x, q.w, -q.z, q.y],
+                      [-q.y, q.z, q.w, -q.x],
+                      [-q.z, -q.y, q.x, q.w]]);
+};
+
+Jmat.Quaternion.from4x4 = function(m) {
+  var e = m.e[0];
+  return new Jmat.Quaternion(e[0].re, e[1].re, e[2].re, e[3].re);
+};
+
+// Convert to 3x3 rotation matrix (with column vectors). q must be unary quaternion.
+Jmat.Quaternion.to3x3rot = function(q) {
+  var aa = q.w * q.w;
+  var bb = q.x * q.x;
+  var cc = q.y * q.y;
+  var dd = q.z * q.z;
+  return Jmat.Matrix(
+      [[aa + bb - cc - dd, 2 * q.x * q.y - 2 * q.w * q.z, 2 * q.x * q.z + 2 * q.w * q.y],
+      [2 * q.x * q.y + 2 * q.w * q.z, aa - bb + cc - dd, 2 * q.y * q.z - 2 * q.w * q.x],
+      [2 * q.x * q.z - 2 * q.w * q.y, 2 * q.y * q.z + 2 * q.w * q.x, aa - bb - cc + dd]]);
+};
+
+// Convert from 3x3 rotation matrix (with column vectors)
+Jmat.Quaternion.from3x3rot = function(m) {
+  var e = m.e;
+  var t = 1 + e[0][0].re + e[1][1].re + e[2][2].re;
+  if(t > 1e-7) {
+    var s = Math.sqrt(t) * 2;
+    return new Jmat.Quaternion(s * 0.25, (e[2][1].re - e[1][2].re) / s,
+        (e[0][2].re - e[2][0].re) / s, (e[1][0].re - e[0][1].re) / s);
+  }
+  if(e[0][0].re > e[1][1].re && e[0][0].re > e[2][2].re) {
+    var s = Math.sqrt(1 + e[0][0].re - e[1][1].re - e[2][2].re) * 2;
+    return new Jmat.Quaternion((e[2][1].re - e[1][2].re) / s, s * 0.25,
+        (e[1][0].re + e[0][1].re) / s, (e[0][2].re - e[2][0].re) / s);
+  }
+  if(e[1][1].re > e[2][2].re) {
+    var s = Math.sqrt(1 + e[1][1].re - e[0][0].re - e[2][2].re) * 2;
+    return new Jmat.Quaternion((e[0][2].re - e[2][0].re) / s, (e[1][0].re + e[0][1].re) / s,
+        0.25 * s, (e[2][1].re + e[1][2].re) / s);
+  }
+  var s = Math.sqrt(1 + e[2][2].re - e[0][0].re - e[1][1].re) * 2;
+  return new Jmat.Quaternion((e[1][0].re - e[0][1].re) / s, (e[0][2].re + e[2][0].re) / s,
+      (e[2][1].re + e[1][2].re) / s, 0.5 * s);
+};
+
+// Gets the 3D vector as column vector
+Jmat.Quaternion.prototype.getVector = function() {
+  return Jmat.Matrix([[this.x], [this.y], [this.z]]);
+};
+
+Jmat.Quaternion.exp = function(q) {
+  var w = Math.exp(q.w);
+  var v = q.absv();
+  var cv = Math.cos(v);
+  var sv = Math.sin(v);
+  var sva = w * sv / v;
+  return new Jmat.Quaternion(w * cv, sva * q.x, sva * q.y, sva * q.z);
+};
+
+//natural logarithm (ln)
+Jmat.Quaternion.log = function(q) {
+  var n = q.abs();
+  var v = q.absv();
+  var a = Math.acos(q.w / n);
+  var av = a / v;
+  return new Jmat.Quaternion(Math.log(n), av * q.x, av * q.y, av * q.z);
+};
+
+Jmat.Quaternion.pow = function(x, y) {
+  var Q = Jmat.Quaternion;
+  return Q.exp(Q.log(x).mul(y));
+};
+Jmat.Quaternion.prototype.pow = function(y) {
+  return Jmat.Quaternion.pow(this, y);
+};
+
+Jmat.Quaternion.powr = function(x, y) {
+  var Q = Jmat.Quaternion;
+  return Q.exp(Q.log(x).mulr(y));
+};
+Jmat.Quaternion.prototype.powr = function(y) {
+  return Jmat.Quaternion.powr(this, y);
+};
+
+Jmat.Quaternion.eq = function(x, y) {
+  if(!x || !y) return x == y;
+  return (x.w == y.w && x.x == y.x && x.y == y.y && x.z == y.z);
+};
+Jmat.Quaternion.prototype.eq = function(y) {
+  return y && this.w == y.w && this.x == y.x && this.y == y.y && this.z == y.z;
+};
+
+Jmat.Quaternion.near = function(x, y, epsilon) {
+  return x.w - epsilon <= y.w && x.w + epsilon >= y.w &&
+         x.x - epsilon <= y.x && x.x + epsilon >= y.x &&
+         x.y - epsilon <= y.y && x.x + epsilon >= y.y &&
+         x.z - epsilon <= y.z && x.x + epsilon >= y.z;
+};
+
+// See Jmat.Complex.relnear
+Jmat.Quaternion.relnear = function(x, y, precision) {
+  if(x.eq(y)) return true;
+  return x.sub(y).abs() < (Math.max(x.abs(), y.abs()) * precision);
+};
+
+// with w the scalar component, and v the vector:
+// sin(w) * cosh(|v|) , cos(w) * sinh(|v|) * v / |v|
+Jmat.Quaternion.sin = function(q) {
+  var v = q.absv();
+  var sc = Math.sin(q.w) * Jmat.Real.cosh(v);
+  var cs = Math.cos(q.w) * Jmat.Real.sinh(v);
+  return new Jmat.Quaternion(cs, cs * q.x / v, cs * q.y / v, cs * q.z / v);
+};
+
+// with w the scalar component, and v the vector:
+// cos(w) * cosh(|v|) , sin(w) * sinh(|v|) * v / |v|
+Jmat.Quaternion.cos = function(q) {
+  var v = q.absv();
+  var cc = Math.cos(q.w) * Jmat.Real.cosh(v);
+  var ss = Math.sin(q.w) * Jmat.Real.sinh(v);
+  return new Jmat.Quaternion(cc, ss * q.x / v, ss * q.y / v, ss * q.z / v);
+};
+
+Jmat.Quaternion.tan = function(q) {
+  var Q = Jmat.Quaternion;
+  return Q.sin(q).div(Q.cos(q));
+};
+
+//TODO: Quaternion asin, acos, atan, sinh, cosh, tanh, asinh, acosh and atanh.
+
+////////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////
+// Export API
 ////////////////////////////////////////////////////////////////////////////////
 
 // Expose everything with easier names (disable this if it would cause name clashes with other libraries)
 
-var Real = Jmat.Real;
-var Complex = Jmat.Complex;
-var Matrix = Jmat.Matrix;
-var BigInt = Jmat.BigInt;
+var Real = Jmat.Real; // R
+var Complex = Jmat.Complex; // C
+var Matrix = Jmat.Matrix; // M
+var BigInt = Jmat.BigInt; // B
+var Quaternion = Jmat.Quaternion; // Q
 
 // Expose some of the Real functions into JS Math
 ['gamma', 'factorial', 'lambertw', 'erf', 'erfc'].map(function(fun) { if(!Math[fun]) Math[fun] = Jmat.Real[fun]; });

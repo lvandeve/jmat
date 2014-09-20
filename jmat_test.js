@@ -173,7 +173,10 @@ Jmat.doUnitTest = function() {
 
   // numerical algorithms
   Jmat.Test.testFunction(333.33333333333, eps, Jmat.integrate, 0, 10, function(z) { return z.mul(z); });
-  
+
+  // quaternions
+  Jmat.Test.testFunction('-28+4i+6j+8k', eps, Jmat.mul, '1+2i+3j+4k', '1+2i+3j+4k');
+  Jmat.Test.testFunction('-28+4i+6j+8k', eps, Jmat.pow, '1+2i+3j+4k', '2+0i+0j+0k');
 
   console.log('success');
   return 'success';
