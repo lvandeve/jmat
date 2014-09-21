@@ -178,6 +178,12 @@ Jmat.doUnitTest = function() {
   Jmat.Test.testFunction('-28+4i+6j+8k', eps, Jmat.mul, '1+2i+3j+4k', '1+2i+3j+4k');
   Jmat.Test.testFunction('-28+4i+6j+8k', eps, Jmat.pow, '1+2i+3j+4k', '2+0i+0j+0k');
 
+  // bignums
+  Jmat.Test.testFunction('40094690950920881030683735292761468389214899724061', 0, Jmat.div, '1522605027922533360535618378132637429718068114961380688657908494580122963258952897654000350692006139', '37975227936943673922808872755445627854565536638199');
+  Jmat.Test.testFunction('20000000000', 0, Jmat.sqrt, '400000000000000000000');
+
+  // bignum
+
   console.log('success');
   return 'success';
 };
