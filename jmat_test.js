@@ -33,6 +33,11 @@ Jmat.Test = function() {
   // empty, it's a namespace
 };
 
+Jmat.Test.expectTrue = function(value, opt_message) {
+  var message = opt_message ? ('fail: ' + opt_message) : 'fail';
+  if (!value) throw message;
+}
+
 // Works both for Complex or Matrix objects.
 // Precision is number of decimal digits that should match
 Jmat.Test.expectNear = function(e, a, precision) {
@@ -180,7 +185,13 @@ Jmat.doUnitTest = function() {
 
   // bignums
   Jmat.Test.testFunction('40094690950920881030683735292761468389214899724061', 0, Jmat.div, '1522605027922533360535618378132637429718068114961380688657908494580122963258952897654000350692006139', '37975227936943673922808872755445627854565536638199');
-  Jmat.Test.testFunction('20000000000', 0, Jmat.sqrt, '400000000000000000000');
+  Jmat.Test.testFunction('20000000000', 0, Jmat.BigNum.sqrt, '400000000000000000000');
+  Jmat.Test.testFunction('5', 0, Jmat.BigNum.log2, '63');
+  Jmat.Test.testFunction('6', 0, Jmat.BigNum.log2, '64');
+  Jmat.Test.expectTrue(Jmat.BigNum.log2(Jmat.BigNum.fromInt(63, 2)).toString() == '5');
+  Jmat.Test.expectTrue(Jmat.BigNum.log2(Jmat.BigNum.fromInt(64, 2)).toString() == '6');
+  Jmat.Test.expectTrue(Jmat.BigNum.log2(Jmat.BigNum.fromInt(63, 4)).toString() == '5');
+  Jmat.Test.expectTrue(Jmat.BigNum.log2(Jmat.BigNum.fromInt(64, 4)).toString() == '6');
 
   // bignum
 

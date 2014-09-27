@@ -400,6 +400,10 @@ Jmat.log1p = function(z) { return Jmat.Complex.log1p(Jmat.Complex.cast(z)); };
 Jmat.expm1 = function(z) { return Jmat.Complex.expm1(Jmat.Complex.cast(z)); };
 /* Base-y logarithm of x. x,y:{number|Complex}. returns {Complex}. */
 Jmat.logy = function(x, y) { return Jmat.Complex.logy(Jmat.Complex.cast(x), Jmat.Complex.cast(y)); };
+/* Base-2 logarithm of z:{number|Complex}. returns {Complex}. */
+Jmat.log2 = function(z) { return Jmat.Complex.log2(Jmat.Complex.cast(z)); };
+/* Base-10 logarithm of z. z:{number|Complex}. returns {Complex}. */
+Jmat.log10 = function(z) { return Jmat.Complex.log10(Jmat.Complex.cast(z)); };
 /* Principal branch of LambertW. z:{number|Complex}. returns {Complex}. */
 Jmat.lambertw = function(z) { return Jmat.Complex.lambertw(Jmat.Complex.cast(z)); };
 /* Negative branch of LambertW. z:{number|Complex}. returns {Complex}. */
@@ -1677,6 +1681,25 @@ Jmat.Real.logy = function(x, y) {
   return Math.log(x) / Math.log(y);
 };
 
+// Returns the number of leading zero bits in the 32-bit binary representation of x
+// Gives integer log2 of x by doing 32 - clz32(x)
+Jmat.Real.clz32 = Math.clz32 || function(x) {
+  var result = 0;
+  while(x > 0) {
+    x = Math.floor(x / 2);
+    result++;
+  }
+  return 32 - result;
+}
+
+Jmat.Real.log2 = Math.log2 || function(x) {
+  return Math.log(x) / Math.LN2;
+};
+
+Jmat.Real.log10 = Math.log10 || function(x) {
+  return Math.log(x) / Math.LN10;
+};
+
 // dawson function D+(x) aka F(x). erfi(x) = 2/sqrt(pi) * exp(x*x) * D(x)
 // so while erfi overflows for large args, this one doesn't due to no exp(x*x)
 Jmat.Real.dawson = function(x) {
@@ -1831,7 +1854,7 @@ Jmat.Real.round = function(x) {
 };
 
 // Truncates towards zero
-Jmat.Real.trunc = function(x) {
+Jmat.Real.trunc = Math.trunc || function(x) {
   return (x < 0) ? Math.ceil(x) : Math.floor(x);
 };
 
@@ -1841,22 +1864,22 @@ Jmat.Real.lerp = function(a, b, x) {
 };
 
 // ECMAScript 5 doesn't have it
-Jmat.Real.sinh = Math.sinh ? Math.sinh : function(x) {
+Jmat.Real.sinh = Math.sinh || function(x) {
   return (Math.exp(x) - Math.exp(-x)) / 2;
 };
 
 // ECMAScript 5 doesn't have it
-Jmat.Real.cosh = Math.cosh ? Math.cosh : function(x) {
+Jmat.Real.cosh = Math.cosh || function(x) {
   return (Math.exp(x) + Math.exp(-x)) / 2;
 };
 
 // ECMAScript 5 doesn't have it
-Jmat.Real.tanh = Math.tanh ? Math.tanh : function(x) {
+Jmat.Real.tanh = Math.tanh || function(x) {
   return (Math.exp(2 * x) - 1) / (Math.exp(2 * x) + 1);
 };
 
 // ECMAScript 5 doesn't have it
-Jmat.Real.asinh = Math.asinh ? Math.asinh : function(x) {
+Jmat.Real.asinh = Math.asinh || function(x) {
   if(x == -Infinity) {
     return x;
   } else {
@@ -1865,12 +1888,12 @@ Jmat.Real.asinh = Math.asinh ? Math.asinh : function(x) {
 };
 
 // ECMAScript 5 doesn't have it
-Jmat.Real.acosh = Math.acosh ? Math.acosh : function(x) {
+Jmat.Real.acosh = Math.acosh || function(x) {
   return Math.log(x + Math.sqrt(x * x - 1));
 };
 
 // ECMAScript 5 doesn't have it
-Jmat.Real.atanh = Math.atanh ? Math.atanh : function(x) {
+Jmat.Real.atanh = Math.atanh || function(x) {
   return Math.log((1 + x) / (1 - x)) / 2;
 };
 
@@ -2740,6 +2763,14 @@ Jmat.Complex.log1p = function(x) {
 //warning: base y is second argument
 Jmat.Complex.logy = function(x, y) {
   return Jmat.Complex.log(x).div(Jmat.Complex.log(y));
+};
+
+Jmat.Complex.log2 = function(x) {
+  return Jmat.Complex.log(x).divr(Math.LN2);
+};
+
+Jmat.Complex.log10 = function(x) {
+  return Jmat.Complex.log(x).divr(Math.LN10);
 };
 
 Jmat.Complex.sqrt = function(x) {
@@ -8499,7 +8530,7 @@ Jmat.BigNum.parse = function(s, opt_base) {
 };
 
 Jmat.BigNum.toString = function(value, opt_base) {
-  return Jmat.BigNum.arrayToString(value.a, Jmat.BigNum.ARRAYBASE_, opt_base);
+  return Jmat.BigNum.arrayToString(value.a, value.radix, opt_base);
 };
 Jmat.BigNum.prototype.toString = function(opt_base) {
   return Jmat.BigNum.toString(this, opt_base);
@@ -8531,7 +8562,9 @@ Jmat.BigNum.arrayToString = function(v, opt_abase, opt_sbase) {
 
   return result;
 };
+//may return input object if bases are equal
 Jmat.BigNum.convertArrayBase = function(s, from, to) {
+  if(from == to) return s;
   var r = [];
   for(var i = 0; i < s.length; i++) {
     r = Jmat.BigNum.baseloop_(r, 0, from, [], 0, 1, s[i], to);
@@ -8583,6 +8616,7 @@ Jmat.BigNum.intToArray = function(i, opt_base) {
     i = Math.floor(i / base);
   }
   if(result.length == 0) result = [0];
+  Jmat.BigNum.mirror_(result);
   return result;
 };
 
@@ -8609,7 +8643,9 @@ Jmat.BigNum.prototype.toInt = function() {
   return Jmat.BigNum.arrayToInt(this.a, this.radix);
 };
 
+//may return input object if bases are equal
 Jmat.BigNum.convertBase = function(s, to) {
+  if(s.radix == to) return s;
   return new Jmat.BigNum(Jmat.BigNum.convertArrayBase(s.a, s.radix, to), to);
 };
 
@@ -8711,6 +8747,14 @@ Jmat.BigNum.prototype.eq = function(a, b) {
   return Jmat.BigNum.compare(this, b) == 0;
 };
 
+// Equals regular JS number
+Jmat.BigNum.eqr = function(a, b) {
+  return Jmat.BigNum.eq(a, Jmat.BigNum.fromInt(b, a.radix));
+};
+Jmat.BigNum.prototype.eqr = function(a, b) {
+  return Jmat.BigNum.eqr(this, b);
+};
+
 /*
 E.g. try:
 Jmat.BigNum.div('1522605027922533360535618378132637429718068114961380688657908494580122963258952897654000350692006139', '37975227936943673922808872755445627854565536638199');
@@ -8765,6 +8809,51 @@ Jmat.BigNum.sqrt = function(a) {
   return Jmat.BigNum.toFormat(result, format);
 };
 
+
+// takes base-y logarithm of x (y is also BigNum, but typically something like 2 or 10)
+Jmat.BigNum.logy = function(x, y) {
+  var format = Jmat.BigNum.getFormat(x);
+  x = Jmat.BigNum.cast(x);
+  y = Jmat.BigNum.cast(y);
+
+  var c = Jmat.BigNum.convertBase(x, y.toInt());
+  var result = Jmat.BigNum.fromInt(Jmat.BigNum.getNumSignificants(c) - 1, x.radix);
+
+  return Jmat.BigNum.toFormat(result, format);
+};
+
+// integer log2
+Jmat.BigNum.log2 = function(x) {
+  var format = Jmat.BigNum.getFormat(x);
+  x = Jmat.BigNum.cast(x);
+
+  var result;
+  if(x.radix > 3 && (x.radix & (x.radix - 1)) == 0) {
+    var n = 32 - Jmat.Real.clz32(x.radix) - 1;
+    // Amount of digits is a power of two, so avoid more expensive base conversion.
+    var begun = false;
+    var r = 0
+    for(var i = 0; i < x.a.length; i++) {
+      if(!begun && x.a[i] != 0) {
+        begun = true;
+        r = 32 - Jmat.Real.clz32(x.a[i]) - 1;
+      } else if(begun || x.a[i] != 0) {
+        r += n;
+      }
+    }
+    result = Jmat.BigNum.fromInt(r, x.radix);
+  } else {
+    var c = Jmat.BigNum.convertBase(x, 2);
+    result = Jmat.BigNum.fromInt(Jmat.BigNum.getNumSignificants(c) - 1, x.radix);
+  }
+
+  return Jmat.BigNum.toFormat(result, format);
+};
+
+Jmat.BigNum.log10 = function(x) {
+  return Jmat.BigNum.logy(x, new Jmat.BigNum(10));
+}
+
 Jmat.BigNum.divmod = function(a, b, opt_base) {
   var format = Jmat.BigNum.getFormat(a);
   a = Jmat.BigNum.cast(a);
@@ -8777,9 +8866,9 @@ Jmat.BigNum.divmod = function(a, b, opt_base) {
   var radix = 256; //must match the radix in leemondiv_!
 
   var x = B.convertBase(a, radix);
-  if(x == a) x = x.copy(); //don't modify inputs
+  if(x == a) x = B.copy(x); //don't modify inputs
   var y = B.convertBase(b, radix);
-  if(y == b) y = y.copy(); //don't modify inputs
+  if(y == b) y = B.copy(y); //don't modify inputs
 
   // leemondiv_ uses most significant digit last rather than first
   B.mirror_(x.a);
@@ -9037,12 +9126,19 @@ Jmat.BigNum.leemondiv_ = function(x, y, q, r) {
   rightShift_(r,a);  //undo the normalization step
 };
 
-//strips array a, modifying the object
+//gets number of significant digits for the radix x is in (ignores leading zeroes, and returns zero for zero)
+Jmat.BigNum.getNumSignificants = function(x) {
+  var i = 0;
+  while(i < x.a.length && x.a[i] == 0) i++;
+  return x.a.length - i;
+};
+
+//strips array a (removing leading zeroes unless it is zero), modifying the object
 Jmat.BigNum.strip_ = function(a) {
   while(a[0] == 0 && a.length > 1) a.shift();
 };
 
-//makes a copy, and stripped of leading zeroes if any (unless it is zero)
+//makes a copy of array a, and stripped of leading zeroes if any (unless it is zero)
 Jmat.BigNum.copystrip_ = function(a) {
   var numzeroes = 0;
   for(var i = 0; i < a.a.length; i++) {
@@ -9591,4 +9687,4 @@ var Quaternion = Jmat.Quaternion; // Q
 // Expose some of the Real functions into JS Math
 ['gamma', 'factorial', 'lambertw', 'erf', 'erfc'].map(function(fun) { if(!Math[fun]) Math[fun] = Jmat.Real[fun]; });
 // And a few more, but these are likely to become part of JS Math already in a future ECMAScript revision
-['sinh', 'cosh', 'tanh', 'asinh', 'acosh', 'atanh'].map(function(fun) { if(!Math[fun]) Math[fun] = Jmat.Real[fun]; });
+['sinh', 'cosh', 'tanh', 'asinh', 'acosh', 'atanh', 'clz32', 'log2', 'log10', 'log1p', 'expm1'].map(function(fun) { if(!Math[fun]) Math[fun] = Jmat.Real[fun]; });
