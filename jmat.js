@@ -399,17 +399,35 @@ Jmat.log1p = function(z) { return Jmat.Complex.log1p(Jmat.Complex.cast(z)); };
 /* exp(z) - 1. z:{number|Complex}. returns {Complex}. */
 Jmat.expm1 = function(z) { return Jmat.Complex.expm1(Jmat.Complex.cast(z)); };
 /* Base-y logarithm of x. x,y:{number|Complex}. returns {Complex}. */
-Jmat.logy = function(x, y) { return Jmat.Complex.logy(Jmat.Complex.cast(x), Jmat.Complex.cast(y)); };
+Jmat.logy = function(x, y) {
+  if(Jmat.quaternionIn_(x) || Jmat.quaternionIn_(y)) return Jmat.Quaternion.logy(Jmat.Quaternion.cast(x), Jmat.Quaternion.cast(y));
+  return Jmat.Complex.logy(Jmat.Complex.cast(x), Jmat.Complex.cast(y));
+};
 /* Base-2 logarithm of z:{number|Complex}. returns {Complex}. */
-Jmat.log2 = function(z) { return Jmat.Complex.log2(Jmat.Complex.cast(z)); };
+Jmat.log2 = function(z) {
+  if(Jmat.quaternionIn_(z)) return Jmat.Quaternion.log2(Jmat.Quaternion.cast(z));
+  return Jmat.Complex.log2(Jmat.Complex.cast(z));
+};
 /* Base-10 logarithm of z. z:{number|Complex}. returns {Complex}. */
-Jmat.log10 = function(z) { return Jmat.Complex.log10(Jmat.Complex.cast(z)); };
+Jmat.log10 = function(z) {
+  if(Jmat.quaternionIn_(z)) return Jmat.Quaternion.log10(Jmat.Quaternion.cast(z));
+  return Jmat.Complex.log10(Jmat.Complex.cast(z));
+};
 /* Principal branch of LambertW. z:{number|Complex}. returns {Complex}. */
-Jmat.lambertw = function(z) { return Jmat.Complex.lambertw(Jmat.Complex.cast(z)); };
+Jmat.lambertw = function(z) {
+  if(Jmat.quaternionIn_(z)) return Jmat.Quaternion.lambertw(Jmat.Quaternion.cast(z));
+  return Jmat.Complex.lambertw(Jmat.Complex.cast(z));
+};
 /* Negative branch of LambertW. z:{number|Complex}. returns {Complex}. */
-Jmat.lambertwm = function(z) { return Jmat.Complex.lambertwm(Jmat.Complex.cast(z)); };
+Jmat.lambertwm = function(z) {
+  if(Jmat.quaternionIn_(z)) return Jmat.Quaternion.lambertwm(Jmat.Quaternion.cast(z));
+  return Jmat.Complex.lambertwm(Jmat.Complex.cast(z));
+};
 /* Specific branch of LambertW. branch:{number} must be integer, z:{number|Complex}. returns {Complex}. */
-Jmat.lambertwb = function(branch, z) { return Jmat.Complex.lambertwb(Jmat.Real.caststrict(branch), Jmat.Complex.cast(z)); };
+Jmat.lambertwb = function(branch, z) {
+  if(Jmat.quaternionIn_(z)) return Jmat.Quaternion.lambertwb(branch, Jmat.Quaternion.cast(z));
+  return Jmat.Complex.lambertwb(Jmat.Real.caststrict(branch), Jmat.Complex.cast(z));
+};
 /* Tetration (power tower). x,y:{number|Complex}. returns {Complex} */
 Jmat.tetration = function(x, y) { return Jmat.Complex.tetration(Jmat.Complex.cast(x), Jmat.Complex.cast(y)); };
 
@@ -2477,7 +2495,7 @@ Jmat.Complex.isNaN = function(z) {
 
 //is infinite
 Jmat.Complex.isInf = function(z) {
-  return (z.re * z.re + z.im * z.im) == Infinity;
+  return Math.abs(z.re) == Infinity || Math.abs(z.im) == Infinity;
 };
 
 //isnanorinf isinfornan
@@ -5387,50 +5405,55 @@ Jmat.Complex.relnear = function(x, y, precision) {
   return x.sub(y).abs() < (Math.max(x.abs(), y.abs()) * precision);
 };
 
-// Lambertw for branch (0 = principal branch Wp, -1 is also common (Wm))
-// Branch is real integer, z is Jmat.Complex object (complex)
-Jmat.Complex.lambertwb = function(branch, z) {
-  if(Jmat.Complex.isReal(z) && z.re > -0.36 /*~ -1/e*/ && branch == 0) return Jmat.Complex(Jmat.Real.lambertw(z));
+// This works for quaternions as well.. set M to Jmat.Complex for complex number, or Jmat.Quaternion for quaternions.
+Jmat.Complex.lambertwb_generic_ = function(M, branch, z) {
+  if(M.isReal(z) && z.re > -0.36 /*~ -1/e*/ && branch == 0) return M(Jmat.Real.lambertw(z));
 
-  if(!Jmat.Real.isInt(branch)) return Jmat.Complex(NaN);
+  if(!Jmat.Real.isInt(branch)) return M(NaN);
 
 
   // Known special values
-  if(Jmat.Complex.isNaN(z)) return NaN;
-  if(Jmat.Complex.isInf(z)) return Jmat.Complex(Infinity); // any complex infinity gives positive infinity
-  if(branch == 0 && z.re == 0 && z.im == 0) return Jmat.Complex(0);
-  if(branch != 0 && z.re == 0 && z.im == 0) return Jmat.Complex(-Infinity); //at all other branch than the principal one, it's -infinity at 0
+  if(M.isNaN(z)) return NaN;
+  if(M.isInf(z)) return M(Infinity); // any complex infinity gives positive infinity
+  if(branch == 0 && z.re == 0 && z.im == 0) return M(0);
+  if(branch != 0 && z.re == 0 && z.im == 0) return M(-Infinity); //at all other branch than the principal one, it's -infinity at 0
 
   /*
-  Choosing a good starting value is important. Jmat.Complex(0) as starting value works
+  Choosing a good starting value is important. M(0) as starting value works
   most of the time, but does not work at some regions in the negative complex domain,
   e.g. around 5.4+0.1i, 5.5+0.1i, ... and that can be seen as mandelbrot-fractal-like
   circles around those regions in the complex domain plot.
   */
-  var w = Jmat.Complex.log(z).add(Jmat.Complex(0, branch * Math.PI * 2));
+  var w = M.log(z).add(M(0, branch * Math.PI * 2));
   if(branch == 0 && z.abs() < 1.2 /*supposed to be 1/Math.E, but I still see problems beyond that in the complex domain plot...*/) {
-    w = Jmat.Complex.sqrt(z.mulr(5.43656365691809047).addr(2)).add(Jmat.Complex(-1, branch * Math.PI * 2));
+    w = M.sqrt(z.mulr(5.43656365691809047).addr(2)).add(M(-1, branch * Math.PI * 2));
   }
   if(branch != 0 && z.im == 0) z.im += 1e-14; // Give it small imaginary part, otherwise it never gets there
 
   var num = 36;
   for(var i = 0; i < num; i++) {
-    var ew = Jmat.Complex.exp(w);
+    var ew = M.exp(w);
     var wew = w.mul(ew);
     var t = wew.sub(z);
     var a = ew.mul(w.addr(1));
     var b = w.addr(2).mul(t).div(w.mulr(2).addr(2));
     w = w.sub(t.div(a.sub(b)));
 
-    var ltest = Jmat.Complex.log(z.div(w)); //for testing if near (z = w*exp(w) OR ln(z/w) = w)
-    if(Jmat.Complex.near(ltest, w, 1e-16) || Jmat.Complex.near(wew, z, 1e-16)) break;
-    if(i + 1 == num && !(Jmat.Complex.near(ltest, w, 1) || Jmat.Complex.near(wew, z, 1))) return Jmat.Complex(NaN); // iteration could not finish and too far from result
+    var ltest = M.log(z.div(w)); //for testing if near (z = w*exp(w) OR ln(z/w) = w)
+    if(M.near(ltest, w, 1e-16) || M.near(wew, z, 1e-16)) break;
+    if(i + 1 == num && !(M.near(ltest, w, 1) || M.near(wew, z, 1))) return M(NaN); // iteration could not finish and too far from result
   }
 
   // Remove numeric tiny imaginary part that appeared in error
   if(z.im == 0 && z.re >= 0) w.im = 0;
 
   return w;
+};
+
+// Lambertw for branch (0 = principal branch Wp, -1 is also common (Wm))
+// Branch is real integer, z is Jmat.Complex object (complex)
+Jmat.Complex.lambertwb = function(branch, z) {
+  return Jmat.Complex.lambertwb_generic_(Jmat.Complex, branch, z);
 };
 
 // Principal branch of Lambert's W function: Wp, inverse (not reciprocal) of exp(x) * x
@@ -8968,7 +8991,6 @@ Jmat.BigNum.div_ = function(a, b) {
 
   var x = one.mulr(3).sub(a.mulr(2)); //instead of 48/17 - 32/17*a since this is integers only;
   for(;;) {
-    console.log(x.toString());
     var dx = rshift(x.mul(b), n); //Every multiplication requires a right shift to use the same fixed-point precision (this drops n digits each time)
     if(dx.gt(one)) return undefined;
     var dx2 = rshift(x.mul(one.sub(dx)), n);
@@ -9646,6 +9668,14 @@ Jmat.Quaternion.logr = function(x, y) {
   return Jmat.Quaternion.log(x).divr(Math.log(y));
 };
 
+Jmat.Quaternion.log2 = function(q) {
+  return Jmat.Quaternion.log(q).divr(Math.LN2);
+};
+
+Jmat.Quaternion.log10 = function(q) {
+  return Jmat.Quaternion.log(q).divr(Math.LN10);
+};
+
 Jmat.Quaternion.pow = function(x, y) {
   var Q = Jmat.Quaternion;
   return Q.exp(Q.log(x).mul(y));
@@ -9766,6 +9796,42 @@ Jmat.Quaternion.acosh = function(z) {
 Jmat.Quaternion.atanh = function(z) {
   // 0.5 * (ln(1+z) - ln(1-z))
   return Jmat.Quaternion.log(z.addr(1).div(z.rsub(1))).mulr(0.5);
+};
+
+Jmat.Quaternion.isReal = function(z) {
+  return z.x == 0 && z.y == 0 && z.z == 0;
+};
+
+Jmat.Quaternion.isNaN = function(z) {
+  return isNaN(z.w) || isNaN(z.x) || isNaN(z.y) || isNaN(z.z);
+};
+
+//is infinite
+Jmat.Quaternion.isInf = function(z) {
+  return Math.abs(z.w) == Infinity || Math.abs(z.x) == Infinity || Math.abs(z.y) == Infinity || Math.abs(z.z) == Infinity;
+};
+
+//isnanorinf isinfornan
+Jmat.Quaternion.isInfOrNaN = function(z) {
+  return !z || Jmat.Quaternion.isNaN(z) || Jmat.Quaternion.isInf(z);
+};
+
+// Lambertw for branch (0 = principal branch Wp, -1 is also common (Wm))
+// Branch is real integer, z is Jmat.Quaternion object
+Jmat.Quaternion.lambertwb = function(branch, z) {
+  // We can use the generic algorithm from Jmat.Complex, because Jmat.Quaternion also has all the operators it needs (mul, isReal, ...)
+  return Jmat.Complex.lambertwb_generic_(Jmat.Quaternion, branch, z);
+};
+
+// Principal branch of Lambert's W function: Wp, inverse (not reciprocal) of exp(x) * x
+Jmat.Quaternion.lambertw = function(z) {
+  return Jmat.Quaternion.lambertwb(0, z);
+};
+
+// Negative branch of Lambert's W function: Wm, inverse (not reciprocal) of exp(x) * x
+Jmat.Quaternion.lambertwm = function(z) {
+  // TODO: wrong. Look at the real plot. Fix this! Jmat.plotReal(Jmat.Quaternion.lambertwm)
+  return Jmat.Quaternion.lambertwb(-1, z);
 };
 
 ////////////////////////////////////////////////////////////////////////////////
