@@ -866,10 +866,10 @@ Jmat.maxrownorm = function(m) { return Jmat.Matrix.maxrownorm(Jmat.Matrix.cast(m
 Jmat.differentiate = function(x, f) { return Jmat.Complex.differentiate(Jmat.Complex.cast(x), f); }; // derivative
 /* Quadrature: definite integral of f from x to y. x,y:{number|Complex}, f:{function(Complex):Complex}, steps:{number} integer. returns {Complex} */
 Jmat.integrate = function(x, y, f, steps) { return Jmat.Complex.integrate(Jmat.Complex.cast(x), Jmat.Complex.cast(y), f, Jmat.Real.caststrict(steps)); };
-/* Secant method. f:{function(Complex):Complex}, z0:{number|Complex}, maxiter:{number} integer. returns {Complex} */
-Jmat.rootfind_secant = function(f, z0, maxiter) { return Jmat.Complex.rootfind_secant(f, Jmat.Complex.cast(z0), Jmat.Real.caststrict(maxiter)); };
 /* Newton's method. f,df:{function(Complex):Complex} df is derivative of f, z0:{number|Complex}, maxiter:{number} integer. returns {Complex} */
-Jmat.rootfind_newton = function(f, df, z0, maxiter) { return Jmat.Complex.rootfind_secant(f, df, Jmat.Complex.cast(z0), Jmat.Real.caststrict(maxiter)); };
+Jmat.rootfind_newton = function(f, df, z0, maxiter) { return Jmat.Complex.rootfind_newton(f, df, Jmat.Complex.cast(z0), Jmat.Real.caststrict(maxiter)); };
+/* Newton's method, but without giving derivative (it is calculated like the secant method). f:{function(Complex):Complex}, z0:{number|Complex}, maxiter:{number} integer. returns {Complex} */
+Jmat.rootfind_newton_noderiv = function(f, z0, maxiter) { return Jmat.Complex.rootfind_newton_noderiv(f, Jmat.Complex.cast(z0), Jmat.Real.caststrict(maxiter)); };
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -2950,7 +2950,7 @@ Jmat.Complex.gamma_inv = function(value) {
   }
 
   // TODO: this has problems for |z| > 20. Use more stable root finding
-  // TODO: since the current digamma implementation is nothing more than a derivative approximation, I might as well use finvert_secant. Try using digamma anyway if it's ever made more precise.
+  // TODO: since the current digamma implementation is nothing more than a derivative approximation, I might as well use finvert_newton_noderiv. Try using digamma anyway if it's ever made more precise.
   var result = Jmat.Complex.finvert_newton(value, Jmat.Complex.gamma, function(z) {
     // Derivative of gamma function is: gamma function multiplied by digamma function
     return Jmat.Complex.gamma(z).mul(Jmat.Complex.digamma(z));
@@ -3041,7 +3041,12 @@ Jmat.Complex.polygamma = function(n, z) {
 // lowercase gamma(s, x) 
 Jmat.Complex.incgamma_lower = function(s, z) {
   // METHOD A: in terms of hypergeometric1F1 function
-  //return z.pow(s).div(s).mul(Jmat.Complex.hypergeometric1F1(s, s.inc(), z.neg()));
+  // Has some noise here and there, but works better than series representation for large values
+  if(z.re > 0) {
+    var result = z.pow(s).div(s).mul(Jmat.Complex.hypergeometric1F1(s, s.inc(), z.neg()));
+    if (!Jmat.Complex.isNaN(result)) return result;
+  }
+
 
   // METHOD B: series expansion - has some problems with division through zero
   // sum_k=0.oo ((-1)^k / k!) * (z^(s+k) / (s + k))
@@ -3049,7 +3054,8 @@ Jmat.Complex.incgamma_lower = function(s, z) {
   var kk = Jmat.Complex(1);
   var zz = z.pow(s);
   var sign = 1;
-  for(var k = 0; k < 30; k++) {
+  var numit = z.abs() > 5 ? 50 : 30;
+  for(var k = 0; k < numit; k++) {
     if(k > 0) {
       kk = kk / k;
       sign = -sign;
@@ -3071,57 +3077,66 @@ Jmat.Complex.incgamma_upper = function(s, z) {
   return Jmat.Complex.gamma(s).sub(Jmat.Complex.incgamma_lower(s, z));
 };
 
-Jmat.Complex.gamma_p_cache_ = []; // cache used because s is often constant between gamma_p calls
+Jmat.Complex.gamma_p_cache_ = []; // cache used because a is often constant between gamma_p calls
 
 // regularized lower incomplete gamma function (lower gamma_regularized, regularized_gamma)
-// P(s, x) = gamma(s, z) / GAMMA(s)
-// Note: the derivative of this function is: (e^(-z) * z^(s-1))/GAMMA(s)
-Jmat.Complex.gamma_p = function(s, z) {
-  if(Jmat.Complex.isNegativeIntOrZero(s)) return Jmat.Complex(1);
-  var g = Jmat.Complex.calcCache_(s, Jmat.Complex.gamma, Jmat.Complex.gamma_p_cache_); // gamma(s)
-  return Jmat.Complex.incgamma_lower(s, z).div(g);
+// P(a, x) = gamma(a, z) / GAMMA(a)
+// Note: the derivative of this function is: (e^(-z) * z^(a-1))/GAMMA(a)
+Jmat.Complex.gamma_p = function(a, z) {
+  if(Jmat.Complex.isNegativeIntOrZero(a)) return Jmat.Complex(1);
+  var g = Jmat.Complex.calcCache_(a, Jmat.Complex.gamma, Jmat.Complex.gamma_p_cache_); // gamma(a)
+  return Jmat.Complex.incgamma_lower(a, z).div(g);
 };
 
 // regularized upper incomplete gamma function (upper gamma_regularized, regularized_gamma)
-// Q(s, x) = 1 - P(s, x) = GAMMA(s, z) / GAMMA(s)
-// Note: the derivative of this function is: -(e^(-z) * z^(s-1))/GAMMA(s)
-Jmat.Complex.gamma_q = function(s, z) {
-  if(Jmat.Complex.isNegativeIntOrZero(s)) return Jmat.Complex(0);
-  return Jmat.Complex.ONE.sub(Jmat.Complex.gamma_p(s, z));
+// Q(a, x) = 1 - P(a, x) = GAMMA(a, z) / GAMMA(a)
+// Note: the derivative of this function is: -(e^(-z) * z^(a-1))/GAMMA(a)
+Jmat.Complex.gamma_q = function(a, z) {
+  if(Jmat.Complex.isNegativeIntOrZero(a)) return Jmat.Complex(0);
+  return Jmat.Complex.ONE.sub(Jmat.Complex.gamma_p(a, z));
 };
 
-// One possible approximation series for inverse gamma P. Valid for real values with p in range 0-1 and positive s. Possibly more.
-Jmat.Complex.gamma_p_inv_series_1_ = function(s, p) {
-  var s1 = s.inc();
-  var s1s = s1.mul(s1);
-  var s2 = s.addr(2);
-  var s2s = s2.mul(s2);
-  var ss = s.mul(s);
-  var sss = ss.mul(s);
-  var ssss = sss.mul(s);
-  var s3 = s.addr(3);
-  var s4 = s.addr(4);
+// One possible approximation series for inverse gamma P. Valid for real values with p in range 0-1 and positive a. Possibly more.
+Jmat.Complex.gamma_p_inv_series_1_ = function(a, p) {
+  var a1 = a.inc();
+  var a1a = a1.mul(a1);
+  var a2 = a.addr(2);
+  var a2a = a2.mul(a2);
+  var aa = a.mul(a);
+  var aaa = aa.mul(a);
+  var aaaa = aaa.mul(a);
+  var a3 = a.addr(3);
+  var a4 = a.addr(4);
 
   var c = [0, 1];
-  c[2] = s.inc().inv();
-  c[3] = s.mulr(3).addr(5).div(s1s.mul(s2).mulr(2));
-  c[4] = ss.mulr(8).add(s.mulr(33)).addr(31).div(s1s.mul(s1).mul(s2).mul(s3).mulr(3));
-  c[5] = ssss.mulr(125).add(sss.mulr(1179)).add(ss.mulr(3971)).add(s.mulr(5661)).addr(2888).div(s1s.mul(s1s).mul(s2s).mul(s3).mul(s4).mulr(24));
+  c[2] = a.inc().inv();
+  c[3] = a.mulr(3).addr(5).div(a1a.mul(a2).mulr(2));
+  c[4] = aa.mulr(8).add(a.mulr(33)).addr(31).div(a1a.mul(a1).mul(a2).mul(a3).mulr(3));
+  c[5] = aaaa.mulr(125).add(aaa.mulr(1179)).add(aa.mulr(3971)).add(a.mulr(5661)).addr(2888).div(a1a.mul(a1a).mul(a2a).mul(a3).mul(a4).mulr(24));
 
-  var r = p.mul(Jmat.Complex.gamma(s1)).pow(s.inv());
+  var r = p.mul(Jmat.Complex.gamma(a1)).pow(a.inv());
 
   return Jmat.Complex.powerSeries(c, c.length, Jmat.Complex.ZERO, r);
 };
 
 // Inverse regularized gamma P
-// Finds z for p == gamma_p(s, z)
-// This is an *approximation* of inverse of incomplete regularized gamma (P) - it works for real values with p in range 0-1 and positive s. Good enough for qf of chi square distribution
-Jmat.Complex.gamma_p_inv = function(s, p) {
+// Finds z for p == gamma_p(a, z)
+// This is an *approximation* of inverse of incomplete regularized gamma (P) - it works for real values with p in range 0-1 and positive a. Good enough for qf of chi square distribution
+Jmat.Complex.gamma_p_inv = function(a, p) {
   // Return NaN for unsupported values to prevent bogus results
-  if(!Jmat.Complex.isReal(p) || !Jmat.Complex.isReal(s) || p.re < 0 || p.re > 1 || s.re < 0) return Jmat.Complex(NaN);
+  if(!Jmat.Complex.isReal(p) || !Jmat.Complex.isReal(a) || p.re < 0 || p.re > 1 || a.re < 0) return Jmat.Complex(NaN);
 
   // TODO: more complete support of the entire complex domain
-  return Jmat.Complex.gamma_p_inv_series_1_(s, p);
+  return Jmat.Complex.gamma_p_inv_series_1_(a, p);
+};
+
+//inverse of gamma_q, but in a instead of in z
+//unfortunately very inaccurate. E.g. gamma_q(n, 0.4) returns 0.999... for nearly all n > 4. So anything near that range could give a wide variety of responses.
+Jmat.Complex.gamma_q_inva = function(p, z) {
+  // This is really not stable and reliable. I need better rootfinding methods and start values.
+  return Jmat.Complex.rootfind_bisection(Jmat.Complex(0), Jmat.Complex(100), function(x) {
+    return Jmat.Complex.gamma_q(x, z).sub(p);
+  });
 };
 
 // Calculates gamma(x) / gamma(y), and can cancel out negative integer arguments if both are negative integers in some cases. That is useful for functions like beta, binomial, ...
@@ -4685,6 +4700,8 @@ Jmat.Complex.hypergeometric1F1 = function(a, b, z) {
 // Hypergeometric series 2F1(a, b; c; z), aka Gauss hypergeometric function or "The hypergeometric". Approximation.
 // Try similar online: http://keisan.casio.com/exec/system/1349143084, or wolframalpha, HyperGeometric2F1[1.5, -0.5, 2.5, 0.25+i]
 // I debugged this function to find all the areas in the complex or real input plane where it goes wrong, by 2D or complexdomain plotting this, and beta_i which uses this
+// If c is a non-positive integer, the function is undefined and usually returns NaN except for some cases where a is integer.
+// TODO: for some values the function is imprecise, e.g. Jmat.hypergeometric2F1(1.1, -0.9, 2.1, 3) gives -0.5769+0.1874i instead of -0.5155+0.2163i
 Jmat.Complex.hypergeometric2F1 = function(a, b, c, z) {
   if(z.abs() > 1.0001 /*not 1 to avoid infinite loop if abs 1/z is also > 1 due to numeric problems, e.g. for 0.9726962457337884+i0.23208191126279865*/) {
     // The series converges only for |z| < 1. But there are some linear transformations
@@ -4701,27 +4718,21 @@ Jmat.Complex.hypergeometric2F1 = function(a, b, c, z) {
       return Jmat.Complex.ONE.sub(z).pow(a.neg()).mul(Jmat.Complex.hypergeometric2F1(a, c.sub(b), c, z2));
     } else {
       // 1 / z
-      var quirkyGammaDiv22_ = function(a, b, c, d) {
+
+      var quirk = function(a) {
         // For some cases where a, b, c - a or c - b are negative integers, the formula doesn't work and requires a rather complicated other formula for the solution.
         // For now, I temporarily instead twiddle the parameters a bit. TODO: that is evil, do it properly (but it is surprisingly somewhat accurate though... well, not for everything)
-        var result = Jmat.Complex.gammaDiv22_(a, b, c, d);
-        if(Jmat.Complex.isNaN(result)) {
-          if(Jmat.Complex.isNegativeIntOrZero(a)) a = a.addr(1e-5);
-          if(Jmat.Complex.isNegativeIntOrZero(b)) b = b.addr(1e-5);
-          if(Jmat.Complex.isNegativeIntOrZero(c)) c = c.addr(1e-5);
-          if(Jmat.Complex.isNegativeIntOrZero(d)) d = d.addr(1e-5);
-          result = Jmat.Complex.gammaDiv22_(a, b, c, d);
-        }
-        return result;
+        if(Jmat.Complex.isNegativeIntOrZero(a)) return a.addr(1e-5);
+        return a;
       };
 
       var zi = z.inv();
       var za = z.neg().pow(a.neg());
       var zb = z.neg().pow(b.neg());
-      var ga = quirkyGammaDiv22_(c, b.sub(a), b, c.sub(a));
-      var gb = quirkyGammaDiv22_(c, a.sub(b), a, c.sub(b));
-      var fa = Jmat.Complex.hypergeometric2F1(a, Jmat.Complex.ONE.sub(c).add(a), Jmat.Complex.ONE.sub(b).add(a), zi);
-      var fb = Jmat.Complex.hypergeometric2F1(b, Jmat.Complex.ONE.sub(c).add(b), Jmat.Complex.ONE.sub(a).add(b), zi);
+      var ga = Jmat.Complex.gammaDiv22_(quirk(c), quirk(b.sub(a)), quirk(b), quirk(c.sub(a)));
+      var gb = Jmat.Complex.gammaDiv22_(quirk(c), quirk(a.sub(b)), quirk(a), quirk(c.sub(b)));
+      var fa = Jmat.Complex.hypergeometric2F1(a, Jmat.Complex.ONE.sub(c).add(a), quirk(Jmat.Complex.ONE.sub(b).add(a)), zi);
+      var fb = Jmat.Complex.hypergeometric2F1(b, Jmat.Complex.ONE.sub(c).add(b), quirk(Jmat.Complex.ONE.sub(a).add(b)), zi);
       var va = ga.mul(za).mul(fa);
       var vb = gb.mul(zb).mul(fb);
       return va.add(vb);
@@ -4730,7 +4741,8 @@ Jmat.Complex.hypergeometric2F1 = function(a, b, c, z) {
 
   var z2 = z.div(z.dec());
   if(z2.abs() < z.abs()) {
-    // Same z / (z - 1) transform as above. Reason for doing this: the summation below converges faster for smaller absolute values of z. Without this, for e.g. z = -0.75 and c < -3, it converges only after hundreds of steps.
+    // Same z / (z - 1) transform as above. Reason for doing this: the summation below converges faster for smaller absolute values of z.
+    // Without this, for e.g. z = -0.75 and c < -3, it converges only after hundreds of steps.
     // TODO: in fact it's almost always possible to make |z| < 0.5 with the linear transformations. Use them better.
     return Jmat.Complex.ONE.sub(z).pow(a.neg()).mul(Jmat.Complex.hypergeometric2F1(a, c.sub(b), c, z2));
   }
@@ -5791,7 +5803,8 @@ Jmat.Complex.minkowski = function(z) {
 ////////////////////////////////////////////////////////////////////////////////
 
 //find one zero between valuex and valuey in function f (real function, complex isn't supported)
-//this is totally not an efficient algorithm like Newton's method let alone Brent's method. Also valuex and valuey are allowed to be anything and to have function value with the same sign.
+//this is totally not an efficient algorithm like Newton's method let alone Brent's method.
+//valuex and valuey are allowed to be anything (real) and to have function value with the same sign.
 //if no zero is found, it returns NaN
 Jmat.Complex.rootfind_bisection = function(valuex, valuey, f, maxit, prec) {
   var steps = (maxit == undefined ? 256 : maxit);
@@ -5849,11 +5862,35 @@ Jmat.Complex.rootfind_bisection = function(valuex, valuey, f, maxit, prec) {
   }
 };
 
+//TODO: does not work well
+Jmat.Complex.rootfind_secant = function(z0, z1, f, maxit, prec) {
+  maxit = maxit || 30;
+  prec = prec || 1e-15;
+
+  var f0 = f(z0);
+  var f1 = f(z1);
+  
+  for(var i = 0; i < maxit; i++) {
+    var zn = z0.mul(f1).sub(z1.mul(f0)).div(f1.sub(f0));
+    if(Jmat.Complex.isInfOrNaN(zn)) {
+      //TODO: fix z0 and z1 in some way to avoid this problem...
+    }
+    var fn = f(zn);
+    if(Jmat.Real.near(fn, 0, prec)) return zn;
+    z0 = z1;
+    f0 = f1;
+    z1 = zn;
+    f1 = fn;
+  }
+
+  return z1; //not found, give best guess
+};
+
 //root finding, aka find zeroes (findZero)
 //most parameters are optional. Based on which are given, a certain algorithm is chosen (newton, bisection, ...)
 //f: the function to find root of
 //o: object with the following optional values:
-// o.z0: starting value, or, if z1 is given, lower value of range (and starting value is assumed in the center of both). Default: 0
+// o.z0: starting value, or, if z1 is given, lower value of range (and starting value is assumed in the center of both). Default: Jmat.Complex.ZERO
 // o.z1: end value, if range is given. Default: undefined
 // o.real: Whether to only find real zeroes. If true, f is assumed to be a real function and complex roots are ignored. Default: false
 // o.df: derivative of f. If given, something like newton's method can be used. Default: undefined
@@ -5868,7 +5905,7 @@ Jmat.Complex.rootfind = function(f, o) {
   // TODO: work in progress. Find better start values. Try other root finding algorithms. Etc...
   if(o.real && o.z1 != undefined) return Jmat.Complex.rootfind_bisection(z0, o.z1, f, maxit, prec);
   if(o.df) return Jmat.Complex.rootfind_newton(f, o.df, z0, maxit);
-  return Jmat.Complex.rootfind_secant(f, z0, maxit);
+  return Jmat.Complex.rootfind_newton_noderiv(f, z0, maxit);
 };
 
 Jmat.Complex.newtonStartValues_ = [
@@ -5949,7 +5986,7 @@ Jmat.Complex.rootfind_newton = function(f, df, z0, maxiter) {
 };
 
 //finds a complex root (zero) given function f, and an initial value z0 (no need to give the derivative)
-Jmat.Complex.rootfind_secant = function(f, z0, maxiter) {
+Jmat.Complex.rootfind_newton_noderiv = function(f, z0, maxiter) {
   return Jmat.Complex.rootfind_newton(f, function(x) {
     return Jmat.Complex.differentiate_stencil5(x, f);
   }, z0, maxiter);
@@ -5961,8 +5998,8 @@ Jmat.Complex.finvert_newton = function(z, f, df, z0, maxiter) {
 };
 
 //find result of inverse function using the newton method (no need to give the derivative)
-Jmat.Complex.finvert_secant = function(z, f, z0,  maxiter) {
-  return Jmat.Complex.rootfind_secant(function(x) { return f(x).sub(z); }, z0, maxiter);
+Jmat.Complex.finvert_newton_noderiv = function(z, f, z0,  maxiter) {
+  return Jmat.Complex.rootfind_newton_noderiv(function(x) { return f(x).sub(z); }, z0, maxiter);
 };
 
 
@@ -6039,7 +6076,7 @@ Jmat.Complex.integrate = function(x, y, f, steps) {
 };
 
 // differentiation with just two points (finite difference, or secant)
-Jmat.Complex.differentiate_secant = function(x, f) {
+Jmat.Complex.differentiate_newton_noderiv = function(x, f) {
   //var h = Jmat.Complex(0.0001);
   var h = Math.max(0.01, Math.abs(x.re)) / 1000;
 
@@ -6142,7 +6179,8 @@ Jmat.Complex.powerSeries = function(coeff, n, z0, z) {
 /*
 For each distribution, the following function prefixes are available:
 
-pdf = probability density function for continuous distributions, pmf = probability mass function for discrete distributions
+pdf = probability density function for continuous distributions
+pmf = probability mass function for discrete distributions
 cdf = cumulative distribution function, integral of the pdf
 qf = quantile function, the inverse function of cdf
 */
@@ -6504,6 +6542,71 @@ Jmat.Complex.qf_laplace = function(x, mu, b) {
   var s = Jmat.Complex.sign(x.subr(0.5));
   return mu.sub(b.mul(s).mul(l));
 };
+
+////////////////////////////////////////////////////////////////////////////////
+
+//p in range 0-1, k integer 0 or 1
+Jmat.Complex.pmf_bernoulli = function(k, p) {
+  if(k.eqr(0)) return p.rsub(1);
+  if(k.eqr(1)) return p;
+  return p.pow(k).mul(p.rsub(1).pow(k.rsub(1))); //outside of definition but let's return something continuous...
+};
+
+Jmat.Complex.cdf_bernoulli = function(k, p) {
+  if(k.re < 0) return Jmat.Complex.ZERO;
+  if(k.re >= 1) return Jmat.Complex.ONE;
+  return p.rsub(1); //1 - p
+};
+
+Jmat.Complex.qf_bernoulli = function(k, p) {
+  if(k.re < 1-p.re) return Jmat.Complex.ZERO;
+  else return Jmat.Complex.ONE;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+// returns probability of getting exactly k successes out of n trials with probability p each (p in range 0.0-1.0, k and n integers)
+Jmat.Complex.pmf_binomial = function(k, n, p) {
+  var b = Jmat.Complex.binomial(n, k);
+  return b.mul(p.pow(k)).mul(p.rsub(1).pow(n.sub(k)));
+};
+
+Jmat.Complex.cdf_binomial = function(k, n, p) {
+  return Jmat.Complex.beta_i(p, n.sub(k), k.addr(1));
+};
+
+// inverse of cdf_binomial in k. Works only for integer result in range 0-n
+Jmat.Complex.qf_binomial = function(k, n, p) {
+  if(p.eqr(0)) return Jmat.Complex.ZERO;
+  if(p.eqr(1)) return n;
+  var C = Jmat.Complex;
+  var result = Jmat.Complex.rootfind_bisection(C(0), n, function(z) {
+    return Jmat.Complex.cdf_binomial(z, n, p).sub(k);
+  }, 100, 1e-14);
+  return Jmat.Complex.round(result);  // Binomial pmf/cdf takes integer k, so qf, which is inverse of cdf in k, is expected to return integer.
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+//Poisson distribution, with k integer (but still given as Jmat.Complex object)
+
+Jmat.Complex.pmf_poisson = function(k, lambda) {
+  var a = lambda.pow(k);
+  var b = Jmat.Complex.factorial(k);
+  var c = Jmat.Complex.exp(lambda.neg());
+  return a.mul(c).div(b);
+};
+
+Jmat.Complex.cdf_poisson = function(k, lambda) {
+  return Jmat.Complex.gamma_q(k.addr(1), lambda);
+};
+
+// TODO: make way more accurate
+// Does not work well.
+Jmat.Complex.qf_poisson = function(k, lambda) {
+  return Jmat.Complex.gamma_q_inva(lambda, k).subr(1);
+};
+
 
 
 ////////////////////////////////////////////////////////////////////////////////
