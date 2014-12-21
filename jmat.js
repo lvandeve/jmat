@@ -1367,7 +1367,7 @@ Jmat.Real.nearestPrime = function(value) {
   var x = Math.round(value);
   if(x < 2) return 2;
   if(x == Infinity || x != x) return NaN;
-  if(x > 0x020000000000000) return NaN; //too large for the floating point's integer precision, result will not make sense
+  if(x >= 9007199254740881) return NaN; //largest supported prime in floating point precision, after this result is not correct because after 0x020000000000000 isPrime gives NaN
 
   if(Jmat.Real.isPrime(x)) return x;
   var i = x % 2 == 0 ? 1 : 2;
@@ -1382,7 +1382,7 @@ Jmat.Real.nextPrime = function(value) {
   var x = Math.floor(value);
   if(x < 2) return 2; //the calculations below would give 3 instead of 2
   if(x == Infinity || x != x) return NaN;
-  if(x > 0x020000000000000) return NaN; //too large for the floating point's integer precision, result will not make sense
+  if(x >= 9007199254740881) return NaN; //largest supported prime in floating point precision, after this will infinite loop because after 0x020000000000000 isPrime gives NaN
 
   var i = x % 2 == 0 ? 1 : 2;
   while(true) {
