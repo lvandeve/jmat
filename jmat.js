@@ -1176,14 +1176,24 @@ Jmat.Real.isPrimeMillerRabin_ = function(n) {
     ++s;
   }
 
+  // returns (a + b) % c, taking overflow into account (in JS, overflow means reaching a part in the floating point representation where it can no longer distinguish 1)
+  var modadd = function(a, b, c) {
+    if (a + b < 9007199254740992) return (a + b) % c;
+    if(a + b > c) {
+      return (a - c + b) % c;
+    }
+    // This assumes that c < 4503599627370496 or a + b doesn't overflow
+    return ((a % c) + (b % c)) % c;
+  };
+
   // returns (a * b) % c, taking overflow into account
   var modmul = function(a, b, c) {
     if(a * b < 9007199254740992) return (a * b) % c;
     var x = 0;
     var y = a % c;
     while(b > 0) {
-      if(b & 1) x = (x + y) % c;
-      y = (y * 2) % c;
+      if(b & 1) x = modadd(x, y, c);
+      y = modadd(y, y, c);
       b = Math.floor(b / 2);
     }
     return x % c;
@@ -1234,18 +1244,6 @@ function testfun(n) {
   for(var i = 0; i < n; i++) {
     var a = Jmat.Real.isPrimeMillerRabin_(i);
     var b = Jmat.Real.isPrimeSlow_(i);
-    var c = Jmat.Real.isPrime(i);
-    if(a != b || a != c) console.log('error: ' + i + ' ' + a + ' ' + b + ' ' + c);
-  }
-  console.log('ok: ' + n);
-};
-testfun(100000);
-
-
-function testfun(n) {
-  for(var i = 0; i < n; i++) {
-    var a = Jmat.Real.isPrimeMillerRabin_(i);
-    var b = Jmat.Real.isPrimeSlow_(i);
     if(a != b) console.log('error: ' + i + ' ' + a + ' ' + b);
   }
   console.log('ok: ' + n);
@@ -1264,9 +1262,7 @@ Nice primes to test:
 //Returns 1 if prime, 0 if not prime, NaN if error.
 Jmat.Real.isPrime = function(n) {
   // below that, the "slow" method is faster. For higher values, Miller Rabin becomes more and more significantly faster.
-  // However, for values above 0x010000000000000, a sum in the miller rabin overflows, so does not work either
-  // ==> Jmat.Real.isPrime(9007199254740881) is noticeably slower than Jmat.Real.isPrime(4444280714420857)
-  return (n < 1500000 || n > 0x010000000000000) ? Jmat.Real.isPrimeSlow_(n) : Jmat.Real.isPrimeMillerRabin_(n);
+  return (n < 1500000) ? Jmat.Real.isPrimeSlow_(n) : Jmat.Real.isPrimeMillerRabin_(n);
 };
 
 //for factorize
