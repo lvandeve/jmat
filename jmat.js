@@ -8716,6 +8716,7 @@ Jmat.BigNum.convertStringBase = function(s, from, to) {
 
 // The basic loop for add, with potential shift, mul, ... a and b are arrays, not BigNum objects. No parameters are optional, use [], 0 or 1.
 // Supports also e.g. multiplying and adding a plain number to a single array: Jmat.BigNum.baseloop_(array, 0, mul, [], 0, 1, add, base)
+// Also ensures the result is trimmed (no leading zeroes), to avoid some calculations accidently becoming slower and slower when using many subtracts
 Jmat.BigNum.baseloop_ = function(a, ashift, amul, b, bshift, bmul, overflow, base) {
   var result = [];
   var l = Math.max(a.length + ashift, b.length + bshift);
@@ -8745,6 +8746,8 @@ Jmat.BigNum.baseloop_ = function(a, ashift, amul, b, bshift, bmul, overflow, bas
     result.push((overflow + base) % base);
     overflow = Math.floor(overflow / base);
   }
+  // trim leading zeroes
+  while(result.length > 1 && result[result.length - 1] == 0) result.length--;
   Jmat.BigNum.mirror_(result);
 
   return result;
@@ -9215,6 +9218,31 @@ Jmat.BigNum.pow = function(a, b) {
     } else {
       a1 = a1.mul(a2);
       a2 = a2.mul(a2);
+    }
+  }
+  return Jmat.BigNum.toFormat(a1, format);
+};
+
+//modular exponentiation: (a^b) mod m
+Jmat.BigNum.modpow = function(a, b, m) {
+  var format = Jmat.BigNum.getFormat(a);
+  a = Jmat.BigNum.cast(a);
+  m = Jmat.BigNum.cast(m);
+  var origb = b;
+  b = Jmat.BigNum.cast(b, 2);
+  
+  // Montgomery's ladder
+  var ba = Jmat.BigNum.maybecopystrip_(b.a, b != origb);
+  var a1 = Jmat.BigNum.ONE;
+  var a2 = a;
+  var l = ba.length;
+  for(var i = 0; i < l; i++) {
+    if(ba[i] == 0) {
+      a2 = a1.mul(a2).mod(m);
+      a1 = a1.mul(a1).mod(m);
+    } else {
+      a1 = a1.mul(a2).mod(m);
+      a2 = a2.mul(a2).mod(m);
     }
   }
   return Jmat.BigNum.toFormat(a1, format);
