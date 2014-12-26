@@ -8628,8 +8628,11 @@ Jmat.BigNum = function(a, b) {
   }
 };
 
+// List all functions without underscore: for(var i in Jmat.BigNum) if(i.indexOf('_') == -1) console.log(i)
+
 Jmat.BigNum.ARRAYBASE_ = 256; // the default array base
 Jmat.BigNum.STRINGBASE_ = 10; // the default base for numbers given as string. TODO: support hex strings if they start with 0x
+
 
 //Typically, a is array, string, number or BigNum, and b is base.
 Jmat.BigNum.make = function(a, b) {
@@ -8643,9 +8646,11 @@ Jmat.BigNum.make = function(a, b) {
 };
 
 
+// casts to a bignum if not already one.
+// if opt_base is undefined, does not care about radix (won't base-convert if v already BigNum). If given, casts or converts to one with that base
 Jmat.BigNum.cast = function(v, opt_base) {
-  if(v && v.a != undefined) return v;
-  if(v == undefined) return new Jmat.BigNum();
+  if(v && v.a != undefined && (!opt_base || v.radix == opt_base)) return v;
+  if(v == undefined) return new Jmat.BigNum(undefined, opt_base);
   return Jmat.BigNum(v, opt_base);
 };
 
@@ -8661,6 +8666,7 @@ Jmat.BigNum.parse = function(s, opt_base) {
 };
 
 Jmat.BigNum.toString = function(value, opt_base) {
+  if(!value || !value.a) return 'invalid';
   return Jmat.BigNum.arrayToString(value.a, value.radix, opt_base);
 };
 Jmat.BigNum.prototype.toString = function(opt_base) {
@@ -8752,7 +8758,7 @@ Jmat.BigNum.intToArray = function(i, opt_base) {
     i = Math.floor(i / base);
   }
   if(result.length == 0) result = [0];
-  Jmat.BigNum.mirror_(result);
+  if(result.length > 1) Jmat.BigNum.mirror_(result); //the if is there so that the Jmat.BigNum.ONE etc... assignments can be there without already having mirror_ function.
   return result;
 };
 
@@ -8779,6 +8785,10 @@ Jmat.BigNum.prototype.toInt = function() {
   return Jmat.BigNum.arrayToInt(this.a, this.radix);
 };
 
+Jmat.BigNum.ZERO = Jmat.BigNum(0);
+Jmat.BigNum.ONE = Jmat.BigNum(1);
+Jmat.BigNum.TWO = Jmat.BigNum(2);
+
 //may return input if bases are equal
 //only supports BigNum object at input. For arrays or strings use convertArrayBase or convertStringBase.
 Jmat.BigNum.convertBase = function(s, to) {
@@ -8793,6 +8803,68 @@ Jmat.BigNum.cloneArray = function(v) {
 Jmat.BigNum.cloneArrayTo = function(v, target) {
   target.length = v.length;
   for(var i = 0; i < v.length; i++) target[i] = v[i];
+};
+
+Jmat.BigNum.and = function(a, b) {
+  var format = Jmat.BigNum.getFormat(a);
+  a = Jmat.BigNum.cast(a, 256);
+  b = Jmat.BigNum.cast(b, 256);
+  
+  var result = new BigNum([], 256);
+  var num = Math.min(a.a.length, b.a.length);
+  for(var i = 0; i < num; i++) {
+    var ax = a.a[a.a.length - 1 - i] || undefined;
+    var bx = b.a[b.a.length - 1 - i] || undefined;
+    result.a[num - 1 - i] = ax & bx;
+  }
+  
+  return Jmat.BigNum.toFormat(result, format);
+};
+
+Jmat.BigNum.or = function(a, b) {
+  var format = Jmat.BigNum.getFormat(a);
+  a = Jmat.BigNum.cast(a, 256);
+  b = Jmat.BigNum.cast(b, 256);
+  
+  var result = new BigNum([], 256);
+  var num = Math.max(a.a.length, b.a.length);
+  for(var i = 0; i < num; i++) {
+    var ax = a.a[a.a.length - 1 - i] || undefined;
+    var bx = b.a[b.a.length - 1 - i] || undefined;
+    result.a[num - 1 - i] = ax | bx;
+  }
+  
+  return Jmat.BigNum.toFormat(result, format);
+};
+
+Jmat.BigNum.xor = function(a, b) {
+  var format = Jmat.BigNum.getFormat(a);
+  a = Jmat.BigNum.cast(a, 256);
+  b = Jmat.BigNum.cast(b, 256);
+  
+  var result = new BigNum([], 256);
+  var num = Math.max(a.a.length, b.a.length);
+  for(var i = 0; i < num; i++) {
+    var ax = a.a[a.a.length - 1 - i] || undefined;
+    var bx = b.a[b.a.length - 1 - i] || undefined;
+    result.a[num - 1 - i] = ax ^ bx;
+  }
+  
+  return Jmat.BigNum.toFormat(result, format);
+};
+
+//This is actually not a useful function, since it 'nots' all bits up to the length of the array in a certain base it casts to.
+//Instead, xor with as many 1's as you want bits inverted.
+Jmat.BigNum.not_ = function(a) {
+  var format = Jmat.BigNum.getFormat(a);
+  a = Jmat.BigNum.cast(a, 256);
+  
+  var result = new BigNum([], 256);
+  for(var i = 0; i < a.a.length; i++) {
+    result.a[i] = ~a.a[i];
+  }
+  
+  return Jmat.BigNum.toFormat(result, format);
 };
 
 Jmat.BigNum.add = function(a, b) {
@@ -8845,12 +8917,12 @@ Jmat.BigNum.mulr = function(a, b) {
   var format = Jmat.BigNum.getFormat(a);
   a = Jmat.BigNum.cast(a);
   var result = new Jmat.BigNum([], a.radix);
-  result.a = Jmat.BigNum.baseloop_(a.a, 0, 3, [], 0, 1, 0, result.radix);
+  result.a = Jmat.BigNum.baseloop_(a.a, 0, b, [], 0, 1, 0, result.radix);
   return Jmat.BigNum.toFormat(result, format);
 };
 Jmat.BigNum.prototype.mulr = function(b) {
   var result = new Jmat.BigNum([], this.radix);
-  result.a = Jmat.BigNum.baseloop_(this.a, 0, 3, [], 0, 1, 0, result.radix);
+  result.a = Jmat.BigNum.baseloop_(this.a, 0, b, [], 0, 1, 0, result.radix);
   return result;
 }
 
@@ -8882,8 +8954,8 @@ Jmat.BigNum.prototype.comparer = function(b) {
   var n = Jmat.BigNum.getNumDigits(this);
   var r = 0;
   for(var i = 0; i < n && r <= b; i++) {
-    r += this.a[this.a.length - i - 1];
     r *= this.radix;
+    r += this.a[this.a.length - i - 1];
   }
   return r < b ? -1 : (r == b ? 0 : 1);
 };
@@ -9038,8 +9110,9 @@ Jmat.BigNum.log10 = function(x) {
   return Jmat.BigNum.logr(x, 10);
 };
 
-// Divice through regular js number
+// Divide through regular (must be integer) js number
 Jmat.BigNum.divr = function(a, b) {
+  if(b == 0) return undefined;
   if(b == 1) return a;
   var format = Jmat.BigNum.getFormat(a);
   a = Jmat.BigNum.cast(a);
@@ -9061,12 +9134,33 @@ Jmat.BigNum.divr = function(a, b) {
 
   return Jmat.BigNum.div(a, Jmat.BigNum(b));
 };
+Jmat.BigNum.prototype.divr = function(b) {
+  return Jmat.BigNum.divr(this, b);
+};
+
+// Modulo with regular (must be integer) js number
+Jmat.BigNum.modr = function(a, b) {
+  if(b == 0) return undefined;
+
+  var format = Jmat.BigNum.getFormat(a);
+  if(b == 1) return Jmat.BigNum.toFormat(0, format);
+  a = Jmat.BigNum.cast(a)
+
+  var d = Jmat.BigNum.divr(a, b);
+  var m = d.mulr(b);
+  var result = a.sub(m);
+
+  return Jmat.BigNum.toFormat(result, format);
+};
+Jmat.BigNum.prototype.modr = function(b) {
+  return Jmat.BigNum.modr(this, b);
+};
 
 Jmat.BigNum.div_ = function(a, b) {
   if(b.eqr(0)) return undefined;
   if(b.eqr(1)) return a;
-  if(b.gt(a)) return Jmat.BigNum.toFormat(0, format);
-  if(b.eq(a)) return Jmat.BigNum.toFormat(1, format);
+  if(b.gt(a)) return Jmat.BigNum.toFormat(0, Jmat.BigNum.getFormat(a));
+  if(b.eq(a)) return Jmat.BigNum.toFormat(1, Jmat.BigNum.getFormat(a));
 
   var B = Jmat.BigNum;
   var lshift = function(a, s) {
@@ -9103,6 +9197,29 @@ Jmat.BigNum.div_ = function(a, b) {
   return rshift(a.mul(x), n * 2);
 };
 
+Jmat.BigNum.pow = function(a, b) {
+  var format = Jmat.BigNum.getFormat(a);
+  a = Jmat.BigNum.cast(a);
+  var origb = b;
+  b = Jmat.BigNum.cast(b, 2);
+  
+  // Montgomery's ladder
+  var ba = Jmat.BigNum.maybecopystrip_(b.a, b != origb);
+  var a1 = Jmat.BigNum.ONE;
+  var a2 = a;
+  var l = ba.length;
+  for(var i = 0; i < l; i++) {
+    if(ba[i] == 0) {
+      a2 = a1.mul(a2);
+      a1 = a1.mul(a1);
+    } else {
+      a1 = a1.mul(a2);
+      a2 = a2.mul(a2);
+    }
+  }
+  return Jmat.BigNum.toFormat(a1, format);
+};
+
 Jmat.BigNum.d_ = ['0', '1', '2', '3', '4', '5', '6', '7', '8', '9', 'A', 'B', 'C', 'D', 'E', 'F',
                   'G', 'H', 'I', 'J', 'K', 'L', 'M', 'N', 'O', 'P', 'Q', 'R', 'S', 'T', 'U', 'V',
                   'W', 'X', 'Y', 'Z'];
@@ -9124,214 +9241,6 @@ Jmat.BigNum.mirror_ = function(array) {
 };
 
 
-/*
-Division from public domain Big Integer Library v. 5.0 by Leemon Baird.
-Divide x by y giving quotient q and remainder r.  (q=floor(x/y),  r=x mod y).
-Note: That library is faster than this one (but harder to use), it uses one
-fixed base while here most algorithms work for any base.
-Conditions:
-*) the numbers are base-256 arrays (but modify bpe to change this), least significant digit first, and two's complement
-*) x must have at least one leading zero element. --> that means at the end of the array since it's most significant last.
-*) y must be nonzero.
-*) q and r must be arrays that are exactly the same length as x.
-*) the x array must have at least as many elements as y.
-*/
-Jmat.BigNum.leemondiv_ = function(x, y, q, r) {
-  var bpe = 8;
-  var radix = 1 << bpe;
-  var mask = radix - 1;
-
-  //left shift bigInt x by n bits.
-  function leftShift_(x,n) {
-    var i;
-    var k=Math.floor(n/bpe);
-    if (k) {
-      for (i=x.length; i>=k; i--) //left shift x by k elements
-        x[i]=x[i-k];
-      for (;i>=0;i--)
-        x[i]=0;  
-      n%=bpe;
-    }
-    if (!n)
-      return;
-    for (i=x.length-1;i>0;i--) {
-      x[i]=mask & ((x[i]<<n) | (x[i-1]>>(bpe-n)));
-    }
-    x[i]=mask & (x[i]<<n);
-  }
-
-
-  //right shift bigInt x by n bits.  0 <= n < bpe.
-  function rightShift_(x,n) {
-    var i;
-    var k=Math.floor(n/bpe);
-    if (k) {
-      for (i=0;i<x.length-k;i++) //right shift x by k elements
-        x[i]=x[i+k];
-      for (;i<x.length;i++)
-        x[i]=0;
-      n%=bpe;
-    }
-    for (i=0;i<x.length-1;i++) {
-      x[i]=mask & ((x[i+1]<<(bpe-n)) | (x[i]>>n));
-    }
-    x[i]>>=n;
-  }
-
-  //is (x << (shift*bpe)) > y?
-  //x and y are nonnegative bigInts
-  //shift is a nonnegative integer
-  function greaterShift(x,y,shift) {
-    var kx=x.length, ky=y.length;
-    k=((kx+shift)<ky) ? (kx+shift) : ky;
-    for (i=ky-1-shift; i<kx && i>=0; i++) 
-      if (x[i]>0)
-        return 1; //if there are nonzeros in x to the left of the first column of y, then x is bigger
-    for (i=kx-1+shift; i<ky; i++)
-      if (y[i]>0)
-        return 0; //if there are nonzeros in y to the left of the first column of x, then x is not bigger
-    for (i=k-1; i>=shift; i--)
-      if      (x[i-shift]>y[i]) return 1;
-      else if (x[i-shift]<y[i]) return 0;
-    return 0;
-  }
-
-  //do x=x-(y<<(ys*bpe)) for bigInts x and y, and integers a,b and ys.
-  //x must be large enough to hold the answer.
-  function subShift_(x,y,ys) {
-    var i,c,k,kk;
-    k=x.length<ys+y.length ? x.length : ys+y.length;
-    kk=x.length;
-    for (c=0,i=ys;i<k;i++) {
-      c+=x[i]-y[i-ys];
-      x[i]=c & mask;
-      c>>=bpe;
-    }
-    for (i=k;c && i<kk;i++) {
-      c+=x[i];
-      x[i]=c & mask;
-      c>>=bpe;
-    }
-  }
-
-  //do the linear combination x=a*x+b*(y<<(ys*bpe)) for bigInts x and y, and integers a, b and ys.
-  //x must be large enough to hold the answer.
-  function linCombShift_(x,y,b,ys) {
-    var i,c,k,kk;
-    k=x.length<ys+y.length ? x.length : ys+y.length;
-    kk=x.length;
-    for (c=0,i=ys;i<k;i++) {
-      c+=x[i]+b*y[i-ys];
-      x[i]=c & mask;
-      c>>=bpe;
-    }
-    for (i=k;c && i<kk;i++) {
-      c+=x[i];
-      x[i]=c & mask;
-      c>>=bpe;
-    }
-  }
-
-  //do x=x+(y<<(ys*bpe)) for bigInts x and y, and integers a,b and ys.
-  //x must be large enough to hold the answer.
-  function addShift_(x,y,ys) {
-    var i,c,k,kk;
-    k=x.length<ys+y.length ? x.length : ys+y.length;
-    kk=x.length;
-    for (c=0,i=ys;i<k;i++) {
-      c+=x[i]+y[i-ys];
-      x[i]=c & mask;
-      c>>=bpe;
-    }
-    for (i=k;c && i<kk;i++) {
-      c+=x[i];
-      x[i]=c & mask;
-      c>>=bpe;
-    }
-  }
-
-  //is bigInt x negative? (note that this uses two's complement)
-  function negative(x) {
-    return ((x[x.length-1]>>(bpe-1))&1);
-  }
-
-  //do x=y on bigInts x and y.  x must be an array at least as big as y (not counting the leading zeros in y).
-  function copy_(x,y) {
-    var i;
-    var k=x.length<y.length ? x.length : y.length;
-    for (i=0;i<k;i++)
-      x[i]=y[i];
-    for (i=k;i<x.length;i++)
-      x[i]=0;
-  }
-
-  //do x=y on bigInt x and integer y.  
-  function copyInt_(x,n) {
-    var i,c;
-    for (c=n,i=0;i<x.length;i++) {
-      x[i]=c & mask;
-      c>>=bpe;
-    }
-  }
-
-  var kx, ky;
-  var i,j,y1,y2,c,a,b;
-  copy_(r,x);
-  for (ky=y.length;y[ky-1]==0;ky--); //ky is number of elements in y, not including leading zeros
-
-  //normalize: ensure the most significant element of y has its highest bit set  
-  b=y[ky-1];
-  for (a=0; b; a++)
-    b>>=1;  
-  a=bpe-a;  //a is how many bits to shift so that the high order bit of y is leftmost in its array element
-  leftShift_(y,a);  //multiply both by 1<<a now, then divide both by that at the end
-  leftShift_(r,a);
-
-  //Rob Visser discovered a bug: the following line was originally just before the normalization.
-  for (kx=r.length;r[kx-1]==0 && kx>ky;kx--); //kx is number of elements in normalized x, not including leading zeros
-
-  copyInt_(q,0);                      // q=0
-  while (!greaterShift(y,r,kx-ky)) {  // while (leftShift_(y,kx-ky) <= r) {
-    subShift_(r,y,kx-ky);             //   r=r-leftShift_(y,kx-ky)
-    q[kx-ky]++;                       //   q[kx-ky]++;
-  }                                   // }
-
-  for (i=kx-1; i>=ky; i--) {
-    if (r[i]==y[ky-1])
-      q[i-ky]=mask;
-    else
-      q[i-ky]=Math.floor((r[i]*radix+r[i-1])/y[ky-1]);
-
-    //The following for(;;) loop is equivalent to the commented while loop,
-    //except that the uncommented version avoids overflow.
-    //The commented loop comes from HAC, which assumes r[-1]==y[-1]==0
-    //  while (q[i-ky]*(y[ky-1]*radix+y[ky-2]) > r[i]*radix*radix+r[i-1]*radix+r[i-2])
-    //    q[i-ky]--;    
-    for (;;) {
-      y2=(ky>1 ? y[ky-2] : 0)*q[i-ky];
-      c=y2>>bpe;
-      y2=y2 & mask;
-      y1=c+q[i-ky]*y[ky-1];
-      c=y1>>bpe;
-      y1=y1 & mask;
-
-      if (c==r[i] ? y1==r[i-1] ? y2>(i>1 ? r[i-2] : 0) : y1>r[i-1] : c>r[i])
-        q[i-ky]--;
-      else
-        break;
-    }
-
-    linCombShift_(r,y,-q[i-ky],i-ky);    //r=r-q[i-ky]*leftShift_(y,i-ky)
-    if (negative(r)) {
-      addShift_(r,y,i-ky);         //r=r+leftShift_(y,i-ky)
-      q[i-ky]--;
-    }
-  }
-
-  rightShift_(y,a);  //undo the normalization step
-  rightShift_(r,a);  //undo the normalization step
-};
-
 //gets number of significant digits for the radix x is in (ignores leading zeroes, and returns zero for zero)
 Jmat.BigNum.getNumDigits = function(x) {
   var i = 0;
@@ -9341,7 +9250,7 @@ Jmat.BigNum.getNumDigits = function(x) {
 
 //strips array a (removing leading zeroes unless it is zero), modifying the object
 Jmat.BigNum.strip_ = function(a) {
-  while(a[0] == 0 && a.length > 1) a.shift();
+  while(a[0] == 0 && a.length > 1) a.shift(); //JS array shift function (a is array, not BigNum)
 };
 
 //makes a copy of array a, and stripped of leading zeroes if any (unless it is zero)
@@ -9357,6 +9266,15 @@ Jmat.BigNum.copystrip_ = function(a) {
   return Jmat.BigNum(result, a.radix);
 };
 
+//makes copy if needed object needs to be altered, or original if it doesn't have to be stripped
+Jmat.BigNum.maybecopystrip_ = function(a, allowmodify) {
+  if(a[0] != 0) return a;
+  if(!allowmodify) return Jmat.BigNum.copystrip_(a);
+  Jmat.BigNum.strip_(a);
+  return a;
+};
+
+// "int" (plain JS number) is not a format on purpose: may not be able to contain the result.
 Jmat.BigNum.FORMAT_UNKNOWN_ = 0;
 Jmat.BigNum.FORMAT_BIGNUM_ = 1;
 Jmat.BigNum.FORMAT_ARRAY_ = 2;
