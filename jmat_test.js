@@ -184,16 +184,16 @@ Jmat.doUnitTest = function() {
   Jmat.Test.testFunction('-28+4i+6j+8k', eps, Jmat.pow, '1+2i+3j+4k', '2+0i+0j+0k');
   Jmat.Test.testFunction('0.778283161474+0.281490511227i+0.281490511227j+0.281490511227k', eps, Jmat.lambertw, '1+i+j+k');
 
-  // bignums
+  // bigints
   Jmat.Test.testFunction('40094690950920881030683735292761468389214899724061', 0, Jmat.div, '1522605027922533360535618378132637429718068114961380688657908494580122963258952897654000350692006139', '37975227936943673922808872755445627854565536638199');
   Jmat.Test.testFunction('1250000000', 0, Jmat.div, '50000000000', '40');
-  Jmat.Test.testFunction('20000000000', 0, Jmat.BigNum.sqrt, '400000000000000000000');
-  Jmat.Test.testFunction('5', 0, Jmat.BigNum.log2, '63');
-  Jmat.Test.testFunction('6', 0, Jmat.BigNum.log2, '64');
-  Jmat.Test.expectTrue(Jmat.BigNum.log2(Jmat.BigNum.fromInt(63, 2)).toString() == '5');
-  Jmat.Test.expectTrue(Jmat.BigNum.log2(Jmat.BigNum.fromInt(64, 2)).toString() == '6');
-  Jmat.Test.expectTrue(Jmat.BigNum.log2(Jmat.BigNum.fromInt(63, 4)).toString() == '5');
-  Jmat.Test.expectTrue(Jmat.BigNum.log2(Jmat.BigNum.fromInt(64, 4)).toString() == '6');
+  Jmat.Test.testFunction('20000000000', 0, Jmat.BigInt.sqrt, '400000000000000000000');
+  Jmat.Test.testFunction('5', 0, Jmat.BigInt.log2, '63');
+  Jmat.Test.testFunction('6', 0, Jmat.BigInt.log2, '64');
+  Jmat.Test.expectTrue(Jmat.BigInt.log2(Jmat.BigInt.fromInt(63, 2)).toString() == '5');
+  Jmat.Test.expectTrue(Jmat.BigInt.log2(Jmat.BigInt.fromInt(64, 2)).toString() == '6');
+  Jmat.Test.expectTrue(Jmat.BigInt.log2(Jmat.BigInt.fromInt(63, 4)).toString() == '5');
+  Jmat.Test.expectTrue(Jmat.BigInt.log2(Jmat.BigInt.fromInt(64, 4)).toString() == '6');
 
   console.log('success');
   return 'success';

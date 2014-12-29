@@ -308,14 +308,14 @@ formatted in such way that it can be parsed to a number or a matrix, e.g. '5+2i'
 Jmat.add = function(x, y) {
   if(Jmat.matrixIn_(x) && Jmat.matrixIn_(y)) return Jmat.Matrix.add(Jmat.Matrix.cast(x), Jmat.Matrix.cast(y));
   if(Jmat.quaternionIn_(x) || Jmat.quaternionIn_(y)) return Jmat.Quaternion.add(Jmat.Quaternion.cast(x), Jmat.Quaternion.cast(y));
-  if(Jmat.bignumIn_(x) || Jmat.bignumIn_(y)) return Jmat.BigNum.add(Jmat.BigNum.cast(x), Jmat.BigNum.cast(y));
+  if(Jmat.bigIntIn_(x) || Jmat.bigIntIn_(y)) return Jmat.BigInt.add(Jmat.BigInt.cast(x), Jmat.BigInt.cast(y));
   return Jmat.Complex.add(Jmat.Complex.cast(x), Jmat.Complex.cast(y));
 };
 /* Subtract. x,y:{number|Complex|Matrix}. returns {Complex|Matrix}. */
 Jmat.sub = function(x, y) {
   if(Jmat.matrixIn_(x) && Jmat.matrixIn_(y)) return Jmat.Matrix.sub(Jmat.Matrix.cast(x), Jmat.Matrix.cast(y));
   if(Jmat.quaternionIn_(x) || Jmat.quaternionIn_(y)) return Jmat.Quaternion.sub(Jmat.Quaternion.cast(x), Jmat.Quaternion.cast(y));
-  if(Jmat.bignumIn_(x) || Jmat.bignumIn_(y)) return Jmat.BigNum.sub(Jmat.BigNum.cast(x), Jmat.BigNum.cast(y));
+  if(Jmat.bigIntIn_(x) || Jmat.bigIntIn_(y)) return Jmat.BigInt.sub(Jmat.BigInt.cast(x), Jmat.BigInt.cast(y));
   return Jmat.Complex.sub(Jmat.Complex.cast(x), Jmat.Complex.cast(y));
 };
 /* Multiply. x,y:{number|Complex|Matrix}. returns {Complex|Matrix}. */
@@ -324,7 +324,7 @@ Jmat.mul = function(x, y) {
   if(Jmat.matrixIn_(x)) return Jmat.Matrix.mulc(Jmat.Matrix.cast(x), Jmat.Complex.cast(y));
   if(Jmat.matrixIn_(y)) return Jmat.Matrix.mulc(Jmat.Matrix.cast(y), Jmat.Complex.cast(x));
   if(Jmat.quaternionIn_(x) || Jmat.quaternionIn_(y)) return Jmat.Quaternion.mul(Jmat.Quaternion.cast(x), Jmat.Quaternion.cast(y));
-  if(Jmat.bignumIn_(x) || Jmat.bignumIn_(y)) return Jmat.BigNum.mul(Jmat.BigNum.cast(x), Jmat.BigNum.cast(y));
+  if(Jmat.bigIntIn_(x) || Jmat.bigIntIn_(y)) return Jmat.BigInt.mul(Jmat.BigInt.cast(x), Jmat.BigInt.cast(y));
   return Jmat.Complex.mul(Jmat.Complex.cast(x), Jmat.Complex.cast(y));
 };
 /* Division. x,y:{number|Jmat.Complex|Jmat.Matrix}. returns {Jmat.Complex|Jmat.Matrix}. */
@@ -333,7 +333,7 @@ Jmat.div = function(x, y) {
   if(Jmat.matrixIn_(x)) return Jmat.Matrix.divc(Jmat.Matrix.cast(x), Jmat.Complex.cast(y));
   if(Jmat.matrixIn_(y)) return Jmat.Matrix.divc(Jmat.Matrix.cast(y), Jmat.Complex.cast(x));
   if(Jmat.quaternionIn_(x) || Jmat.quaternionIn_(y)) return Jmat.Quaternion.div(Jmat.Quaternion.cast(x), Jmat.Quaternion.cast(y));
-  if(Jmat.bignumIn_(x) || Jmat.bignumIn_(y)) return Jmat.BigNum.div(Jmat.BigNum.cast(x), Jmat.BigNum.cast(y));
+  if(Jmat.bigIntIn_(x) || Jmat.bigIntIn_(y)) return Jmat.BigInt.div(Jmat.BigInt.cast(x), Jmat.BigInt.cast(y));
   return Jmat.Complex.div(Jmat.Complex.cast(x), Jmat.Complex.cast(y));
 };
 
@@ -344,14 +344,14 @@ Jmat.eq = function(x, y) {
   if(Jmat.matrixIn_(x) && Jmat.matrixIn_(y)) return Jmat.Matrix.eq(Jmat.Matrix.cast(x), Jmat.Matrix.cast(y));
   if(Jmat.matrixIn_(x) || Jmat.matrixIn_(y)) return false; //one is matrix, the other is not
   if(Jmat.quaternionIn_(x) || Jmat.quaternionIn_(y)) return Jmat.Quaternion.eq(Jmat.Quaternion.cast(x), Jmat.Quaternion.cast(y));
-  if(Jmat.bignumIn_(x) || Jmat.bignumIn_(y)) return Jmat.BigNum.eq(Jmat.BigNum.cast(x), Jmat.BigNum.cast(y));
+  if(Jmat.bigIntIn_(x) || Jmat.bigIntIn_(y)) return Jmat.BigInt.eq(Jmat.BigInt.cast(x), Jmat.BigInt.cast(y));
   return Jmat.Complex.eq(Jmat.Complex.cast(x), Jmat.Complex.cast(y));
 };
 /* Nearly equal? x,y:{number|Complex|Matrix}. epsilon:{number}. returns {boolean}. */
 Jmat.near = function(x, y, epsilon) {
   if(Jmat.matrixIn_(x) && Jmat.matrixIn_(y)) return Jmat.Matrix.near(Jmat.Matrix.cast(x), Jmat.Matrix.cast(y), Jmat.Real.caststrict(epsilon));
   if(Jmat.quaternionIn_(x) || Jmat.quaternionIn_(y)) return Jmat.Quaternion.near(Jmat.Quaternion.cast(x), Jmat.Quaternion.cast(y), Jmat.Real.caststrict(epsilon));
-  if(Jmat.bignumIn_(x) || Jmat.bignumIn_(y)) return Jmat.BigNum.eq(Jmat.BigNum.cast(x), Jmat.BigNum.cast(y));
+  if(Jmat.bigIntIn_(x) || Jmat.bigIntIn_(y)) return Jmat.BigInt.eq(Jmat.BigInt.cast(x), Jmat.BigInt.cast(y));
   return Jmat.Complex.near(Jmat.Complex.cast(x), Jmat.Complex.cast(y), Jmat.Real.caststrict(epsilon));
 };
 /* Nearly equal? With relative precision. x,y:{number|Complex|Matrix}. precision:{number}. returns {boolean}.
@@ -359,7 +359,7 @@ Jmat.near = function(x, y, epsilon) {
 Jmat.relnear = function(x, y, precision) {
   if(Jmat.matrixIn_(x) && Jmat.matrixIn_(y)) return Jmat.Matrix.relnear(Jmat.Matrix.cast(x), Jmat.Matrix.cast(y), Jmat.Real.caststrict(precision));
   if(Jmat.quaternionIn_(x) || Jmat.quaternionIn_(y)) return Jmat.Quaternion.relnear(Jmat.Quaternion.cast(x), Jmat.Quaternion.cast(y), Jmat.Real.caststrict(precision));
-  if(Jmat.bignumIn_(x) || Jmat.bignumIn_(y)) return Jmat.BigNum.eq(Jmat.BigNum.cast(x), Jmat.BigNum.cast(y));
+  if(Jmat.bigIntIn_(x) || Jmat.bigIntIn_(y)) return Jmat.BigInt.eq(Jmat.BigInt.cast(x), Jmat.BigInt.cast(y));
   return Jmat.Complex.relnear(Jmat.Complex.cast(x), Jmat.Complex.cast(y), Jmat.Real.caststrict(precision));
 };
 
@@ -379,7 +379,7 @@ Jmat.pow = function(x, y) {
 Jmat.sqrt = function(z) {
   if(Jmat.matrixIn_(z)) return Jmat.Matrix.sqrt(Jmat.Matrix.cast(z));
   if(Jmat.quaternionIn_(z)) return Jmat.Quaternion.sqrt(Jmat.Quaternion.cast(z));
-  if(Jmat.bignumIn_(z)) return Jmat.BigNum.sqrt(Jmat.BigNum.cast(z));
+  if(Jmat.bigIntIn_(z)) return Jmat.BigInt.sqrt(Jmat.BigInt.cast(z));
   return Jmat.Complex.sqrt(Jmat.Complex.cast(z));
 };
 /* Exponential, or matrix exponential. z:{number|Complex|Matrix}. returns {Complex|Matrix}. */
@@ -776,8 +776,8 @@ Jmat.dd = function(a) { return Jmat.Complex(Jmat.Real.dd(Jmat.Real.caststrict(a)
 
 // Bitwise
 
-/* Bitwise not. x:{number|Complex}. returns {Complex} */
-Jmat.bitnot = function(x) { return Jmat.Complex.bitnot(Jmat.Complex.cast(x)); };
+/* Bitwise not, negating. x:{number|Complex}. returns {Complex} */
+Jmat.bitneg = function(x) { return Jmat.Complex.bitneg(Jmat.Complex.cast(x)); };
 /* Bitwise and. x,y:{number|Complex}. returns {Complex} */
 Jmat.bitand = function(x, y) { return Jmat.Complex.bitand(Jmat.Complex.cast(x), Jmat.Complex.cast(y)); };
 /* Bitwise or. x,y:{number|Complex}. returns {Complex} */
@@ -895,11 +895,11 @@ Jmat.quaternionIn_ = function(v) {
   return v && (v instanceof Jmat.Quaternion);
 };
 
-// Test if input is a bignum
-Jmat.bignumIn_ = function(v) {
+// Test if input is a BigInt
+Jmat.bigIntIn_ = function(v) {
   if(!v) return false;
-  if(typeof v == 'string' && v.length > 16 && v.indexOf('.') == -1 && v.indexOf('e') == -1 && v.indexOf('E') == -1) return true; //2^53 biggest integer has around 16 digits. Bigger can only be BigNum.
-  return v && (v instanceof Jmat.BigNum);
+  if(typeof v == 'string' && v.length > 16 && v.indexOf('.') == -1 && v.indexOf('e') == -1 && v.indexOf('E') == -1) return true; //2^53 biggest integer has around 16 digits. Bigger can only be BigInt.
+  return v && (v instanceof Jmat.BigInt);
   // No test for array, that can already mean matrix
 };
 
@@ -1199,7 +1199,7 @@ Jmat.Real.isPrimeMillerRabin_ = function(n) {
     return x % c;
   };
 
-  // returns (a to the n) % c, taking overflow into account
+  // returns (a to the n) % mod, taking overflow into account
   var modpow = function(a, n, mod) {
     var result = 1;
     while(n > 0) {
@@ -1254,7 +1254,7 @@ Nice primes to test:
 3770579582154547 --> NOT prime, but above this boundary, last "base" for miller rabin test is used
 9007199254740992 --> NOT prime, but highest integer number that JavaScript supports
 9007199254740881: just small enough for JS! ==> overflow with sum, does not work
-4444280714420857: one of the largest that does not overflow in isPrimeMillerRabin_
+4444280714420857: largest for half JS bits
 311111111111113: for third last base
 344555666677777: for second last base
 */
@@ -1387,7 +1387,7 @@ Jmat.Real.nextPrime = function(value) {
   var i = x % 2 == 0 ? 1 : 2;
   while(true) {
     if(Jmat.Real.isPrime(x + i)) return x + i;
-    i += 2; //TODO: make faster (e.g. using += 6 at the least)
+    i += 2; //TODO: make faster
   }
 };
 
@@ -1696,7 +1696,8 @@ Jmat.Real.logy = function(x, y) {
 };
 
 // Returns the number of leading zero bits in the 32-bit binary representation of x
-// Gives integer log2 of x by doing 32 - clz32(x)
+// Gives floor of log2 of x by doing 31 - clz32(x)
+// Gives num bits of x by doing 32 - clz32(x)
 Jmat.Real.clz32 = Math.clz32 || function(x) {
   var result = 0;
   while(x > 0) {
@@ -1706,6 +1707,8 @@ Jmat.Real.clz32 = Math.clz32 || function(x) {
   return 32 - result;
 }
 
+//NOTE: floating point version. For integer log2, use 31 - clz32(x) or Math.floor(log2(x + 0.5)),
+//because e.g. on 8 gives 2.9999999999999996 (official Math.log2 too)
 Jmat.Real.log2 = Math.log2 || function(x) {
   return Math.log(x) / Math.LN2;
 };
@@ -2283,11 +2286,14 @@ Jmat.Complex.clamp = function(x, from, to) {
   return new Jmat.Complex(Jmat.Real.clamp(x.re, from.re, to.re), Jmat.Real.clamp(x.im, from.im, to.im));
 };
 
-Jmat.Complex.bitnot = function(x) {
+//Like JS ~: returns -(x + 1), limited to 32-bit int
+Jmat.Complex.bitneg = function(x) {
   var result = Jmat.Complex(0);
   result.re = ~x.re;
-  //imaginary part not affected on purpose: otherwise it appears when bit-inverting real number, which is in 99.9% of the cases not wanted
+  //imaginary part not bit-negated on purpose: otherwise it appears when bit-inverting real number, which is in 99.9% of the cases not wanted
+  //instead negated, to follow the formula -(x + 1)
   //result.im = ~x.im;
+  result.im = -x.im
   return result;
 };
 
@@ -8609,115 +8615,125 @@ Jmat.Matrix.powc = function(m, s) {
 ////////////////////////////////////////////////////////////////////////////////
 ////////////////////////////////////////////////////////////////////////////////
 ////////////////////////////////////////////////////////////////////////////////
-// Jmat.BigNum: Big Integer Math
+// Jmat.BigInt: Big Integer Math
 ////////////////////////////////////////////////////////////////////////////////
 
-//Big integer number functions. (named BigNum instead of BigInt to leave open future expansion)
-//Only supports non-negative integers
-//Only has basic math functions, such as mul, div and base conversions. This is NOT intended for crypto.
-//Uses BigNum type, but also supports strings (base 10) or arrays (base Jmat.BigNum.ARRAYBASE_) as input in these functions.
+//Big integer number functions. (not named BigNum, because e.g. division is integer division)
+//This is NOT intended for crypto! E.g. JavaScript's Math.random is used, there is no protection against side-channel attacks, there may be bugs, etc...
+//Uses BigInt type, but also supports strings (base 10) or arrays (base Jmat.BigInt.ARRAYBASE_) as input in these functions.
 
-//Constructor
-Jmat.BigNum = function(a, b) {
-  if(this instanceof Jmat.BigNum) {
+//Constructor. All parameters are optional.
+Jmat.BigInt = function(a, b, minus) {
+  if(this instanceof Jmat.BigInt) {
     this.a = a || [];
-    this.radix = b || Jmat.BigNum.ARRAYBASE_;
+    this.radix = b || Jmat.BigInt.ARRAYBASE_;
+    this.minus = minus || false; //if true, represents negative integer
   } else {
     // No keyword "new" in front, use the convenience factory function instead
-    return Jmat.BigNum.make(a, b); // This supports several argument types
+    return Jmat.BigInt.make(a, b, minus); // This supports several argument types
   }
 };
 
-// List all functions without underscore: for(var i in Jmat.BigNum) if(i.indexOf('_') == -1) console.log(i)
+// List all functions without underscore: for(var i in Jmat.BigInt) if(i.indexOf('_') == -1) console.log(i)
 
-Jmat.BigNum.ARRAYBASE_ = 256; // the default array base
-Jmat.BigNum.STRINGBASE_ = 10; // the default base for numbers given as string. TODO: support hex strings if they start with 0x
+Jmat.BigInt.ARRAYBASE_ = 256; // the default array base, must be power of two (otherwise things like 'and' and 'rshift' break), and preferably >= 256
+Jmat.BigInt.ARRAYBASE_BITS_ = 8; // log2(Jmat.BigInt.ARRAYBASE_)
+Jmat.BigInt.STRINGBASE_ = 10; // the default base for numbers given as string. TODO: support hex strings if they start with 0x
 
 
-//Typically, a is array, string, number or BigNum, and b is base.
-Jmat.BigNum.make = function(a, b) {
-  if(a == undefined) return new Jmat.Bigum();
-  if(typeof a == 'number') return Jmat.BigNum.fromInt(a, b);
-  if(typeof a == 'string') return Jmat.BigNum.parse(a, b);
-  if(a.length) return new Jmat.BigNum(a, b);
-  if(a.re) return Jmat.BigNum.fromInt(a.re, b);
-  if(a.w) return Jmat.BigNum.fromInt(a.w, b);
-  return Jmat.BigNum.copy(a);
+//Typically, a is array, string, number or BigInt, and b is base of output (that of input may be different, e.g. always 10 for string).
+Jmat.BigInt.make = function(a, b, minus) {
+  if(a == undefined) return new Jmat.Bigum(a, b, minus);
+  if(typeof a == 'number') return Jmat.BigInt.fromInt(a, b);
+  if(typeof a == 'string') return Jmat.BigInt.parse(a, Jmat.BigInt.STRINGBASE_, b);
+  if(a.length != undefined) return new Jmat.BigInt(a, b, minus);
+  if(a.re != undefined) return Jmat.BigInt.fromInt(a.re, b);
+  if(a.w != undefined) return Jmat.BigInt.fromInt(a.w, b);
+  if(!b || a.radix == b) return Jmat.BigInt.copy(a);
+  return Jmat.BigInt.convertBase(a, b);
 };
 
 
-// casts to a bignum if not already one.
-// if opt_base is undefined, does not care about radix (won't base-convert if v already BigNum). If given, casts or converts to one with that base
-Jmat.BigNum.cast = function(v, opt_base) {
+// casts to a BigInt if not already one.
+// if opt_base is undefined, does not care about radix (won't base-convert if v already BigInt). If given, casts or converts to one with that base
+Jmat.BigInt.cast = function(v, opt_base, opt_minus) {
   if(v && v.a != undefined && (!opt_base || v.radix == opt_base)) return v;
-  if(v == undefined) return new Jmat.BigNum(undefined, opt_base);
-  return Jmat.BigNum(v, opt_base);
+  if(v == undefined) return new Jmat.BigInt(undefined, opt_base, opt_minus);
+  return Jmat.BigInt(v, opt_base, opt_minus);
 };
 
 //aka clone
-Jmat.BigNum.copy = function(v) {
-  return new Jmat.BigNum(v.a.slice(0), v.radix);
+Jmat.BigInt.copy = function(v) {
+  return new Jmat.BigInt(v.a.slice(0), v.radix, v.minus);
 };
 
-Jmat.BigNum.parse = function(s, opt_base) {
-  var base = opt_base || Jmat.BigNum.STRINGBASE_;
-  var a = Jmat.BigNum.stringToArray(s, Jmat.BigNum.ARRAYBASE_, base);
-  return new Jmat.BigNum(a, Jmat.BigNum.ARRAYBASE_);
+Jmat.BigInt.parse = function(s, opt_stringbase, opt_outbase) {
+  var stringbase = opt_stringbase || Jmat.BigInt.STRINGBASE_;
+  var outbase = opt_outbase || Jmat.BigInt.ARRAYBASE_;
+  var minus = false;
+  if(s[0] == '-') {
+    minus = true;
+    s = s.substr(1);
+  }
+  var a = Jmat.BigInt.stringToArray(s, outbase, stringbase);
+  return new Jmat.BigInt(a, outbase, minus);
 };
 
-Jmat.BigNum.toString = function(value, opt_base) {
+Jmat.BigInt.toString = function(value, opt_base) {
   if(!value || !value.a) return 'invalid';
-  return Jmat.BigNum.arrayToString(value.a, value.radix, opt_base);
+  var s = (value.minus ? '-' : '');
+  return s + Jmat.BigInt.arrayToString(value.a, value.radix, opt_base);
 };
-Jmat.BigNum.prototype.toString = function(opt_base) {
-  return Jmat.BigNum.toString(this, opt_base);
+Jmat.BigInt.prototype.toString = function(opt_base) {
+  return Jmat.BigInt.toString(this, opt_base);
 };
 
 //By default, this converts ARRAYBASE_ array to base-10 string. The optional abase and sbase parameters change this.
-Jmat.BigNum.stringToArray = function(s, opt_abase, opt_sbase) {
-  var abase = opt_abase || Jmat.BigNum.ARRAYBASE_;
-  var sbase = opt_sbase || Jmat.BigNum.STRINGBASE_;
+//must be positive (no '-' in the string)
+Jmat.BigInt.stringToArray = function(s, opt_abase, opt_sbase) {
+  var abase = opt_abase || Jmat.BigInt.ARRAYBASE_;
+  var sbase = opt_sbase || Jmat.BigInt.STRINGBASE_;
 
   var result = [];
   for(var i = 0; i < s.length; i++) {
-    var v = Jmat.BigNum.di_(s[i]);
+    var v = Jmat.BigInt.di_(s[i]);
     result[i] = v;
   }
 
-  return Jmat.BigNum.convertArrayBase(result, sbase, abase);
+  return Jmat.BigInt.convertArrayBase(result, sbase, abase);
 };
-Jmat.BigNum.arrayToString = function(v, opt_abase, opt_sbase) {
-  var abase = opt_abase || Jmat.BigNum.ARRAYBASE_;
-  var sbase = opt_sbase || Jmat.BigNum.STRINGBASE_;
-  v = Jmat.BigNum.convertArrayBase(v, abase, sbase);
+Jmat.BigInt.arrayToString = function(v, opt_abase, opt_sbase) {
+  var abase = opt_abase || Jmat.BigInt.ARRAYBASE_;
+  var sbase = opt_sbase || Jmat.BigInt.STRINGBASE_;
+  v = Jmat.BigInt.convertArrayBase(v, abase, sbase);
 
   var result = '';
   for(var i = 0; i < v.length; i++) {
-    result += Jmat.BigNum.d_[v[i]];
+    result += Jmat.BigInt.d_[v[i]];
   }
   if(v.length == 0) result = '0';
 
   return result;
 };
 //may return input object if bases are equal
-Jmat.BigNum.convertArrayBase = function(s, from, to) {
+Jmat.BigInt.convertArrayBase = function(s, from, to) {
   if(from == to) return s;
   var r = [];
   for(var i = 0; i < s.length; i++) {
-    r = Jmat.BigNum.baseloop_(r, 0, from, [], 0, 1, s[i], to);
+    r = Jmat.BigInt.baseloop_(r, 0, from, [], 0, 1, s[i], to);
   }
   return r;
 };
-Jmat.BigNum.convertStringBase = function(s, from, to) {
+Jmat.BigInt.convertStringBase = function(s, from, to) {
   if(from == to) return s;
-  var a = Jmat.BigNum.stringToArray(s, to, from);
-  return Jmat.BigNum.arrayToString(a, to, to);
+  var a = Jmat.BigInt.stringToArray(s, to, from);
+  return Jmat.BigInt.arrayToString(a, to, to);
 };
 
-// The basic loop for add, with potential shift, mul, ... a and b are arrays, not BigNum objects. No parameters are optional, use [], 0 or 1.
-// Supports also e.g. multiplying and adding a plain number to a single array: Jmat.BigNum.baseloop_(array, 0, mul, [], 0, 1, add, base)
+// The basic loop for add, with potential shift, mul, ... a and b are arrays, not BigInt objects. No parameters are optional, use [], 0 or 1.
+// Supports also e.g. multiplying and adding a plain number to a single array: Jmat.BigInt.baseloop_(array, 0, mul, [], 0, 1, add, base)
 // Also ensures the result is trimmed (no leading zeroes), to avoid some calculations accidently becoming slower and slower when using many subtracts
-Jmat.BigNum.baseloop_ = function(a, ashift, amul, b, bshift, bmul, overflow, base) {
+Jmat.BigInt.baseloop_ = function(a, ashift, amul, b, bshift, bmul, overflow, base) {
   var result = [];
   var l = Math.max(a.length + ashift, b.length + bshift);
 
@@ -8748,25 +8764,26 @@ Jmat.BigNum.baseloop_ = function(a, ashift, amul, b, bshift, bmul, overflow, bas
   }
   // trim leading zeroes
   while(result.length > 1 && result[result.length - 1] == 0) result.length--;
-  Jmat.BigNum.mirror_(result);
+  Jmat.BigInt.mirror_(result);
 
   return result;
 };
 
-Jmat.BigNum.intToArray = function(i, opt_base) {
-  var base = opt_base || Jmat.BigNum.ARRAYBASE_;
+Jmat.BigInt.intToArray = function(i, opt_base) {
+  if(i >= 9007199254740992) return undefined; // Above JS float's integer precision. Return undefined to avoid accidently thinking it's an exact result when typing too big integer literal without string quotes around it.
+  var base = opt_base || Jmat.BigInt.ARRAYBASE_;
   var result = [];
   while(i > 0) {
     result.push(i % base);
     i = Math.floor(i / base);
   }
   if(result.length == 0) result = [0];
-  if(result.length > 1) Jmat.BigNum.mirror_(result); //the if is there so that the Jmat.BigNum.ONE etc... assignments can be there without already having mirror_ function.
+  if(result.length > 1) Jmat.BigInt.mirror_(result); //the if is there so that the Jmat.BigInt.ONE etc... assignments can be there without already having mirror_ function.
   return result;
 };
 
-Jmat.BigNum.arrayToInt = function(v, opt_base) {
-  var base = opt_base || Jmat.BigNum.ARRAYBASE_;
+Jmat.BigInt.arrayToInt = function(v, opt_base) {
+  var base = opt_base || Jmat.BigInt.ARRAYBASE_;
   var result = 0;
   var m = 1;
   for(var i = 0; i < v.length; i++) {
@@ -8776,131 +8793,366 @@ Jmat.BigNum.arrayToInt = function(v, opt_base) {
   return result;
 };
 
-Jmat.BigNum.fromInt = function(i, opt_base) {
-  var base = opt_base || Jmat.BigNum.ARRAYBASE_;
-  return new Jmat.BigNum(Jmat.BigNum.intToArray(i, base), base);
+Jmat.BigInt.fromInt = function(i, opt_base) {
+  var base = opt_base || Jmat.BigInt.ARRAYBASE_;
+  var minus = false;
+  if(i < 0) {
+    minus = true;
+    i = -i;
+  }
+  return new Jmat.BigInt(Jmat.BigInt.intToArray(i, base), base, minus);
 };
 
-Jmat.BigNum.toInt = function(v) {
-  return Jmat.BigNum.arrayToInt(v.a, v.radix);
+Jmat.BigInt.toInt = function(v) {
+  return Jmat.BigInt.arrayToInt(v.a, v.radix) * (v.minus ? -1 : 1);
 };
-Jmat.BigNum.prototype.toInt = function() {
-  return Jmat.BigNum.arrayToInt(this.a, this.radix);
+Jmat.BigInt.prototype.toInt = function() {
+  return Jmat.BigInt.arrayToInt(this.a, this.radix) * (this.minus ? -1 : 1);
 };
 
-Jmat.BigNum.ZERO = Jmat.BigNum(0);
-Jmat.BigNum.ONE = Jmat.BigNum(1);
-Jmat.BigNum.TWO = Jmat.BigNum(2);
+Jmat.BigInt.ZERO = Jmat.BigInt(0);
+Jmat.BigInt.ONE = Jmat.BigInt(1);
+Jmat.BigInt.TWO = Jmat.BigInt(2);
 
 //may return input if bases are equal
-//only supports BigNum object at input. For arrays or strings use convertArrayBase or convertStringBase.
-Jmat.BigNum.convertBase = function(s, to) {
+//only supports BigInt object at input. For arrays or strings use convertArrayBase or convertStringBase.
+Jmat.BigInt.convertBase = function(s, to) {
   if(s.radix == to) return s;
-  return new Jmat.BigNum(Jmat.BigNum.convertArrayBase(s.a, s.radix, to), to);
+  return new Jmat.BigInt(Jmat.BigInt.convertArrayBase(s.a, s.radix, to), to, s.minus);
 };
 
-Jmat.BigNum.cloneArray = function(v) {
+Jmat.BigInt.cloneArray = function(v) {
   return v.slice(0);
 };
 
-Jmat.BigNum.cloneArrayTo = function(v, target) {
+Jmat.BigInt.cloneArrayTo = function(v, target) {
   target.length = v.length;
   for(var i = 0; i < v.length; i++) target[i] = v[i];
 };
 
-Jmat.BigNum.and = function(a, b) {
-  var format = Jmat.BigNum.getFormat(a);
-  a = Jmat.BigNum.cast(a, 256);
-  b = Jmat.BigNum.cast(b, 256);
+//shift left by b bits
+//a is bigint, b is regular js number (integer)
+//does not treat negative as two's complement
+Jmat.BigInt.lshift = function(a, b) {
+  var B = Jmat.BigInt;
+  if(b == 0) return a;
+  if(b < 0) return B.rshift(a, -b);
+  var format = B.getFormat(a);
+  a = B.cast(a, Jmat.BigInt.ARRAYBASE_);
+  var result = new B([], a.radix);
   
-  var result = new BigNum([], 256);
+  var byteshift = Math.floor(b / B.ARRAYBASE_BITS_);
+  var bitshift = b % B.ARRAYBASE_BITS_;
+  if(bitshift == 0) {
+    for(var i = 0; i < a.a.length; i++) result.a[i] = a.a[i];
+    for(var i = 0; i < byteshift; i++) result.a.push(0);
+  } else {
+    result.a = [];
+    // if byte = xxxxxxxx and bitshift is e.g. 3, then lmask and rmask are indicated by: lllllrrr (with lsb on the right),
+    // so lmask would be rmask 7, rmask 248 (0b11111000)
+    var lmask = ((1 << (B.ARRAYBASE_BITS_ - bitshift)) - 1) << bitshift;
+    var rmask = (1 << bitshift) - 1;
+    for(var i = 0; i <= a.a.length; i++) {
+      //xxxxxxxx xxxxxxxxx aaaaaaaa xxxxxxxx
+      //xxxxxxxx xxxxxxaaa aaaaaxxx xxxxxxxx
+      var al = (i > 0) ? a.a[i - 1] : 0;
+      var ar = (i < a.a.length) ? a.a[i] : 0;
+      var r = ((ar << bitshift) >> B.ARRAYBASE_BITS_) & rmask;
+      var l = (al << bitshift) & lmask;
+      var v = l | r;
+      if(v || result.a.length) result.a.push(v);
+    }
+    for(var i = 0; i < byteshift; i++) result.a.push(0);
+    if(result.a.length == 0) result.a = [0];
+  }
+  
+  return Jmat.BigInt.toFormat(result, format, a.minus);
+};
+Jmat.BigInt.prototype.lshift = function(b) {
+  return Jmat.BigInt.lshift(this, b);
+};
+
+//shift right by b bits
+//a is bigint, b is regular js number (integer)
+//does not treat negative as two's complement
+Jmat.BigInt.rshift = function(a, b) {
+  var B = Jmat.BigInt;
+  if(b == 0) return a;
+  if(b < 0) return B.lshift(a, -b);
+  var format = B.getFormat(a);
+  a = B.cast(a, Jmat.BigInt.ARRAYBASE_);
+  var result = new B([], a.radix);
+  
+  var byteshift = Math.floor(b / B.ARRAYBASE_BITS_);
+  var bitshift = b % B.ARRAYBASE_BITS_;
+  if(bitshift == 0) {
+    result.a = [];
+    for(var i = 0; i < a.a.length - byteshift; i++) result.a.push(a.a[i]);
+    if(result.a.length == 0) result.a = [0];
+  } else {
+    result.a = [];
+    // if byte = xxxxxxxx and bitshift is e.g. 3, then lmask and rmask are indicated by: lllrrrrr (with lsb on the right),
+    // so lmask would be rmask 31, rmask 224
+    var lmask = ((1 << bitshift) - 1) << (B.ARRAYBASE_BITS_ - bitshift);
+    var rmask = (1 << (B.ARRAYBASE_BITS_ - bitshift)) - 1;
+    for(var i = 0; i < a.a.length - byteshift; i++) {
+      //xxxxxxxx xxxxxxxxx aaaaaaaa xxxxxxxx
+      //xxxxxxxx xxxxxxxxx xxxaaaaa aaaxxxxx
+      var al = (i > 0) ? a.a[i - 1] : 0;
+      var ar = (i < a.a.length) ? a.a[i] : 0;
+      var l = ((al << B.ARRAYBASE_BITS_) >> bitshift) & lmask;
+      var r = (ar >> bitshift) & rmask;
+      result.a.push(l | r);
+    }
+    if(result.a.length == 0) result.a = [0];
+  }
+  
+  return Jmat.BigInt.toFormat(result, format, a.minus);
+};
+Jmat.BigInt.prototype.rshift = function(b) {
+  return Jmat.BigInt.rshift(this, b);
+};
+
+// result is always positive. If a or b is negative, the two's complement representation is taken.
+// This allows using and for modulo and have correct positive result for negative input.
+Jmat.BigInt.bitand = function(a, b) {
+  var B = Jmat.BigInt;
+  var format = B.getFormat(a);
+  a = B.cast(a, B.ARRAYBASE_);
+  b = B.cast(b, B.ARRAYBASE_);
+
+  if(a.minus || b.minus) {
+    // even though internal representation isn't so, use twos complement
+    var n = Math.max(B.getNumBits(a), B.getNumBits(b));
+    if(a.minus) a = a.addr(1).bitnot(n);
+    if(b.minus) b = b.addr(1).bitnot(n);
+  }
+  
+  var result = new BigInt([], B.ARRAYBASE_);
   var num = Math.min(a.a.length, b.a.length);
   for(var i = 0; i < num; i++) {
-    var ax = a.a[a.a.length - 1 - i] || undefined;
-    var bx = b.a[b.a.length - 1 - i] || undefined;
+    var ax = a.a[a.a.length - 1 - i] || 0;
+    var bx = b.a[b.a.length - 1 - i] || 0;
     result.a[num - 1 - i] = ax & bx;
   }
   
-  return Jmat.BigNum.toFormat(result, format);
+  return B.toFormat(result, format);
+};
+Jmat.BigInt.prototype.bitand = function(b) {
+  return Jmat.BigInt.bitand(this, b);
 };
 
-Jmat.BigNum.or = function(a, b) {
-  var format = Jmat.BigNum.getFormat(a);
-  a = Jmat.BigNum.cast(a, 256);
-  b = Jmat.BigNum.cast(b, 256);
+// result is always positive. If a or b is negative, their two's complement representation is taken.
+Jmat.BigInt.bitor = function(a, b) {
+  var B = Jmat.BigInt;
+  var format = B.getFormat(a);
+  a = B.cast(a, B.ARRAYBASE_);
+  b = B.cast(b, B.ARRAYBASE_);
+
+  if(a.minus || b.minus) {
+    // even though internal representation isn't so, use twos complement
+    var n = Math.max(B.getNumBits(a), B.getNumBits(b));
+    if(a.minus) a = a.addr(1).bitnot(n);
+    if(b.minus) b = b.addr(1).bitnot(n);
+  }
   
-  var result = new BigNum([], 256);
+  var result = new BigInt([], B.ARRAYBASE_);
   var num = Math.max(a.a.length, b.a.length);
   for(var i = 0; i < num; i++) {
-    var ax = a.a[a.a.length - 1 - i] || undefined;
-    var bx = b.a[b.a.length - 1 - i] || undefined;
+    var ax = a.a[a.a.length - 1 - i] || 0;
+    var bx = b.a[b.a.length - 1 - i] || 0;
     result.a[num - 1 - i] = ax | bx;
   }
   
-  return Jmat.BigNum.toFormat(result, format);
+  return B.toFormat(result, format);
+};
+Jmat.BigInt.prototype.bitor = function(b) {
+  return Jmat.BigInt.bitor(this, b);
 };
 
-Jmat.BigNum.xor = function(a, b) {
-  var format = Jmat.BigNum.getFormat(a);
-  a = Jmat.BigNum.cast(a, 256);
-  b = Jmat.BigNum.cast(b, 256);
+// result is always positive. If a or b is negative, their two's complement representation is taken.
+Jmat.BigInt.bitxor = function(a, b) {
+  var B = Jmat.BigInt;
+  var format = B.getFormat(a);
+  a = B.cast(a, B.ARRAYBASE_);
+  b = B.cast(b, B.ARRAYBASE_);
+
+  if(a.minus || b.minus) {
+    // even though internal representation isn't so, use twos complement
+    var n = Math.max(B.getNumBits(a), B.getNumBits(b));
+    if(a.minus) a = a.addr(1).bitnot(n);
+    if(b.minus) b = b.addr(1).bitnot(n);
+  }
   
-  var result = new BigNum([], 256);
+  var result = new BigInt([], B.ARRAYBASE_);
   var num = Math.max(a.a.length, b.a.length);
   for(var i = 0; i < num; i++) {
-    var ax = a.a[a.a.length - 1 - i] || undefined;
-    var bx = b.a[b.a.length - 1 - i] || undefined;
+    var ax = a.a[a.a.length - 1 - i] || 0;
+    var bx = b.a[b.a.length - 1 - i] || 0;
     result.a[num - 1 - i] = ax ^ bx;
   }
   
-  return Jmat.BigNum.toFormat(result, format);
+  return B.toFormat(result, format);
+};
+Jmat.BigInt.prototype.bitxor = function(b) {
+  return Jmat.BigInt.bitxor(this, b);
 };
 
-//This is actually not a useful function, since it 'nots' all bits up to the length of the array in a certain base it casts to.
-//Instead, xor with as many 1's as you want bits inverted.
-Jmat.BigNum.not_ = function(a) {
-  var format = Jmat.BigNum.getFormat(a);
-  a = Jmat.BigNum.cast(a, 256);
-  
-  var result = new BigNum([], 256);
-  for(var i = 0; i < a.a.length; i++) {
-    result.a[i] = ~a.a[i];
+// Inverts all the bits of a, and treats as if it's in two's complement
+// So gives -(a+1) as result. Result always has opposite sign
+// If you want to only invert bits and keep positive, do one of the following:
+// -use bitnot
+// -use bitxor with as many 1's as you want to invert.
+// -add N to the result, where N is 1<<n, where n is amount of bits
+Jmat.BigInt.bitneg = function(a) {
+  var B = Jmat.BigInt;
+  var format = B.getFormat(a);
+  a = B.cast(a, Jmat.BigInt.ARRAYBASE_);
+
+  a = a.addr(1);
+  a = a.neg();
+
+  return B.toFormat(a, format);
+};
+Jmat.BigInt.prototype.bitneg = function() {
+  return Jmat.BigInt.bitneg(this);
+};
+
+//negates all bits up to the one more than the msb. Ignores (but keeps) sign.
+//if opt_bits isn't given, abs of result is always larger: the 0 in front of the msb becomes 1.
+//if opt_bits is given, instead negates that many bits
+//see bitneg and its comment for alternatives.
+Jmat.BigInt.bitnot = function(a, opt_bits) {
+  if(opt_bits <= 0) return a;
+  var B = Jmat.BigInt;
+  var format = B.getFormat(a);
+  a = B.cast(a, B.ARRAYBASE_);
+  var ar = B.maybecopystrip_(a.a);
+  var result;
+  var xinv = B.ARRAYBASE_ - 1; //xor invertor
+
+  if(opt_bits != undefined) {
+    result = B(0);
+    var b = opt_bits % B.ARRAYBASE_BITS_;
+    var n = Math.ceil(opt_bits / B.ARRAYBASE_BITS_);
+    var mask = (1 << b) - 1;
+    for(var i = 0; i < n; i++) {
+      var x = ar[a.length - n + i] || 0;
+      result.a[i] = ar[i] ^ xinv;
+      if(i == 0 && b != 0) result.a[i] &= mask;
+    }
+  } else {
+    if(!ar.length) return a;
+    var b = 32 - Jmat.Real.clz32(ar[0]);
+    if(b == 0) {
+      
+      result = B(1); // the new MSB
+      for(var i = 0; i < ar.length; i++) result.a.push(ar[i] ^ xinv);
+    } else {
+      var mask = (2 << b) - 1; // 2<< instead of 1<< because a new MSB gets added
+      result = B(0);
+      result.a[0] = (ar[0] ^ xinv) & mask;
+      for(var i = 1; i < ar.length; i++) result.a[i] = ar[i] ^ xinv;
+    }
+  }  
+  result.minus = a.minus;
+
+  return B.toFormat(result, format);
+};
+Jmat.BigInt.prototype.bitnot = function(opt_bits) {
+  return Jmat.BigInt.bitnot(this, opt_bits);
+};
+
+// does NOT copy the array, on purpose (cheap operation). May return the input object.
+Jmat.BigInt.abs = function(a) {
+  return Jmat.BigInt.cast(a).abs();
+};
+Jmat.BigInt.prototype.abs = function() {
+  if(this.minus) {
+    return new Jmat.BigInt(this.a, this.radix, false);
+  }
+  return this;
+};
+
+// does NOT copy the array, on purpose (cheap operation).
+Jmat.BigInt.neg = function(a) {
+  return Jmat.BigInt.cast(a).neg();
+};
+Jmat.BigInt.prototype.neg = function() {
+  return new Jmat.BigInt(this.a, this.radix, !this.minus);
+};
+
+// result is regular JS number, -1 or 1 (does NOT return 0 for zero, use "sign" for that)
+Jmat.BigInt.getSign = function(a) {
+  return Jmat.BigInt.cast(a).getSign();
+};
+Jmat.BigInt.prototype.getSign = function() {
+  return this.minus ? -1 : 1;
+};
+
+Jmat.BigInt.prototype.nonZero = function(a) {
+  return Jmat.BigInt.cast(a).nonZero();
+};
+Jmat.BigInt.prototype.nonZero = function() {
+  for(var i = 0; i < this.a.length; i++) {
+    if(this.a[i]) return true;
+  }
+  return false;
+};
+
+// result is regular JS number, -1, 0 or 1 (slower than "getSign")
+Jmat.BigInt.sign = function(a) {
+  return Jmat.BigInt.cast(a).sign();
+};
+Jmat.BigInt.prototype.sign = function() {
+  return this.nonZero() ? this.getSign() : 0;
+};
+
+Jmat.BigInt.add = function(a, b) {
+  var format = Jmat.BigInt.getFormat(a);
+  a = Jmat.BigInt.cast(a);
+  return Jmat.BigInt.toFormat(a.add(b), format);
+};
+Jmat.BigInt.prototype.add = function(b) {
+  b = Jmat.BigInt.cast(b, this.radix);
+  if(this.minus != b.minus)  {
+    return this.sub(b.neg());
   }
   
-  return Jmat.BigNum.toFormat(result, format);
+  return new Jmat.BigInt(Jmat.BigInt.baseloop_(this.a, 0, 1, b.a, 0, 1, 0, this.radix), this.radix, this.minus);
 };
 
-Jmat.BigNum.add = function(a, b) {
-  var format = Jmat.BigNum.getFormat(a);
-  a = Jmat.BigNum.cast(a);
-  b = Jmat.BigNum.cast(b);
-  return Jmat.BigNum.toFormat(a.add(b), format);
+Jmat.BigInt.prototype.addr = Jmat.BigInt.prototype.add; //TODO: make more efficient because is with regular JS number
+
+Jmat.BigInt.sub = function(a, b) {
+  var format = Jmat.BigInt.getFormat(a);
+  a = Jmat.BigInt.cast(a);
+  return Jmat.BigInt.toFormat(a.sub(b), format);
 };
-Jmat.BigNum.prototype.add = function(b) {
-  if(b.radix != this.radix) b = Jmat.BigNum.convertBase(b, this.radix);
-  return new Jmat.BigNum(Jmat.BigNum.baseloop_(this.a, 0, 1, b.a, 0, 1, 0, this.radix), this.radix);
+Jmat.BigInt.prototype.sub = function(b) {
+  b = Jmat.BigInt.cast(b, this.radix);
+
+  if(this.minus != b.minus)  {
+    return this.add(b.neg());
+  }
+  
+  if(this.abs().gte(b.abs())) {
+    return new Jmat.BigInt(Jmat.BigInt.baseloop_(this.a, 0, 1, b.a, 0, -1, 0, this.radix), this.radix, this.minus);
+  } else {
+    return new Jmat.BigInt(Jmat.BigInt.baseloop_(b.a, 0, 1, this.a, 0, -1, 0, this.radix), this.radix, !this.minus);
+  }
 };
 
-// b should be smaller than a
-Jmat.BigNum.sub = function(a, b) {
-  var format = Jmat.BigNum.getFormat(a);
-  a = Jmat.BigNum.cast(a);
-  b = Jmat.BigNum.cast(b);
-  return Jmat.BigNum.toFormat(a.sub(b), format);
-};
-Jmat.BigNum.prototype.sub = function(b) {
-  if(b.radix != this.radix) b = Jmat.BigNum.convertBase(b, this.radix);
-  return new Jmat.BigNum(Jmat.BigNum.baseloop_(this.a, 0, 1, b.a, 0, -1, 0, this.radix), this.radix);
-};
+Jmat.BigInt.prototype.subr = Jmat.BigInt.prototype.sub; //TODO: make more efficient because is with regular JS number
 
-Jmat.BigNum.mul = function(a, b) {
-  var format = Jmat.BigNum.getFormat(a);
-  a = Jmat.BigNum.cast(a);
-  b = Jmat.BigNum.cast(b);
-  return Jmat.BigNum.toFormat(a.mul(b), format);
+Jmat.BigInt.mul = function(a, b) {
+  var format = Jmat.BigInt.getFormat(a);
+  a = Jmat.BigInt.cast(a);
+  return Jmat.BigInt.toFormat(a.mul(b), format);
 };
-Jmat.BigNum.prototype.mul = function(b) {
-  if(b.radix != this.radix) b = Jmat.BigNum.convertBase(b, this.radix);
+Jmat.BigInt.prototype.mul = function(b) {
+  b = Jmat.BigInt.cast(b);
+  if(b.radix != this.radix) b = Jmat.BigInt.convertBase(b, this.radix);
 
   var l = b.a.length;//Math.max(this.length, b.length);
 
@@ -8909,52 +9161,68 @@ Jmat.BigNum.prototype.mul = function(b) {
   var bshift = 0;
   for(var j = 0; j < this.a.length; j++) {
     var d = this.a[this.a.length - j - 1];
-    result = Jmat.BigNum.baseloop_(b.a, bshift, d, result, 0, 1, 0, this.radix);
+    result = Jmat.BigInt.baseloop_(b.a, bshift, d, result, 0, 1, 0, this.radix);
     bshift++; // left shift b
   }
 
-  return new Jmat.BigNum(result, this.radix);
+  return new Jmat.BigInt(result, this.radix, this.minus != b.minus);
 };
 
-Jmat.BigNum.mulr = function(a, b) {
-  var format = Jmat.BigNum.getFormat(a);
-  a = Jmat.BigNum.cast(a);
-  var result = new Jmat.BigNum([], a.radix);
-  result.a = Jmat.BigNum.baseloop_(a.a, 0, b, [], 0, 1, 0, result.radix);
-  return Jmat.BigNum.toFormat(result, format);
+Jmat.BigInt.mulr = function(a, b) {
+  var format = Jmat.BigInt.getFormat(a);
+  a = Jmat.BigInt.cast(a);
+  var result = new Jmat.BigInt([], a.radix, a.minus != (b < 0));
+  result.a = Jmat.BigInt.baseloop_(a.a, 0, b, [], 0, 1, 0, result.radix);
+  return Jmat.BigInt.toFormat(result, format);
 };
-Jmat.BigNum.prototype.mulr = function(b) {
-  var result = new Jmat.BigNum([], this.radix);
-  result.a = Jmat.BigNum.baseloop_(this.a, 0, b, [], 0, 1, 0, result.radix);
+Jmat.BigInt.prototype.mulr = function(b) {
+  var result = new Jmat.BigInt([], this.radix, this.minus != (b < 0));
+  result.a = Jmat.BigInt.baseloop_(this.a, 0, b, [], 0, 1, 0, result.radix);
   return result;
-}
+};
 
 //returns 1 if a > b, -1 if b > a, 0 if equal. Tests only the num most significant digits
-Jmat.BigNum.compare = function(a, b) {
-  a = Jmat.BigNum.cast(a);
-  b = Jmat.BigNum.cast(b);
+Jmat.BigInt.compare = function(a, b) {
+  a = Jmat.BigInt.cast(a);
   return a.compare(b);
 };
-Jmat.BigNum.prototype.compare = function(b) {
-  if(b.radix != this.radix) b = Jmat.BigNum.convertBase(b, this.radix);
+Jmat.BigInt.prototype.compare = function(b) {
+  b = Jmat.BigInt.cast(b);
+  if(b.minus != this.minus) {
+    var as = this.sign();
+    var bs = b.sign();
+    if(as == bs) return 0; //both signs are 0
+    if(as < bs) return -1;
+    return 1;
+  }
+  if(b.radix != this.radix) b = Jmat.BigInt.convertBase(b, this.radix);
+  
   var l = Math.max(this.a.length, b.a.length);
   for(var i = 0; i < l; i++) {
     var ai = i - l + this.a.length;
     var bi = i - l + b.a.length;
     var av = this.a[ai] || 0; // 0 if out of bounds
     var bv = b.a[bi] || 0; // 0 if out of bounds
-    if(av < bv) return -1;
-    if(av > bv) return 1;
+    if(av < bv) return -1 * this.getSign();
+    if(av > bv) return 1 * this.getSign();
   }
   return 0;
 };
 
 //Same as compare, but b is regular JS number
-Jmat.BigNum.comparer = function(a, b) {
-  return Jmat.BigNum.cast(a).comparer(b);
+Jmat.BigInt.comparer = function(a, b) {
+  return Jmat.BigInt.cast(a).comparer(b);
 };
-Jmat.BigNum.prototype.comparer = function(b) {
-  var n = Jmat.BigNum.getNumDigits(this);
+Jmat.BigInt.prototype.comparer = function(b) {
+  if((b < 0) != this.minus) {
+    var as = this.sign();
+    var bs = Math.sign(b);
+    if(as == bs) return 0; //both signs are 0
+    if(as < bs) return -1;
+    return 1;
+  }
+
+  var n = Jmat.BigInt.getNumDigits(this);
   var r = 0;
   for(var i = 0; i < n && r <= b; i++) {
     r *= this.radix;
@@ -8963,74 +9231,84 @@ Jmat.BigNum.prototype.comparer = function(b) {
   return r < b ? -1 : (r == b ? 0 : 1);
 };
 
-Jmat.BigNum.eq = function(a, b) { return Jmat.BigNum.compare(a, b) == 0; };
-Jmat.BigNum.prototype.eq = function(b) { return Jmat.BigNum.compare(this, b) == 0; };
-Jmat.BigNum.eqr = function(a, b) { return Jmat.BigNum.comparer(a, b) == 0; };
-Jmat.BigNum.prototype.eqr = function(b) { return Jmat.BigNum.comparer(this, b) == 0; };
+Jmat.BigInt.eq = function(a, b) { return Jmat.BigInt.compare(a, b) == 0; };
+Jmat.BigInt.prototype.eq = function(b) { return Jmat.BigInt.compare(this, b) == 0; };
+Jmat.BigInt.eqr = function(a, b) { return Jmat.BigInt.comparer(a, b) == 0; };
+Jmat.BigInt.prototype.eqr = function(b) { return Jmat.BigInt.comparer(this, b) == 0; };
 
-Jmat.BigNum.gt = function(a, b) { return Jmat.BigNum.compare(a, b) > 0; };
-Jmat.BigNum.prototype.gt = function(b) { return Jmat.BigNum.compare(this, b) > 0; };
-Jmat.BigNum.gtr = function(a, b) { return Jmat.BigNum.comparer(a, b) > 0; };
-Jmat.BigNum.prototype.gtr = function(b) { return Jmat.BigNum.comparer(this, b) > 0; };
+Jmat.BigInt.neq = function(a, b) { return Jmat.BigInt.compare(a, b) != 0; };
+Jmat.BigInt.prototype.neq = function(b) { return Jmat.BigInt.compare(this, b) != 0; };
+Jmat.BigInt.neqr = function(a, b) { return Jmat.BigInt.comparer(a, b) != 0; };
+Jmat.BigInt.prototype.neqr = function(b) { return Jmat.BigInt.comparer(this, b) != 0; };
 
-Jmat.BigNum.lt = function(a, b) { return Jmat.BigNum.compare(a, b) < 0; };
-Jmat.BigNum.prototype.lt = function(b) { return Jmat.BigNum.compare(this, b) < 0; };
-Jmat.BigNum.ltr = function(a, b) { return Jmat.BigNum.comparer(a, b) < 0; };
-Jmat.BigNum.prototype.ltr = function(b) { return Jmat.BigNum.comparer(this, b) < 0; };
+Jmat.BigInt.gt = function(a, b) { return Jmat.BigInt.compare(a, b) > 0; };
+Jmat.BigInt.prototype.gt = function(b) { return Jmat.BigInt.compare(this, b) > 0; };
+Jmat.BigInt.gtr = function(a, b) { return Jmat.BigInt.comparer(a, b) > 0; };
+Jmat.BigInt.prototype.gtr = function(b) { return Jmat.BigInt.comparer(this, b) > 0; };
 
-Jmat.BigNum.gte = function(a, b) { return Jmat.BigNum.compare(a, b) >= 0; };
-Jmat.BigNum.prototype.gte = function(b) { return Jmat.BigNum.compare(this, b) >= 0; };
-Jmat.BigNum.gter = function(a, b) { return Jmat.BigNum.comparer(a, b) >= 0; };
-Jmat.BigNum.prototype.gter = function(b) { return Jmat.BigNum.comparer(this, b) >= 0; };
+Jmat.BigInt.lt = function(a, b) { return Jmat.BigInt.compare(a, b) < 0; };
+Jmat.BigInt.prototype.lt = function(b) { return Jmat.BigInt.compare(this, b) < 0; };
+Jmat.BigInt.ltr = function(a, b) { return Jmat.BigInt.comparer(a, b) < 0; };
+Jmat.BigInt.prototype.ltr = function(b) { return Jmat.BigInt.comparer(this, b) < 0; };
 
-Jmat.BigNum.lte = function(a, b) { return Jmat.BigNum.compare(a, b) <= 0; };
-Jmat.BigNum.prototype.lte = function(b) { return Jmat.BigNum.compare(this, b) <= 0; };
-Jmat.BigNum.lter = function(a, b) { return Jmat.BigNum.comparer(a, b) <= 0; };
-Jmat.BigNum.prototype.lter = function(b) { return Jmat.BigNum.comparer(this, b) <= 0; };
+Jmat.BigInt.gte = function(a, b) { return Jmat.BigInt.compare(a, b) >= 0; };
+Jmat.BigInt.prototype.gte = function(b) { return Jmat.BigInt.compare(this, b) >= 0; };
+Jmat.BigInt.gter = function(a, b) { return Jmat.BigInt.comparer(a, b) >= 0; };
+Jmat.BigInt.prototype.gter = function(b) { return Jmat.BigInt.comparer(this, b) >= 0; };
+
+Jmat.BigInt.lte = function(a, b) { return Jmat.BigInt.compare(a, b) <= 0; };
+Jmat.BigInt.prototype.lte = function(b) { return Jmat.BigInt.compare(this, b) <= 0; };
+Jmat.BigInt.lter = function(a, b) { return Jmat.BigInt.comparer(a, b) <= 0; };
+Jmat.BigInt.prototype.lter = function(b) { return Jmat.BigInt.comparer(this, b) <= 0; };
 
 /*
 E.g. try:
-Jmat.BigNum.div('1522605027922533360535618378132637429718068114961380688657908494580122963258952897654000350692006139', '37975227936943673922808872755445627854565536638199');
+Jmat.BigInt.div('1522605027922533360535618378132637429718068114961380688657908494580122963258952897654000350692006139', '37975227936943673922808872755445627854565536638199');
 Should give: '40094690950920881030683735292761468389214899724061'
 */
-Jmat.BigNum.div = function(a, b) {
-  var format = Jmat.BigNum.getFormat(a);
-  a = Jmat.BigNum.cast(a);
-  b = Jmat.BigNum.cast(b);
-  if(b.radix != a.radix) b = Jmat.BigNum.convertBase(b, a.radix);
+Jmat.BigInt.div = function(a, b) {
+  var format = Jmat.BigInt.getFormat(a);
+  a = Jmat.BigInt.cast(a);
+  b = Jmat.BigInt.cast(b);
+  if(b.radix != a.radix) b = Jmat.BigInt.convertBase(b, a.radix);
 
-  var result = Jmat.BigNum.div_(a, b);
+  var result = Jmat.BigInt.div_(a, b);
 
-  return Jmat.BigNum.toFormat(result, format);
+  return Jmat.BigInt.toFormat(result, format);
 };
-Jmat.BigNum.prototype.div = function(b) {
-  return Jmat.BigNum.div(this, b);
+Jmat.BigInt.prototype.div = function(b) {
+  return Jmat.BigInt.div(this, b);
 };
 
-Jmat.BigNum.mod = function(a, b) {
-  var format = Jmat.BigNum.getFormat(a);
-  a = Jmat.BigNum.cast(a);
-  b = Jmat.BigNum.cast(b);
-  if(b.radix != a.radix) b = Jmat.BigNum.convertBase(b, a.radix);
+Jmat.BigInt.mod = function(a, b) {
+  var format = Jmat.BigInt.getFormat(a);
+  a = Jmat.BigInt.cast(a);
+  b = Jmat.BigInt.cast(b);
+  if(b.radix != a.radix) b = Jmat.BigInt.convertBase(b, a.radix);
 
-  var d = Jmat.BigNum.div_(a, b);
+  var d = Jmat.BigInt.div_(a, b);
   var m = b.mul(d);
   var result = a.sub(m);
+  
+  if(result.eqr(0)) result = result.abs(); //avoid '-0'
+  else if(a.minus != b.minus) result = result.add(b); //but not if result was 0, then it should stay 0
 
-  return Jmat.BigNum.toFormat(result, format);
+  return Jmat.BigInt.toFormat(result, format);
 };
-Jmat.BigNum.prototype.mod = function(b) {
-  return Jmat.BigNum.mod(this, b);
+Jmat.BigInt.prototype.mod = function(b) {
+  return Jmat.BigInt.mod(this, b);
 };
 
-// Returns integer square root (floor)
-Jmat.BigNum.sqrt = function(a) {
-  var format = Jmat.BigNum.getFormat(a);
-  a = Jmat.BigNum.cast(a);
-  var B = Jmat.BigNum;
+// Returns integer square root (floor), or undefined if negative
+Jmat.BigInt.sqrt = function(a) {
+  var format = Jmat.BigInt.getFormat(a);
+  a = Jmat.BigInt.cast(a);
+  var B = Jmat.BigInt;
+  
+  if(a.minus) return undefined;
 
   var low = B([0], a.radix);
-  var high = Jmat.BigNum.copystrip_(a);
+  var high = Jmat.BigInt.copystrip_(a);
   if(high.a.length == 1 && high.a[0] == 1) low = B([1], a.radix); //the algorithm below fails on [1]
   high.a = high.a.slice(0, Math.ceil(high.a.length / 2) + 1); // initial estimate for max of sqrt: half amount of digits
   if(a.radix > 16) high.a[0] = Math.min(high.a[0], Math.ceil(Math.sqrt(high.a[0] + 1))); // further improve estimate by setting most significant digit to sqrt of itself
@@ -9055,117 +9333,106 @@ Jmat.BigNum.sqrt = function(a) {
     }
   }
 
-  return Jmat.BigNum.toFormat(result, format);
+  return Jmat.BigInt.toFormat(result, format);
 };
 
 
-// takes base-y logarithm of x (y is also BigNum, but typically something like 2 or 10)
-Jmat.BigNum.logy = function(x, y) {
-  y = Jmat.BigNum.cast(y);
-  return Jmat.BigNum.logr(x, y.toInt());
+// takes base-y logarithm of x (y is also BigInt, but typically something like 2 or 10)
+Jmat.BigInt.logy = function(x, y) {
+  y = Jmat.BigInt.cast(y);
+  return Jmat.BigInt.logr(x, y.toInt()); //TODO: avoid casting twice if y is already int
 };
 
 
 // takes base-y logarithm of x (with y a regular JS number)
-Jmat.BigNum.logr = function(x, y) {
+Jmat.BigInt.logr = function(x, y) {
+  var format = Jmat.BigInt.getFormat(x);
+  x = Jmat.BigInt.cast(x);
+  
+  if(x.eqr(y)) return Jmat.BigInt.toFormat(1, format);
+  if(x.minus || y < 0) return undefined;
   if(y == 1) return x;
-  if(y == 2) return Jmat.BigNum.log2(x);
+  if(y == 2) return Jmat.BigInt.log2(x);
 
-  var format = Jmat.BigNum.getFormat(x);
-  x = Jmat.BigNum.cast(x);
+  var c = Jmat.BigInt.convertBase(x, y);
+  var result = Jmat.BigInt.fromInt(Jmat.BigInt.getNumDigits(c) - 1, x.radix);
 
-
-  var c = Jmat.BigNum.convertBase(x, y);
-  var result = Jmat.BigNum.fromInt(Jmat.BigNum.getNumDigits(c) - 1, x.radix);
-
-  return Jmat.BigNum.toFormat(result, format);
+  return Jmat.BigInt.toFormat(result, format);
 };
 
-// integer log2
-Jmat.BigNum.log2 = function(x) {
-  var format = Jmat.BigNum.getFormat(x);
-  x = Jmat.BigNum.cast(x);
-
-  var result;
-  if(x.radix > 3 && (x.radix & (x.radix - 1)) == 0) {
-    var n = 32 - Jmat.Real.clz32(x.radix) - 1;
-    // Amount of digits is a power of two, so avoid more expensive base conversion.
-    var begun = false;
-    var r = 0
-    for(var i = 0; i < x.a.length; i++) {
-      if(!begun && x.a[i] != 0) {
-        begun = true;
-        r = 32 - Jmat.Real.clz32(x.a[i]) - 1;
-      } else if(begun || x.a[i] != 0) {
-        r += n;
-      }
-    }
-    result = Jmat.BigNum.fromInt(r, x.radix);
-  } else {
-    var c = Jmat.BigNum.convertBase(x, 2);
-    result = Jmat.BigNum.fromInt(Jmat.BigNum.getNumDigits(c) - 1, x.radix);
-  }
-
-  return Jmat.BigNum.toFormat(result, format);
+// integer log2 (floor)
+Jmat.BigInt.log2 = function(x) {
+  var format = Jmat.BigInt.getFormat(x);
+  if(x.minus) return undefined;
+  var bits = Jmat.BigInt.getNumBits(x);
+  if(bits == 0) return undefined; //-Infinity
+  return Jmat.BigInt.toFormat(Jmat.BigInt.fromInt(bits - 1), format);
 };
 
-Jmat.BigNum.log10 = function(x) {
-  return Jmat.BigNum.logr(x, 10);
+Jmat.BigInt.log10 = function(x) {
+  return Jmat.BigInt.logr(x, 10);
 };
 
 // Divide through regular (must be integer) js number
-Jmat.BigNum.divr = function(a, b) {
+Jmat.BigInt.divr = function(a, b) {
   if(b == 0) return undefined;
   if(b == 1) return a;
-  var format = Jmat.BigNum.getFormat(a);
-  a = Jmat.BigNum.cast(a);
+  var format = Jmat.BigInt.getFormat(a);
+  a = Jmat.BigInt.cast(a);
 
-  if(a.ltr(b)) return Jmat.BigNum.toFormat(0, format);
-  if(a.eqr(b)) return Jmat.BigNum.toFormat(1, format);
+  if(a.abs().ltr(Math.abs(b))) return Jmat.BigInt.toFormat(0, format);
+  if(a.eqr(b)) return Jmat.BigInt.toFormat(1, format);
 
   if(a.radix % b == 0) {
-    var result = Jmat.BigNum.copy(a);
-    var n = Jmat.BigNum.getNumDigits(a);
+    var result = Jmat.BigInt.copy(a);
+    var n = Jmat.BigInt.getNumDigits(a);
     for(var i = 0; i < n; i++) {
       var j = result.a.length - i - 1;
       result.a[j] = Math.floor(result.a[j] / b);
       if(j > 0) result.a[j] += (result.a[j - 1] % b) * Math.floor(a.radix / b);
     }
-    Jmat.BigNum.strip_(result);
-    return Jmat.BigNum.toFormat(result, format);
+    Jmat.BigInt.strip_(result);
+    return Jmat.BigInt.toFormat(result, format, a.minus != (b < 0));
   }
 
-  return Jmat.BigNum.div(a, Jmat.BigNum(b));
+  return Jmat.BigInt.div(a, Jmat.BigInt(b));
 };
-Jmat.BigNum.prototype.divr = function(b) {
-  return Jmat.BigNum.divr(this, b);
+Jmat.BigInt.prototype.divr = function(b) {
+  return Jmat.BigInt.divr(this, b);
 };
 
 // Modulo with regular (must be integer) js number
-Jmat.BigNum.modr = function(a, b) {
+Jmat.BigInt.modr = function(a, b) {
   if(b == 0) return undefined;
 
-  var format = Jmat.BigNum.getFormat(a);
-  if(b == 1) return Jmat.BigNum.toFormat(0, format);
-  a = Jmat.BigNum.cast(a)
+  var format = Jmat.BigInt.getFormat(a);
+  if(b == 1) return Jmat.BigInt.toFormat(0, format);
+  a = Jmat.BigInt.cast(a)
 
-  var d = Jmat.BigNum.divr(a, b);
+  var d = Jmat.BigInt.divr(a, b);
   var m = d.mulr(b);
   var result = a.sub(m);
 
-  return Jmat.BigNum.toFormat(result, format);
+  if(result.eqr(0)) result = result.abs(); //avoid '-0'
+  else if(a.minus != (b < 0)) result = result.addr(b); //but not if result was 0, then it should stay 0
+
+  return Jmat.BigInt.toFormat(result, format);
 };
-Jmat.BigNum.prototype.modr = function(b) {
-  return Jmat.BigNum.modr(this, b);
+Jmat.BigInt.prototype.modr = function(b) {
+  return Jmat.BigInt.modr(this, b);
 };
 
-Jmat.BigNum.div_ = function(a, b) {
+Jmat.BigInt.div_ = function(a, b) {
   if(b.eqr(0)) return undefined;
   if(b.eqr(1)) return a;
-  if(b.gt(a)) return Jmat.BigNum.toFormat(0, Jmat.BigNum.getFormat(a));
-  if(b.eq(a)) return Jmat.BigNum.toFormat(1, Jmat.BigNum.getFormat(a));
+  if(b.abs().gt(a.abs())) return Jmat.BigInt.toFormat(0, Jmat.BigInt.getFormat(a));
+  if(b.eq(a)) return Jmat.BigInt.toFormat(1, Jmat.BigInt.getFormat(a));
+  
+  var minus = (a.minus != b.minus);
+  a = a.abs();
+  b = b.abs();
 
-  var B = Jmat.BigNum;
+  var B = Jmat.BigInt;
   var lshift = function(a, s) {
     var result = B.copy(a);
     for(var i = 0; i < s; i++) result.a.push(0);
@@ -9188,7 +9455,12 @@ Jmat.BigNum.div_ = function(a, b) {
   var x = one.mulr(3).sub(a.mulr(2)); //instead of 48/17 - 32/17*a since this is integers only;
   for(;;) {
     var dx = rshift(x.mul(b), n); //Every multiplication requires a right shift to use the same fixed-point precision (this drops n digits each time)
-    if(dx.gt(one)) return undefined;
+    while(dx.gt(one)) {
+      //estimate of number of digits was bad. fix it here. e.g. happens with 67/66. TODO make better
+      one = lshift(one, 1);
+      n++;
+      dx = rshift(dx, 1);
+    }
     var dx2 = rshift(x.mul(one.sub(dx)), n);
     var x1 = x.add(dx2);
     if(x.eq(x1)) {
@@ -9197,18 +9469,25 @@ Jmat.BigNum.div_ = function(a, b) {
     x = x1;
   }
 
-  return rshift(a.mul(x), n * 2);
+  var result = rshift(a.mul(x), n * 2);
+  if(minus) result = result.neg();
+  return result;
 };
 
-Jmat.BigNum.pow = function(a, b) {
-  var format = Jmat.BigNum.getFormat(a);
-  a = Jmat.BigNum.cast(a);
+Jmat.BigInt.pow = function(a, b) {
+  var format = Jmat.BigInt.getFormat(a);
+  a = Jmat.BigInt.cast(a);
   var origb = b;
-  b = Jmat.BigNum.cast(b, 2);
+  b = Jmat.BigInt.cast(b, 2);
+  
+  if(b.minus) return Jmat.BigInt.toFormat(0, format);
+  var minus = false;
+  if(a.minus && b.modr(2).eqr(1)) minus = true;
+  a = a.abs();
   
   // Montgomery's ladder
-  var ba = Jmat.BigNum.maybecopystrip_(b.a, b != origb);
-  var a1 = Jmat.BigNum.ONE;
+  var ba = Jmat.BigInt.maybecopystrip_(b.a, b != origb);
+  var a1 = Jmat.BigInt.ONE;
   var a2 = a;
   var l = ba.length;
   for(var i = 0; i < l; i++) {
@@ -9220,39 +9499,142 @@ Jmat.BigNum.pow = function(a, b) {
       a2 = a2.mul(a2);
     }
   }
-  return Jmat.BigNum.toFormat(a1, format);
+  return Jmat.BigInt.toFormat(a1, format, minus);
+};
+
+//greatest common divisor
+Jmat.BigInt.gcd = function(x, y) {
+  var B = Jmat.BigInt;
+  var format = B.getFormat(x);
+  x = B.cast(x).abs();
+  y = B.cast(y).abs();
+ //Euclid's algorithm
+ while(true) {
+   if(y.eqr(0)) return B.toFormat(x, format);
+   var z = B.mod(x, y);
+   x = y;
+   y = z;
+ }
+};
+
+// calculates a^-1 mod m, integer modular multiplicative inverse
+// result only exists if gcd(a, m) == 1, they're coprime
+Jmat.BigInt.invmod = function(a, m) {
+  var B = Jmat.BigInt;
+  var format = B.getFormat(a);
+  a = B.cast(a);
+  m = B.cast(m);
+  var origm = m;
+
+  var x = B(1);
+  var y = B(0);
+  var result;
+  
+  for(;;) {
+    if(a.eqr(1)) { result = x; break; }
+    if(a.eqr(0)) { result = B(0); break; }
+    y = y.sub(x.mul(m.div(a)));
+    m = m.mod(a);
+    
+    if(m.eqr(1)) { result = y; break; }
+    if(m.eqr(0)) { result = B(0); break; }
+    x = x.sub(y.mul(a.div(m)));
+    a = a.mod(m);
+  }
+
+  if(result.minus) result = origm.add(result);
+  return B.toFormat(result, format);
+};
+
+//montgomery reduction: calculates a/r mod m
+//r must be power of 2 and bits is its log2, mask is r-1 (all ones)
+//mi must be -(m^(-1)) mod r (there's a minus sign in front, but since it's mod r it's positive again)
+Jmat.BigInt.monred_ = function(a, bits, mask, m, mi) {
+  var s = a.mul(mi).bitand(mask);
+  var t = a.add(s.mul(m)).rshift(bits);
+  if(t.gte(m)) t = t.sub(m);
+  return t;
 };
 
 //modular exponentiation: (a^b) mod m
-Jmat.BigNum.modpow = function(a, b, m) {
-  var format = Jmat.BigNum.getFormat(a);
-  a = Jmat.BigNum.cast(a);
-  m = Jmat.BigNum.cast(m);
+//faster if m is odd, e.g. try Jmat.BigInt.modpow(3, '500000000000000000000000', 2001)
+Jmat.BigInt.modpow = function(a, b, m) {
+  var B = Jmat.BigInt;
+  var format = B.getFormat(a);
+  a = B.cast(a);
+  m = B.cast(m);
   var origb = b;
-  b = Jmat.BigNum.cast(b, 2);
-  
-  // Montgomery's ladder
-  var ba = Jmat.BigNum.maybecopystrip_(b.a, b != origb);
-  var a1 = Jmat.BigNum.ONE;
+  b = B.cast(b, 2);
+  var ba = B.maybecopystrip_(b.a, b != origb);
+  var a1 = B.ONE;
   var a2 = a;
   var l = ba.length;
-  for(var i = 0; i < l; i++) {
-    if(ba[i] == 0) {
-      a2 = a1.mul(a2).mod(m);
-      a1 = a1.mul(a1).mod(m);
-    } else {
-      a1 = a1.mul(a2).mod(m);
-      a2 = a2.mul(a2).mod(m);
+  
+  if(m.modr(2).eqr(1) && l > 1) {
+    // Odd m, so faster Montgomery reduction with power of two r possible
+    
+    var bits = B.log2(m).toInt() + 1;
+    var r = B.lshift(B(1), bits);
+    var mask = r.subr(1);
+    
+    a1 = a1.mul(r).mod(m);
+    a2 = a2.mul(r).mod(m);
+
+    var mi = B.invmod(m, r).neg().bitand(mask);
+    
+    // Montgomery's ladder
+    for(var i = 0; i < l; i++) {
+      if(ba[i] == 0) {
+        a2 = a1.mul(a2);
+        a1 = a1.mul(a1);
+      } else {
+        a1 = a1.mul(a2);
+        a2 = a2.mul(a2);
+      }
+      a1 = B.monred_(a1, bits, mask, m, mi);
+      a2 = B.monred_(a2, bits, mask, m, mi);
     }
+
+    a1 = B.monred_(a1, bits, mask, m, mi);
+    return B.toFormat(a1, format);
+  } else {
+    // Even m, slower
+    // Montgomery's ladder
+    for(var i = 0; i < l; i++) {
+      if(ba[i] == 0) {
+        a2 = a1.mul(a2).mod(m);
+        a1 = a1.mul(a1).mod(m);
+      } else {
+        a1 = a1.mul(a2).mod(m);
+        a2 = a2.mul(a2).mod(m);
+      }
+    }
+    return B.toFormat(a1, format);
   }
-  return Jmat.BigNum.toFormat(a1, format);
 };
 
-Jmat.BigNum.d_ = ['0', '1', '2', '3', '4', '5', '6', '7', '8', '9', 'A', 'B', 'C', 'D', 'E', 'F',
+// Get random number with that amount of bits
+Jmat.BigInt.randomBits = function(bits) {
+  var result = Jmat.BigInt([], Jmat.BigInt.ARRAYBASE_);
+  var numbytes = Math.ceil(bits / Jmat.BigInt.ARRAYBASE_BITS_);
+  for(var i = 0; i < numbytes; i++) {
+    result.a[i] = Math.floor(Jmat.BigInt.ARRAYBASE_ * Math.random());
+  }
+  //bits that should be zeroed because the last byte has 8 bits but bits may be non multiple of 8
+  var nonbits = (bits * (Jmat.BigInt.ARRAYBASE_BITS_ - 1)) % Jmat.BigInt.ARRAYBASE_BITS_;
+  var mask = Jmat.BigInt.ARRAYBASE_ - 1;
+  for(var i = 0; i < nonbits; i++) {
+    mask = Math.floor(mask / 2);
+  }
+  if(mask + 1 < Jmat.BigInt.ARRAYBASE_) result.a[0] &= mask;
+  return result;
+};
+
+Jmat.BigInt.d_ = ['0', '1', '2', '3', '4', '5', '6', '7', '8', '9', 'A', 'B', 'C', 'D', 'E', 'F',
                   'G', 'H', 'I', 'J', 'K', 'L', 'M', 'N', 'O', 'P', 'Q', 'R', 'S', 'T', 'U', 'V',
                   'W', 'X', 'Y', 'Z'];
 
-Jmat.BigNum.di_ = function(c) {
+Jmat.BigInt.di_ = function(c) {
   var i = c.charCodeAt(0);
   if(i <= 57) return i - 48;
   if(i > 90) i -= 32;
@@ -9260,7 +9642,7 @@ Jmat.BigNum.di_ = function(c) {
 };
 
 //reverses the array in-place (unlike JS array.reverse())
-Jmat.BigNum.mirror_ = function(array) {
+Jmat.BigInt.mirror_ = function(array) {
   for(var i = 0; i < array.length / 2; i++) {
     var temp = array[i];
     array[i] = array[array.length - i - 1];
@@ -9268,21 +9650,35 @@ Jmat.BigNum.mirror_ = function(array) {
   }
 };
 
+// Similar to log2, but result is one higher, ignores sign, supports 0, and result is regular JS number instead of BigInt
+Jmat.BigInt.getNumBits = function(x) {
+  var pot = x.radix && ((x.radix & (x.radix - 1)) == 0);
+  if(!pot) x = Jmat.BigInt.cast(x, Jmat.BigInt.ARRAYBASE_);
 
-//gets number of significant digits for the radix x is in (ignores leading zeroes, and returns zero for zero)
-Jmat.BigNum.getNumDigits = function(x) {
+  var ar = Jmat.BigInt.maybecopystrip_(x.a);
+  if(ar.length == 0) return 0;
+  var result = 32 - Jmat.Real.clz32(ar[0]);
+  if(ar.length > 0) {
+    var n = 32 - Jmat.Real.clz32(x.radix) - 1; //x.radix is power of two as enforced above
+    result += n * (ar.length - 1);
+  }
+  return result;
+};
+
+//gets number of significant digits for the radix x is in (does not include leading zeroes, and returns zero for zero)
+Jmat.BigInt.getNumDigits = function(x) {
   var i = 0;
   while(i < x.a.length && x.a[i] == 0) i++;
   return x.a.length - i;
 };
 
 //strips array a (removing leading zeroes unless it is zero), modifying the object
-Jmat.BigNum.strip_ = function(a) {
-  while(a[0] == 0 && a.length > 1) a.shift(); //JS array shift function (a is array, not BigNum)
+Jmat.BigInt.strip_ = function(a) {
+  while(a[0] == 0 && a.length > 1) a.shift(); //JS array shift function (a is array, not BigInt)
 };
 
-//makes a copy of array a, and stripped of leading zeroes if any (unless it is zero)
-Jmat.BigNum.copystrip_ = function(a) {
+//makes a copy of BigInt a, and stripped of leading zeroes if any (unless it is zero)
+Jmat.BigInt.copystrip_ = function(a) {
   var numzeroes = 0;
   for(var i = 0; i < a.a.length; i++) {
     if(a.a[i] != 0) break;
@@ -9291,37 +9687,58 @@ Jmat.BigNum.copystrip_ = function(a) {
   var result = new Array(a.a.length - numzeroes);
   if(result.length == 0) return [0];
   for(var i = 0; i < result.length; i++) result[i] = a.a[i + numzeroes];
-  return Jmat.BigNum(result, a.radix);
+  return Jmat.BigInt(result, a.radix);
 };
 
 //makes copy if needed object needs to be altered, or original if it doesn't have to be stripped
-Jmat.BigNum.maybecopystrip_ = function(a, allowmodify) {
-  if(a[0] != 0) return a;
-  if(!allowmodify) return Jmat.BigNum.copystrip_(a);
-  Jmat.BigNum.strip_(a);
+//a is array
+Jmat.BigInt.maybecopystrip_ = function(a, allowmodify) {
+  if(a.length <= 1 || a[0] != 0) return a;
+  if(!allowmodify) a = Jmat.BigInt.copyarray_(a);
+  Jmat.BigInt.strip_(a);
   return a;
 };
 
-// "int" (plain JS number) is not a format on purpose: may not be able to contain the result.
-Jmat.BigNum.FORMAT_UNKNOWN_ = 0;
-Jmat.BigNum.FORMAT_BIGNUM_ = 1;
-Jmat.BigNum.FORMAT_ARRAY_ = 2;
-Jmat.BigNum.FORMAT_STRING_ = 3;
+//strips bigint a of zeroes. May return input. Does not make copy if not needed. Does not modify input.
+Jmat.BigInt.strip = function(a) {
+  return a.strip();
+};
+Jmat.BigInt.prototype.strip = function() {
+  if(this.a.length <= 1 || this.a[0] != 0) return this;
+  return Jmat.BigInt.copystrip_(this);
+};
 
-Jmat.BigNum.getFormat = function(v) {
-  if(typeof v == 'string') return Jmat.BigNum.FORMAT_STRING_;
-  if(toString.call(v) === "[object Array]") return Jmat.BigNum.FORMAT_ARRAY_;
-  if(v instanceof Jmat.BigNum) return Jmat.BigNum.FORMAT_BIGNUM_;
-  return Jmat.BigNum.FORMAT_UNKNOWN_;
+Jmat.BigInt.copyarray_ = function(a) {
+  return a.slice(0);
+};
+
+// "int" (plain JS number) is not a format on purpose: may not be able to contain the result.
+Jmat.BigInt.FORMAT_UNKNOWN_ = 0;
+Jmat.BigInt.FORMAT_BIGINT_ = 1;
+Jmat.BigInt.FORMAT_ARRAY_ = 2;
+Jmat.BigInt.FORMAT_STRING_ = 3;
+
+Jmat.BigInt.getFormat = function(v) {
+  if(typeof v == 'string') return Jmat.BigInt.FORMAT_STRING_;
+  if(toString.call(v) === "[object Array]") return Jmat.BigInt.FORMAT_ARRAY_;
+  if(v instanceof Jmat.BigInt) return Jmat.BigInt.FORMAT_BIGINT_;
+  return Jmat.BigInt.FORMAT_UNKNOWN_;
 };
 
 //v may be any also supported format
-Jmat.BigNum.toFormat = function(v, format) {
-  if(format == Jmat.BigNum.getFormat(v)) return v;
-  v = Jmat.BigNum.cast(v);
-  if(format == Jmat.BigNum.FORMAT_BIGNUM_) return v;
-  if(format == Jmat.BigNum.FORMAT_ARRAY_) return v.a;
-  if(format == Jmat.BigNum.FORMAT_STRING_) return v.toString();
+//if opt_minus is given, overrides sign if the output format supports it
+Jmat.BigInt.toFormat = function(v, format, opt_minus) {
+  if(format == Jmat.BigInt.getFormat(v)) {
+    if(opt_minus == undefined) return v;
+    if(format == Jmat.BigInt.FORMAT_BIGINT_) return (v.minus == opt_minus) ? v : v.neg();
+    if(format == Jmat.BigInt.FORMAT_STRING_) return ((v[0] == '-') == opt_minus) ? v : (opt_minus ? ('-' + v) : v.substr(1));
+  }
+  v = Jmat.BigInt.cast(v);
+  if(opt_minus != undefined && v.minus != opt_minus) v = v.neg();
+  if(format == Jmat.BigInt.FORMAT_BIGINT_) return v;
+  if(format == Jmat.BigInt.FORMAT_ARRAY_) return v.a;
+  if(format == Jmat.BigInt.FORMAT_STRING_) return v.toString();
+  if(format == Jmat.BigInt.FORMAT_UNKNOWN_) return v.toString(); //unknown also as string, is typically regular JS number, string displays better in JS console
   return v;
 };
 
@@ -9893,7 +10310,7 @@ Jmat.Quaternion.lambertwm = function(z) {
 var Real = Jmat.Real; // R
 var Complex = Jmat.Complex; // C
 var Matrix = Jmat.Matrix; // M
-var BigNum = Jmat.BigNum; // B
+var BigInt = Jmat.BigInt; // B
 var Quaternion = Jmat.Quaternion; // Q
 
 // Expose some of the Real functions into JS Math
