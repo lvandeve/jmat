@@ -1698,6 +1698,7 @@ Jmat.Real.logy = function(x, y) {
 // Returns the number of leading zero bits in the 32-bit binary representation of x
 // Gives floor of log2 of x by doing 31 - clz32(x)
 // Gives num bits of x by doing 32 - clz32(x)
+// Only guaranteed to work for numbers less than 32 bits
 Jmat.Real.clz32 = Math.clz32 || function(x) {
   var result = 0;
   while(x > 0) {
@@ -1707,10 +1708,17 @@ Jmat.Real.clz32 = Math.clz32 || function(x) {
   return 32 - result;
 }
 
-//NOTE: floating point version. For integer log2, use 31 - clz32(x) or Math.floor(log2(x + 0.5)),
-//because e.g. on 8 gives 2.9999999999999996 (official Math.log2 too)
+//NOTE: floating point version. For integer log2 use ilog2,
+//because e.g. on 8 this gives 2.9999999999999996 (official Math.log2 too)
 Jmat.Real.log2 = Math.log2 || function(x) {
   return Math.log(x) / Math.LN2;
+};
+
+// To get number of bits, use Jmat.Real.ilog2(Math.abs(x)) + 1
+Jmat.Real.ilog2 = function(x) {
+  if(x <= 0) return NaN;
+  if(x < 2147483648) return 31 - Jmat.Real.clz32(x);
+  return Math.floor(Jmat.Real.log2(Math.floor(x) + 0.5));
 };
 
 Jmat.Real.log10 = Math.log10 || function(x) {
@@ -4630,9 +4638,6 @@ Jmat.Complex.hypergeometric1F1_rational_ = function(a, b, z) {
 
     var an, bn;
 
-    //console.log('a0:' + a0 + ' a1:' + a1 + ' a2:' + a2);
-    //console.log('b0:' + b0 + ' b1:' + b1 + ' b2:' + b2 + ' b3:' + b3);
-
     for(var n = 3; n < 50; n++) {
       var n2 = n * 2;
       var f1 = a.rsub(n-2).div(
@@ -4649,8 +4654,6 @@ Jmat.Complex.hypergeometric1F1_rational_ = function(a, b, z) {
       var e3 = f3.mul(z3);
       an = a2.mul(e1).add(a1.mul(e2)).add(a0.mul(e3));
       bn = b2.mul(e1).add(b1.mul(e2)).add(b0.mul(e3));
-
-      //console.log('a' + n + ':' + an + ', b' + n + ':' + bn + ', approx:' + an.div(bn));
 
       a0 = a1;
       a1 = a2;
@@ -8830,6 +8833,28 @@ Jmat.BigInt.cloneArrayTo = function(v, target) {
   for(var i = 0; i < v.length; i++) target[i] = v[i];
 };
 
+// left shift by s digits (based on a's radix)
+// s is regular JS number
+// underscore in name (private) because it requires BigInt a at input, no format conversions built in
+Jmat.BigInt.lshift_radix_ = function(a, s) {
+  if(s == 0) return a;
+  if(s < 0) return Jmat.BigInt.rshift_radix_(a, -s);
+  var result = Jmat.BigInt.copy(a);
+  for(var i = 0; i < s; i++) result.a.push(0);
+  return result;
+};
+
+// right shift by s digits (based on a's radix)
+// s is regular JS number
+// underscore in name (private) because it requires BigInt a at input, no format conversions built in
+Jmat.BigInt.rshift_radix_ = function(a, s) {
+  if(s == 0) return a;
+  if(s < 0) return Jmat.BigInt.lshift_radix_(a, -s);
+  var result = Jmat.BigInt.copy(a);
+  result.a = result.a.slice(0, -s);
+  return result;
+};
+
 //shift left by b bits
 //a is bigint, b is regular js number (integer)
 //does not treat negative as two's complement
@@ -9043,7 +9068,7 @@ Jmat.BigInt.bitnot = function(a, opt_bits) {
     }
   } else {
     if(!ar.length) return a;
-    var b = 32 - Jmat.Real.clz32(ar[0]);
+    var b = Jmat.Real.ilog2(ar[0]) + 1;
     if(b == 0) {
       
       result = B(1); // the new MSB
@@ -9222,13 +9247,16 @@ Jmat.BigInt.prototype.comparer = function(b) {
     return 1;
   }
 
+  var sign = this.getSign();
+  b = Math.abs(b);
+
   var n = Jmat.BigInt.getNumDigits(this);
   var r = 0;
   for(var i = 0; i < n && r <= b; i++) {
     r *= this.radix;
-    r += this.a[this.a.length - i - 1];
+    r += this.a[i];
   }
-  return r < b ? -1 : (r == b ? 0 : 1);
+  return ((r < b) ? -1 : (r == b ? 0 : 1)) * sign;
 };
 
 Jmat.BigInt.eq = function(a, b) { return Jmat.BigInt.compare(a, b) == 0; };
@@ -9260,44 +9288,6 @@ Jmat.BigInt.lte = function(a, b) { return Jmat.BigInt.compare(a, b) <= 0; };
 Jmat.BigInt.prototype.lte = function(b) { return Jmat.BigInt.compare(this, b) <= 0; };
 Jmat.BigInt.lter = function(a, b) { return Jmat.BigInt.comparer(a, b) <= 0; };
 Jmat.BigInt.prototype.lter = function(b) { return Jmat.BigInt.comparer(this, b) <= 0; };
-
-/*
-E.g. try:
-Jmat.BigInt.div('1522605027922533360535618378132637429718068114961380688657908494580122963258952897654000350692006139', '37975227936943673922808872755445627854565536638199');
-Should give: '40094690950920881030683735292761468389214899724061'
-*/
-Jmat.BigInt.div = function(a, b) {
-  var format = Jmat.BigInt.getFormat(a);
-  a = Jmat.BigInt.cast(a);
-  b = Jmat.BigInt.cast(b);
-  if(b.radix != a.radix) b = Jmat.BigInt.convertBase(b, a.radix);
-
-  var result = Jmat.BigInt.div_(a, b);
-
-  return Jmat.BigInt.toFormat(result, format);
-};
-Jmat.BigInt.prototype.div = function(b) {
-  return Jmat.BigInt.div(this, b);
-};
-
-Jmat.BigInt.mod = function(a, b) {
-  var format = Jmat.BigInt.getFormat(a);
-  a = Jmat.BigInt.cast(a);
-  b = Jmat.BigInt.cast(b);
-  if(b.radix != a.radix) b = Jmat.BigInt.convertBase(b, a.radix);
-
-  var d = Jmat.BigInt.div_(a, b);
-  var m = b.mul(d);
-  var result = a.sub(m);
-  
-  if(result.eqr(0)) result = result.abs(); //avoid '-0'
-  else if(a.minus != b.minus) result = result.add(b); //but not if result was 0, then it should stay 0
-
-  return Jmat.BigInt.toFormat(result, format);
-};
-Jmat.BigInt.prototype.mod = function(b) {
-  return Jmat.BigInt.mod(this, b);
-};
 
 // Returns integer square root (floor), or undefined if negative
 Jmat.BigInt.sqrt = function(a) {
@@ -9373,6 +9363,54 @@ Jmat.BigInt.log10 = function(x) {
   return Jmat.BigInt.logr(x, 10);
 };
 
+/*
+E.g. try:
+Jmat.BigInt.div('1522605027922533360535618378132637429718068114961380688657908494580122963258952897654000350692006139', '37975227936943673922808872755445627854565536638199');
+Should give: '40094690950920881030683735292761468389214899724061'
+*/
+Jmat.BigInt.div = function(a, b) {
+  var format = Jmat.BigInt.getFormat(a);
+  a = Jmat.BigInt.cast(a);
+  b = Jmat.BigInt.cast(b);
+  if(b.radix != a.radix) b = Jmat.BigInt.convertBase(b, a.radix);
+
+  var result = Jmat.BigInt.divmod_(a, b)[0];
+
+  return Jmat.BigInt.toFormat(result, format);
+};
+Jmat.BigInt.prototype.div = function(b) {
+  return Jmat.BigInt.div(this, b);
+};
+
+Jmat.BigInt.mod = function(a, b) {
+  var format = Jmat.BigInt.getFormat(a);
+  a = Jmat.BigInt.cast(a);
+  b = Jmat.BigInt.cast(b);
+  if(b.radix != a.radix) b = Jmat.BigInt.convertBase(b, a.radix);
+
+  var result = Jmat.BigInt.divmod_(a, b)[1];
+
+  return Jmat.BigInt.toFormat(result, format);
+};
+Jmat.BigInt.prototype.mod = function(b) {
+  return Jmat.BigInt.mod(this, b);
+};
+
+//returns array with [quotient, mod]
+Jmat.BigInt.divmod = function(a, b) {
+  var format = Jmat.BigInt.getFormat(a);
+  a = Jmat.BigInt.cast(a);
+  b = Jmat.BigInt.cast(b);
+  if(b.radix != a.radix) b = Jmat.BigInt.convertBase(b, a.radix);
+
+  var result = Jmat.BigInt.divmod_(a, b);
+
+  return [Jmat.BigInt.toFormat(result[0], format), Jmat.BigInt.toFormat(result[1], format)];
+};
+Jmat.BigInt.prototype.divmod = function(b) {
+  return Jmat.BigInt.divmod(this, b);
+};
+
 // Divide through regular (must be integer) js number
 Jmat.BigInt.divr = function(a, b) {
   if(b == 0) return undefined;
@@ -9391,7 +9429,7 @@ Jmat.BigInt.divr = function(a, b) {
       result.a[j] = Math.floor(result.a[j] / b);
       if(j > 0) result.a[j] += (result.a[j - 1] % b) * Math.floor(a.radix / b);
     }
-    Jmat.BigInt.strip_(result);
+    Jmat.BigInt.strip_(result.a);
     return Jmat.BigInt.toFormat(result, format, a.minus != (b < 0));
   }
 
@@ -9422,56 +9460,266 @@ Jmat.BigInt.prototype.modr = function(b) {
   return Jmat.BigInt.modr(this, b);
 };
 
-Jmat.BigInt.div_ = function(a, b) {
+/*
+Division from public domain Big Integer Library v. 5.0 by Leemon Baird.
+Divide x by y giving quotient q and remainder r.  (q=floor(x/y),  r=x mod y).
+Conditions:
+*) the numbers are base-256 arrays (but modify bpe to change this), least significant digit first, and two's complement --> reverse endianness than jmat.js
+*) x and y must have at least one leading zero element. --> that means at the end of the array since it's most significant last.
+*) y must be nonzero.
+*) y.length >= 2 (otherwise infinite loop occurs)
+*) q and r must be arrays that are exactly the same length as x.
+*) the x array must have at least as many elements as y.
+*/
+Jmat.BigInt.leemondiv_ = function(x, y, q, r, opt_bpe) {
+  var bpe = opt_bpe || 8;
+  var radix = 1 << bpe;
+  var mask = radix - 1;
+
+  //left shift bigInt x by n bits.
+  function leftShift_(x,n) {
+    var i;
+    var k=Math.floor(n/bpe);
+    if (k) {
+      for (i=x.length; i>=k; i--) //left shift x by k elements
+        x[i]=x[i-k];
+      for (;i>=0;i--)
+        x[i]=0;  
+      n%=bpe;
+    }
+    if (!n)
+      return;
+    for (i=x.length-1;i>0;i--) {
+      x[i]=mask & ((x[i]<<n) | (x[i-1]>>(bpe-n)));
+    }
+    x[i]=mask & (x[i]<<n);
+  }
+
+  //right shift bigInt x by n bits.  0 <= n < bpe.
+  function rightShift_(x,n) {
+    var i;
+    var k=Math.floor(n/bpe);
+    if (k) {
+      for (i=0;i<x.length-k;i++) //right shift x by k elements
+        x[i]=x[i+k];
+      for (;i<x.length;i++)
+        x[i]=0;
+      n%=bpe;
+    }
+    for (i=0;i<x.length-1;i++) {
+      x[i]=mask & ((x[i+1]<<(bpe-n)) | (x[i]>>n));
+    }
+    x[i]>>=n;
+  }
+
+  //is (x << (shift*bpe)) > y?
+  //x and y are nonnegative bigInts
+  //shift is a nonnegative integer
+  function greaterShift(x,y,shift) {
+    var kx=x.length, ky=y.length;
+    k=((kx+shift)<ky) ? (kx+shift) : ky;
+    for (i=ky-1-shift; i<kx && i>=0; i++) 
+      if (x[i]>0)
+        return 1; //if there are nonzeros in x to the left of the first column of y, then x is bigger
+    for (i=kx-1+shift; i<ky; i++)
+      if (y[i]>0)
+        return 0; //if there are nonzeros in y to the left of the first column of x, then x is not bigger
+    for (i=k-1; i>=shift; i--)
+      if      (x[i-shift]>y[i]) return 1;
+      else if (x[i-shift]<y[i]) return 0;
+    return 0;
+  }
+
+  //do x=x-(y<<(ys*bpe)) for bigInts x and y, and integers a,b and ys.
+  //x must be large enough to hold the answer.
+  function subShift_(x,y,ys) {
+    var i,c,k,kk;
+    k=x.length<ys+y.length ? x.length : ys+y.length;
+    kk=x.length;
+    for (c=0,i=ys;i<k;i++) {
+      c+=x[i]-y[i-ys];
+      x[i]=c & mask;
+      c>>=bpe;
+    }
+    for (i=k;c && i<kk;i++) {
+      c+=x[i];
+      x[i]=c & mask;
+      c>>=bpe;
+    }
+  }
+
+  //do the linear combination x=a*x+b*(y<<(ys*bpe)) for bigInts x and y, and integers a, b and ys.
+  //x must be large enough to hold the answer.
+  function linCombShift_(x,y,b,ys) {
+    var i,c,k,kk;
+    k=x.length<ys+y.length ? x.length : ys+y.length;
+    kk=x.length;
+    for (c=0,i=ys;i<k;i++) {
+      c+=x[i]+b*y[i-ys];
+      x[i]=c & mask;
+      c>>=bpe;
+    }
+    for (i=k;c && i<kk;i++) {
+      c+=x[i];
+      x[i]=c & mask;
+      c>>=bpe;
+    }
+  }
+
+  //do x=x+(y<<(ys*bpe)) for bigInts x and y, and integers a,b and ys.
+  //x must be large enough to hold the answer.
+  function addShift_(x,y,ys) {
+    var i,c,k,kk;
+    k=x.length<ys+y.length ? x.length : ys+y.length;
+    kk=x.length;
+    for (c=0,i=ys;i<k;i++) {
+      c+=x[i]+y[i-ys];
+      x[i]=c & mask;
+      c>>=bpe;
+    }
+    for (i=k;c && i<kk;i++) {
+      c+=x[i];
+      x[i]=c & mask;
+      c>>=bpe;
+    }
+  }
+
+  //is bigInt x negative? (note that this uses two's complement)
+  function negative(x) {
+    return ((x[x.length-1]>>(bpe-1))&1);
+  }
+
+  //do x=y on bigInts x and y.  x must be an array at least as big as y (not counting the leading zeros in y).
+  function copy_(x,y) {
+    var i;
+    var k=x.length<y.length ? x.length : y.length;
+    for (i=0;i<k;i++)
+      x[i]=y[i];
+    for (i=k;i<x.length;i++)
+      x[i]=0;
+  }
+
+  //do x=y on bigInt x and integer y.  
+  function copyInt_(x,n) {
+    var i,c;
+    for (c=n,i=0;i<x.length;i++) {
+      x[i]=c & mask;
+      c>>=bpe;
+    }
+  }
+
+  var kx, ky;
+  var i,j,y1,y2,c,a,b;
+  copy_(r,x);
+  for (ky=y.length;y[ky-1]==0;ky--); //ky is number of elements in y, not including leading zeros
+
+  //normalize: ensure the most significant element of y has its highest bit set  
+  b=y[ky-1];
+  for (a=0; b; a++)
+    b>>=1;  
+  a=bpe-a;  //a is how many bits to shift so that the high order bit of y is leftmost in its array element
+  leftShift_(y,a);  //multiply both by 1<<a now, then divide both by that at the end
+  leftShift_(r,a);
+
+  //Rob Visser discovered a bug: the following line was originally just before the normalization.
+  for (kx=r.length;r[kx-1]==0 && kx>ky;kx--); //kx is number of elements in normalized x, not including leading zeros
+
+  copyInt_(q,0);                      // q=0
+  while (!greaterShift(y,r,kx-ky)) {  // while (leftShift_(y,kx-ky) <= r) {
+    subShift_(r,y,kx-ky);             //   r=r-leftShift_(y,kx-ky)
+    q[kx-ky]++;                       //   q[kx-ky]++;
+  }                                   // }
+
+  for (i=kx-1; i>=ky; i--) {
+    if (r[i]==y[ky-1])
+      q[i-ky]=mask;
+    else
+      q[i-ky]=Math.floor((r[i]*radix+r[i-1])/y[ky-1]);
+
+    //The following for(;;) loop is equivalent to the commented while loop,
+    //except that the uncommented version avoids overflow.
+    //The commented loop comes from HAC, which assumes r[-1]==y[-1]==0
+    //  while (q[i-ky]*(y[ky-1]*radix+y[ky-2]) > r[i]*radix*radix+r[i-1]*radix+r[i-2])
+    //    q[i-ky]--;    
+    for (;;) {
+      y2=(ky>1 ? y[ky-2] : 0)*q[i-ky];
+      c=y2>>bpe;
+      y2=y2 & mask;
+      y1=c+q[i-ky]*y[ky-1];
+      c=y1>>bpe;
+      y1=y1 & mask;
+
+      if (c==r[i] ? y1==r[i-1] ? y2>(i>1 ? r[i-2] : 0) : y1>r[i-1] : c>r[i])
+        q[i-ky]--;
+      else
+        break;
+    }
+
+    linCombShift_(r,y,-q[i-ky],i-ky);    //r=r-q[i-ky]*leftShift_(y,i-ky)
+    if (negative(r)) {
+      addShift_(r,y,i-ky);         //r=r+leftShift_(y,i-ky)
+      q[i-ky]--;
+    }
+  }
+
+  rightShift_(y,a);  //undo the normalization step
+  rightShift_(r,a);  //undo the normalization step
+};
+
+// Divides a and b and also returns remainder, but there are some requirements:
+// They must already of type BigInt. Both must have the same base (a.radix). This base must be a power of two.
+Jmat.BigInt.divmod_ = function(a, b, base) {
+  var B = Jmat.BigInt;
+  var R = Jmat.Real;
   if(b.eqr(0)) return undefined;
-  if(b.eqr(1)) return a;
-  if(b.abs().gt(a.abs())) return Jmat.BigInt.toFormat(0, Jmat.BigInt.getFormat(a));
-  if(b.eq(a)) return Jmat.BigInt.toFormat(1, Jmat.BigInt.getFormat(a));
-  
+  if(b.eqr(1)) return [a, B(0)];
+
   var minus = (a.minus != b.minus);
   a = a.abs();
   b = b.abs();
 
-  var B = Jmat.BigInt;
-  var lshift = function(a, s) {
-    var result = B.copy(a);
-    for(var i = 0; i < s; i++) result.a.push(0);
-    return result;
-  };
-  var rshift = function(a, s) {
-    var result = B.copy(a);
-    result.a = result.a.slice(0, -s);
-    return result;
-  };
+  if(b.gt(a)) return [B(0), a];
+  if(b.eq(a)) return [B(1), B(0)];
+  //if(b.add(b).gt(a)) return [B(1), a.sub(b)];
 
-  //TODO: this is Newton-Raphson, but this needs improvements, e.g. if the base
-  // is lower, b will be much closer to 'one', resulting in much less
-  // iterations. Bring a closer to one with a multiplier or so.
-
-  var n = B.getNumDigits(a); // TODO: ensure this precision (amount of digits) is enough for all scenarios
-  // find reciprocal of b, with fixed point math, with b > 1, and 1 as many zeroes as b has digits.
-  var one = lshift(B(1), n); // We're doing fixed-point math now, so "1" is shifted n to the left.
-
-  var x = one.mulr(3).sub(a.mulr(2)); //instead of 48/17 - 32/17*a since this is integers only;
-  for(;;) {
-    var dx = rshift(x.mul(b), n); //Every multiplication requires a right shift to use the same fixed-point precision (this drops n digits each time)
-    while(dx.gt(one)) {
-      //estimate of number of digits was bad. fix it here. e.g. happens with 67/66. TODO make better
-      one = lshift(one, 1);
-      n++;
-      dx = rshift(dx, 1);
-    }
-    var dx2 = rshift(x.mul(one.sub(dx)), n);
-    var x1 = x.add(dx2);
-    if(x.eq(x1)) {
-      break;
-    }
-    x = x1;
+  // Convert to all the requirements for leemondiv_
+  a = B.cast(a, 256);
+  b = B.cast(b, 256);
+  var y = B.copyarray_(b.a);
+  y.reverse();
+  while(y[y.length - 1] == 0) y.length--;
+  y.push(0);
+  while(y.length < 2) y.push(0);
+  var x = B.copyarray_(a.a);
+  x.reverse();
+  while(x[x.length - 1] == 0) x.length--;
+  x.push(0);
+  while(x.length < y.length) x.push(0);
+  var q = [];
+  var r = [];
+  for(var i = 0; i < x.length; i++) {
+    q[i] = 0;
+    r[i] = 0;
   }
+  
+  B.leemondiv_(x, y, q, r);
 
-  var result = rshift(a.mul(x), n * 2);
-  if(minus) result = result.neg();
-  return result;
+  while(q[q.length - 1] == 0) q.length--;
+  while(r[r.length - 1] == 0) r.length--;
+  q.reverse();
+  r.reverse();
+
+  var result = new B(q, 256);
+  var m = new B(r, 256);
+
+  // To test correctness: m must be equal to a.sub(result.mul(b)), and in range [0, b)
+
+  if(minus) {
+    result = result.neg();
+    m = m.add(b);
+    if(m.minus && m.eqr(0)) m.minus = false;
+  }
+  return [result, m];
 };
 
 Jmat.BigInt.pow = function(a, b) {
@@ -9533,20 +9781,22 @@ Jmat.BigInt.invmod = function(a, m) {
   for(;;) {
     if(a.eqr(1)) { result = x; break; }
     if(a.eqr(0)) { result = B(0); break; }
-    y = y.sub(x.mul(m.div(a)));
-    m = m.mod(a);
+    var d = m.divmod(a);
+    y = y.sub(x.mul(d[0]));
+    m = d[1];
     
     if(m.eqr(1)) { result = y; break; }
     if(m.eqr(0)) { result = B(0); break; }
-    x = x.sub(y.mul(a.div(m)));
-    a = a.mod(m);
+    d = a.divmod(m);
+    x = x.sub(y.mul(d[0]));
+    a = d[1];
   }
 
   if(result.minus) result = origm.add(result);
   return B.toFormat(result, format);
 };
 
-//montgomery reduction: calculates a/r mod m
+//montgomery reduction: calculates a/r mod m (the division of course in modulo, so doesn't necessarily make a smaller)
 //r must be power of 2 and bits is its log2, mask is r-1 (all ones)
 //mi must be -(m^(-1)) mod r (there's a minus sign in front, but since it's mod r it's positive again)
 Jmat.BigInt.monred_ = function(a, bits, mask, m, mi) {
@@ -9556,9 +9806,30 @@ Jmat.BigInt.monred_ = function(a, bits, mask, m, mi) {
   return t;
 };
 
+//generates a function that can do the montgomery reduction for some value for modulo m, that has all precomputed values bound in it (including r). m must be odd.
+Jmat.BigInt.genmonred_ = function(m) {
+  var bits = Jmat.BigInt.getNumBits(m);
+  var r = Jmat.BigInt.lshift(Jmat.BigInt(1), bits);
+  var mask = r.subr(1);
+  var mi = Jmat.BigInt.invmod(m, r).neg().bitand(mask);
+  var rrm = r.lshift(bits).mod(m);
+
+  // without init, does montgomery reduction. With init, does conversion towards montgomery domain.
+  // E.g. to multiply a and b: var am = monred(a, true); var bm = monred(b, true); var cm = monred(am.mul(bm)); var c = monred(cm);
+  return function(a, init) {
+    if(init) {
+      //The below is equivalent to: a.lshift(bits).mod(m), but faster (no mod m)
+      return Jmat.BigInt.monred_(a.mul(rrm), bits, mask, m, mi); //convert to montgomery domain
+    } else {
+      return Jmat.BigInt.monred_(a, bits, mask, m, mi); //montgomery reduction
+    }
+  };
+};
+
 //modular exponentiation: (a^b) mod m
 //faster if m is odd, e.g. try Jmat.BigInt.modpow(3, '500000000000000000000000', 2001)
-Jmat.BigInt.modpow = function(a, b, m) {
+//opt_monred is an optional parameter to have a precalculated montgomery reduction object for m with genmonred_. This may be faster if reused multiple times for the same m.
+Jmat.BigInt.modpow = function(a, b, m, opt_monred) {
   var B = Jmat.BigInt;
   var format = B.getFormat(a);
   a = B.cast(a);
@@ -9572,15 +9843,11 @@ Jmat.BigInt.modpow = function(a, b, m) {
   
   if(m.modr(2).eqr(1) && l > 1) {
     // Odd m, so faster Montgomery reduction with power of two r possible
-    
-    var bits = B.log2(m).toInt() + 1;
-    var r = B.lshift(B(1), bits);
-    var mask = r.subr(1);
-    
-    a1 = a1.mul(r).mod(m);
-    a2 = a2.mul(r).mod(m);
 
-    var mi = B.invmod(m, r).neg().bitand(mask);
+    var monred = opt_monred || B.genmonred_(m);
+    
+    a1 = monred(a1, true);
+    a2 = monred(a2, true);
     
     // Montgomery's ladder
     for(var i = 0; i < l; i++) {
@@ -9591,11 +9858,11 @@ Jmat.BigInt.modpow = function(a, b, m) {
         a1 = a1.mul(a2);
         a2 = a2.mul(a2);
       }
-      a1 = B.monred_(a1, bits, mask, m, mi);
-      a2 = B.monred_(a2, bits, mask, m, mi);
+      a1 = monred(a1);
+      a2 = monred(a2);
     }
 
-    a1 = B.monred_(a1, bits, mask, m, mi);
+    a1 = monred(a1);
     return B.toFormat(a1, format);
   } else {
     // Even m, slower
@@ -9630,6 +9897,104 @@ Jmat.BigInt.randomBits = function(bits) {
   return result;
 };
 
+Jmat.BigInt.firstPrimes_ = [2, 3, 5, 7, 11, 13, 17, 19, 23, 29, 31, 37, 41, 43, 47, 53, 59, 61, 67, 71, 73, 79, 83, 89, 97];
+
+// Tests for being one of the first primes or being divisible through one of them.
+// Returns 0 if not prime, 1 if prime, -1 if unknown by this function
+Jmat.BigInt.isPrimeSimple = function(n) {
+  n = Jmat.BigInt.cast(n);
+  if(n.ltr(2)) return 0;
+  for(var i = 0; i < Jmat.BigInt.firstPrimes_.length; i++) {
+    if(n.eqr(Jmat.BigInt.firstPrimes_[i])) return 1;
+    if(n.modr(Jmat.BigInt.firstPrimes_[i]).toInt() == 0) return 0;
+  }
+  return -1;
+};
+
+//do rounds of Miller-Rabin primality test
+//base = the potential witnesses to try as an array, e.g. [2, 3]
+//requires that n is big enough, at least 3. First use Jmat.BigInt.isPrimeSimple, and only use this function if that returns -1.
+Jmat.BigInt.isPrimeMillerRabin = function(n, base) {
+  var B = Jmat.BigInt;
+  n = B.cast(n);
+
+  // choose s and odd d such tht n = 2^s * d
+  var d = n.divr(2);
+  var s = B.ONE;
+  while(B.bitand(d, B.ONE).eqr(0)) {
+    d = d.divr(2);
+    s = s.addr(1);
+  }
+
+  var monred = B.genmonred_(n);
+
+  var witness = function(n, s, d, a) {
+    var x = B.modpow(a, d, n, monred);
+    var y;
+    while(!s.eqr(0)) {
+      //this mod could also use monred (use vars ym and xm in mon domain). However, it doesn't speed up much, so code kept simpler here.
+      y = x.mul(x).mod(n);
+      if(y.eqr(1) && !x.eqr(1) && !x.eq(n.subr(1))) return false;
+      x = y;
+      s = s.subr(1);
+    }
+    return y.eqr(1);
+  };
+
+  for(var i = 0; i < base.length; i++) {
+    if(!witness(n, s, d, B.cast(base[i]))) return false; //proven to be composite by this witness
+  }
+  return true; //probably prime, at least no compositeness was proven with the given witnesses
+};
+
+//Choose witnesses for Miller-Rabin primality test, with reasonable defaults (deterministic if n small enough, random otherwise so not reproducible).
+Jmat.BigInt.chooseMillerRabinBase_ = function(n) {
+  n = Jmat.BigInt.cast(n);
+  var bits = Jmat.BigInt.getNumBits(n);
+
+  var base;
+  if(bits <= 64)  {
+    if(n.ltr(1373653)) base = [2, 3];
+    else if(n.ltr(9080191)) base = [31, 73];
+    else if(n.ltr(4759123141)) base = [2, 7, 61];
+    else if(n.ltr(1122004669633)) base = [2, 13, 23, 1662803];
+    else if(n.ltr(2152302898747)) base = [2, 3, 5, 7, 11];
+    else if(n.ltr(3474749660383)) base = [2, 3, 5, 7, 11, 13];
+    else if(n.ltr(341550071728321)) base = [2, 3, 5, 7, 11, 13, 17];
+    else if(n.ltr(3770579582154547)) base = [2, 2570940, 880937, 610386380, 4130785767];
+    else base = [2, 325, 9375, 28178, 450775, 9780504, 1795265022]; //valid up to >2^64
+  } else {
+    base = [2, 3];
+    for(var i = 0; i < 18; i++) {
+      base.push(Jmat.BigInt.randomBits(bits - 1));
+    }
+  }
+
+  return base;
+};
+
+//Is *probably* prime at least.
+//If you wish to control amount of miller rabin rounds and bases, use isPrimeMillerRabin directly with own bases (first use isPrimeSimple).
+Jmat.BigInt.isPrime = function(n) {
+  var init = Jmat.BigInt.isPrimeSimple(n);
+  if(init != -1) return !!init;
+
+  var base = Jmat.BigInt.chooseMillerRabinBase_(n);
+  return Jmat.BigInt.isPrimeMillerRabin(n, base);
+};
+
+/*
+little benchmark on a prime:
+
+var ta0 = new Date().getTime(); var p = Jmat.BigInt.isPrime('40094690950920881030683735292761468389214899724061'); var ta1 = new Date().getTime();
+console.log(((ta1 - ta0) / 1000.0) + ' ' + p);
+
+Numbers to test that are not prime (each one has 2 large prime factors):
+124620366781718784065835044608106590434820374651678805754818788883289666801188210855036039570272508747509864768438458621054865537970253930571891217684318286362846948405301614416430468066875699415246993185704183030512549594371372159029236099
+1522605027922533360535618378132637429718068114961380688657908494580122963258952897654000350692006139
+88357 (149*593), strong pseudoprime
+*/
+
 Jmat.BigInt.d_ = ['0', '1', '2', '3', '4', '5', '6', '7', '8', '9', 'A', 'B', 'C', 'D', 'E', 'F',
                   'G', 'H', 'I', 'J', 'K', 'L', 'M', 'N', 'O', 'P', 'Q', 'R', 'S', 'T', 'U', 'V',
                   'W', 'X', 'Y', 'Z'];
@@ -9657,9 +10022,9 @@ Jmat.BigInt.getNumBits = function(x) {
 
   var ar = Jmat.BigInt.maybecopystrip_(x.a);
   if(ar.length == 0) return 0;
-  var result = 32 - Jmat.Real.clz32(ar[0]);
+  var result = Jmat.Real.ilog2(ar[0]) + 1;
   if(ar.length > 0) {
-    var n = 32 - Jmat.Real.clz32(x.radix) - 1; //x.radix is power of two as enforced above
+    var n = Jmat.Real.ilog2(x.radix); //x.radix is power of two as enforced above
     result += n * (ar.length - 1);
   }
   return result;
