@@ -975,6 +975,7 @@ Jmat.Real.SQRT2 = Math.sqrt(2);
 Jmat.Real.SQRTPI = Math.sqrt(Math.PI); // gamma(0.5)
 Jmat.Real.EM = 0.57721566490153286060; // Euler-Mascheroni constant
 Jmat.Real.APERY = 1.2020569; // Apery's constant, zeta(3)
+Jmat.Real.BIGGESTJSINT = 9007199254740992; // largest number that JS (float64) can represent as integer: 2^53, 0x20000000000000, 9007199254740992
 
 ////////////////////////////////////////////////////////////////////////////////
 // Categories
@@ -1124,7 +1125,7 @@ Jmat.Real.isPrimeInit_ = function(n) {
   if(n == Infinity || n != n) return NaN;
   if(n != Math.round(n)) return 0;
   if(n < 2) return 0;
-  if(n > 0x020000000000000) return NaN; //too large for the floating point's integer precision, result will not make sense (decimal: 9007199254740992)
+  if(n > Jmat.Real.BIGGESTJSINT) return NaN; //too large for the floating point's integer precision, result will not make sense
   for(var i = 0; i < Jmat.Real.firstPrimes_.length; i++) {
     if(n == Jmat.Real.firstPrimes_[i]) return 1;
     if(n % Jmat.Real.firstPrimes_[i] == 0) return 0;
@@ -1178,7 +1179,7 @@ Jmat.Real.isPrimeMillerRabin_ = function(n) {
 
   // returns (a + b) % c, taking overflow into account (in JS, overflow means reaching a part in the floating point representation where it can no longer distinguish 1)
   var modadd = function(a, b, c) {
-    if (a + b < 9007199254740992) return (a + b) % c;
+    if (a + b < Jmat.Real.BIGGESTJSINT) return (a + b) % c;
     if(a + b > c) {
       return (a - c + b) % c;
     }
@@ -1188,7 +1189,7 @@ Jmat.Real.isPrimeMillerRabin_ = function(n) {
 
   // returns (a * b) % c, taking overflow into account
   var modmul = function(a, b, c) {
-    if(a * b < 9007199254740992) return (a * b) % c;
+    if(a * b < Jmat.Real.BIGGESTJSINT) return (a * b) % c;
     var x = 0;
     var y = a % c;
     while(b > 0) {
@@ -1270,7 +1271,7 @@ Jmat.Real.smallestPrimeFactor = function(x) {
   if(x == Infinity || x != x) return NaN;
   if(x != Math.round(x)) return NaN;
   if(x < 1) return NaN;
-  if(x > 0x020000000000000) return NaN; //too large for the floating point's integer precision, result will not make sense
+  if(x > Jmat.Real.BIGGESTJSINT) return NaN; //too large for the floating point's integer precision, result will not make sense
   if(x == 1) return 1;
   for(var i = 0; i < Jmat.Real.firstPrimes_.length; i++) {
     if(x == Jmat.Real.firstPrimes_[i]) return x;
@@ -1367,7 +1368,7 @@ Jmat.Real.nearestPrime = function(value) {
   var x = Math.round(value);
   if(x < 2) return 2;
   if(x == Infinity || x != x) return NaN;
-  if(x >= 9007199254740881) return NaN; //largest supported prime in floating point precision, after this result is not correct because after 0x020000000000000 isPrime gives NaN
+  if(x >= 9007199254740881) return NaN; //largest supported prime in floating point precision, after this result is not correct because after Jmat.Real.BIGGESTJSINT isPrime gives NaN
 
   if(Jmat.Real.isPrime(x)) return x;
   var i = x % 2 == 0 ? 1 : 2;
@@ -1382,7 +1383,7 @@ Jmat.Real.nextPrime = function(value) {
   var x = Math.floor(value);
   if(x < 2) return 2; //the calculations below would give 3 instead of 2
   if(x == Infinity || x != x) return NaN;
-  if(x >= 9007199254740881) return NaN; //largest supported prime in floating point precision, after this will infinite loop because after 0x020000000000000 isPrime gives NaN
+  if(x >= 9007199254740881) return NaN; //largest supported prime in floating point precision, after this will infinite loop because after Jmat.Real.BIGGESTJSINT isPrime gives NaN
 
   var i = x % 2 == 0 ? 1 : 2;
   while(true) {
@@ -1395,7 +1396,7 @@ Jmat.Real.previousPrime = function(value) {
   var x = Math.ceil(value);
   if(x <= 3) return 2; //avoid infinite loop
   if(x == Infinity || x != x) return NaN;
-  if(x > 0x020000000000000) return NaN; //too large for the floating point's integer precision, result will not make sense
+  if(x > Jmat.Real.BIGGESTJSINT) return NaN; //too large for the floating point's integer precision, result will not make sense
 
   var i = x % 2 == 0 ? 1 : 2;
   while(true) {
@@ -1723,6 +1724,10 @@ Jmat.Real.ilog2 = function(x) {
 
 Jmat.Real.log10 = Math.log10 || function(x) {
   return Math.log(x) / Math.LN10;
+};
+
+Jmat.Real.root = function(x, y) {
+  return Math.pow(x, 1 / y);
 };
 
 // dawson function D+(x) aka F(x). erfi(x) = 2/sqrt(pi) * exp(x*x) * D(x)
@@ -2814,6 +2819,14 @@ Jmat.Complex.sqrt = function(x) {
     else result.im = Math.sqrt(-x.re);
     return result;
   } else return x.pow(Jmat.Complex(0.5));
+};
+
+Jmat.Complex.root = function(x, y) {
+  return x.pow(Jmat.Complex(Jmat.Complex.inv(y)));
+};
+
+Jmat.Complex.rootr = function(x, y) {
+  return x.pow(Jmat.Complex(1 / y));
 };
 
 Jmat.Complex.toInt = function(value) {
@@ -8643,7 +8656,6 @@ Jmat.BigInt.ARRAYBASE_ = 256; // the default array base, must be power of two (o
 Jmat.BigInt.ARRAYBASE_BITS_ = 8; // log2(Jmat.BigInt.ARRAYBASE_)
 Jmat.BigInt.STRINGBASE_ = 10; // the default base for numbers given as string. TODO: support hex strings if they start with 0x
 
-
 //Typically, a is array, string, number or BigInt, and b is base of output (that of input may be different, e.g. always 10 for string).
 //minus is only used for array or no input
 Jmat.BigInt.make = function(a, b, minus) {
@@ -8776,7 +8788,7 @@ Jmat.BigInt.baseloop_ = function(a, ashift, amul, b, bshift, bmul, overflow, bas
 };
 
 Jmat.BigInt.intToArray = function(i, opt_base) {
-  if(i >= 9007199254740992) return undefined; // Above JS float's integer precision. Return undefined to avoid accidently thinking it's an exact result when typing too big integer literal without string quotes around it.
+  if(i > Jmat.Real.BIGGESTJSINT) return undefined; // Above JS float's integer precision. Return undefined to avoid accidently thinking it's an exact result when typing too big integer literal without string quotes around it.
   var base = opt_base || Jmat.BigInt.ARRAYBASE_;
   var result = [];
   while(i > 0) {
@@ -8788,6 +8800,7 @@ Jmat.BigInt.intToArray = function(i, opt_base) {
   return result;
 };
 
+// If the number is too big to represent in JS precision, returns float approximation or if even too high for that, Infinity.
 Jmat.BigInt.arrayToInt = function(v, opt_base) {
   var base = opt_base || Jmat.BigInt.ARRAYBASE_;
   var result = 0;
@@ -8795,6 +8808,7 @@ Jmat.BigInt.arrayToInt = function(v, opt_base) {
   for(var i = 0; i < v.length; i++) {
     result += m * v[v.length - 1 - i];
     m *= base;
+    if(result == Infinity || m == Infinity) return Infinity; //avoid it becoming NaN
   }
   return result;
 };
@@ -8809,6 +8823,7 @@ Jmat.BigInt.fromInt = function(i, opt_base) {
   return new Jmat.BigInt(Jmat.BigInt.intToArray(i, base), base, minus);
 };
 
+// If the number is too big to represent in JS precision, returns float approximation or if even too high for that, Infinity.
 Jmat.BigInt.toInt = function(v) {
   return Jmat.BigInt.arrayToInt(v.a, v.radix) * (v.minus ? -1 : 1);
 };
@@ -9283,7 +9298,8 @@ Jmat.BigInt.prototype.lter = function(b) { return Jmat.BigInt.comparer(this, b) 
 // Returns integer square root (floor), or undefined if negative
 Jmat.BigInt.sqrt = function(a) {
   var B = Jmat.BigInt;
-  
+
+  if(a.eqr(0)) return B(0);
   if(a.minus) return undefined;
 
   var low = B([0], a.radix);
@@ -9299,6 +9315,75 @@ Jmat.BigInt.sqrt = function(a) {
   for (;;) {
     var mid = low.add(high).div(two);
     var rr = mid.mul(mid);
+    var c = B.compare(rr, a);
+    if(c == 0) {
+      result = mid;
+      break;
+    }
+    else if(c < 0) low = mid;
+    else high = mid;
+    if(B.compare(high.sub(low), one) <= 0) {
+      result = low;
+      break;
+    }
+  }
+
+  return result;
+};
+
+// x is odd integer
+Jmat.BigInt.isOdd = function(x) {
+  return x.and(Jmat.BigInt.ONE).eqr(1);
+};
+
+// x is even integer
+Jmat.BigInt.isEven = function(x) {
+  return x.and(Jmat.BigInt.ONE).eqr(0);
+};
+
+
+//Finds the nth root of a (e.g. sqrt if n is 2)
+Jmat.BigInt.root = function(a, n) {
+  var r = n.toInt();
+  if(r <= 0) return undefined;
+  if(r > Jmat.Real.BIGGESTJSINT) {
+    if(a.eqr(0)) return B(0);
+    if(B.isEven(n) && a.minus) return undefined;
+    // We can return 1 because:
+    // -the above checks already checked for 0 and invalid
+    // -nth root of a with n >= log2(a) is smaller than 2
+    // -number of bits of a is assumed to fit in a regular JS number (2^53 bits), so n is definitely bigger than that if it doesn't fit in JS int
+    // -so as a result, the floor of the nth root is 1
+    return B(a.minus ? -1 : 1);
+  }
+  return Jmat.BigInt.rootr(a, r);
+};
+
+
+//Finds the nth root of a (e.g. sqrt if n is 2), with n a regular JS int
+Jmat.BigInt.rootr = function(a, n) {
+  var B = Jmat.BigInt;
+  if(n <= 0) return undefined;
+  if(a.eqr(0)) return B(0);
+  if(n == 1) return a;
+  if(n == 2) return B.sqrt(a);
+  if(Jmat.Real.isEven(n) && a.minus) return undefined;
+  //if n is bigger than log2(a), the result is smaller than 2 (and given checks above, larger than 1).
+  if(n > B.log2(a.abs()).toInt()) return B(a.minus ? -1 : 1);
+
+  var low = B([0], a.radix);
+  var high = Jmat.BigInt.copystrip_(a);
+  if(high.a.length == 1 && high.a[0] == 1) low = B([1], a.radix); //the algorithm below fails on [1]
+  high.a = high.a.slice(0, Math.ceil(high.a.length / n) + 1); // initial estimate for max of sqrt: half amount of digits
+  if(a.radix > 16) high.a[0] = Math.min(high.a[0], Math.ceil(Jmat.Real.root(high.a[0] + 1, n))); // further improve estimate by setting most significant digit to root of itself
+
+  var one = B([1], a.radix);
+  var two = (a.radix == 2) ? B([1, 0], a.radix) : B([2], a.radix);
+
+  var result;
+  for (;;) {
+    var mid = low.add(high).div(two);
+    var rr = B.powr(mid, n);
     var c = B.compare(rr, a);
     if(c == 0) {
       result = mid;
@@ -9716,6 +9801,10 @@ Jmat.BigInt.pow = function(a, b) {
   return a1;
 };
 
+Jmat.BigInt.powr = function(a, b) {
+  return Jmat.BigInt.pow(a, Jmat.BigInt.fromInt(b));
+};
+
 //greatest common divisor
 Jmat.BigInt.gcd = function(x, y) {
   var B = Jmat.BigInt;
@@ -10054,6 +10143,7 @@ Jmat.BigInt.getFormat = function(v) {
 //v may be any also supported format
 //if opt_minus is given, overrides sign if the output format supports it
 Jmat.BigInt.toFormat = function(v, format, opt_minus) {
+  if(v == undefined) return undefined; //propagate error condition
   if(format == Jmat.BigInt.getFormat(v)) {
     if(opt_minus == undefined) return v;
     if(format == Jmat.BigInt.FORMAT_BIGINT_) return (v.minus == opt_minus) ? v : v.neg();
@@ -10140,11 +10230,14 @@ Jmat.BigInt.enrichFunctions_ = function() {
   Jmat.BigInt.enrichFunction_('compare', 2, 0 + prototoo);
   Jmat.BigInt.enrichFunction_('comparer', 1, 0 + prototoo);
   Jmat.BigInt.enrichFunction_('sqrt', 1, 1);
+  Jmat.BigInt.enrichFunction_('root', 2, 1);
+  Jmat.BigInt.enrichFunction_('rootr', 1, 1);
   Jmat.BigInt.enrichFunction_('logy', 2, 1);
   Jmat.BigInt.enrichFunction_('logr', 1, 1);
   Jmat.BigInt.enrichFunction_('log2', 1, 1);
   Jmat.BigInt.enrichFunction_('log10', 1, 1);
   Jmat.BigInt.enrichFunction_('pow', 2, 1);
+  Jmat.BigInt.enrichFunction_('powr', 1, 1);
   Jmat.BigInt.enrichFunction_('gcd', 2, 1);
   Jmat.BigInt.enrichFunction_('invmod', 2, 1);
   Jmat.BigInt.enrichFunction_('modpow', 3, 1);
