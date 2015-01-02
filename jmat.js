@@ -9401,6 +9401,90 @@ Jmat.BigInt.rootr = function(a, n) {
 };
 
 
+//Finds the nearest perfect power <= a, returns array with [base^exponent, base, exponent], with base >= 1 and exponent >= 2
+//To test if number is perfect power, simply check whether result is same as input.
+//Gives smallest possible base (with largest exponent), e.g. for 64, gives 2^6, not 8^2
+//if opt_next is true, then instead finds the first perfect power greater than a
+//if opt_base is given, then only uses exactly opt_base as base (much simpler)
+//if opt_k is given, then only uses exactly opt_k as exponent (also much simpler)
+// E.g. to list first 100 perfect powers: var p = BigInt(0); for(var i = 0; i < 100; i++) { var pp = BigInt.perfectpow(p, true); console.log('' + pp); p = pp[0]; }
+Jmat.BigInt.perfectpow = function(a, opt_next, opt_base, opt_k) {
+  //The exponent of the result will usually be 2, most perfect powers are squares, higher exponents are much rarer.
+  var B = Jmat.BigInt;
+  var k = opt_k ? B.cast(opt_k) : undefined;
+  var b = opt_base ? B.cast(opt_base) : undefined;
+  if(a.minus) return undefined;
+  if(opt_base && opt_k) return [b.pow(k), b, k]; //not useful, but consistent
+  if(opt_base) {
+    if(a.lter(1) && opt_next) return [b.mul(b), b, B(2)];
+    var r = (typeof opt_base != 'number') ? opt_base : b.toInt();
+    var l = B.logr(a, r);
+    if(opt_next) l = l.addr(1);
+    var p = b.pow(l);
+    return [p, b, l];
+  }
+  if(opt_k) {
+    var r = (typeof opt_k != 'number') ? opt_k : k.toInt();
+    var s = B.rootr(a, r);
+    if(opt_next) s = s.addr(1);
+    var p = s.powr(r);
+    return [p, s, k];
+  }
+  // Algo below doesn't work for a < 5
+  if(a.ltr(5)) {
+    var r = a.toInt();
+    if(opt_next) {
+      if(r == 0) return [B(1), B(1), B(2)];
+      if(r == 4) return [B(8), B(2), B(3)];
+      return [B(4), B(2), B(2)];
+    } else {
+      if(r == 0) return undefined;
+      if(a == 4) return [B(4), B(2), B(2)];
+      return [B(1), B(1), B(2)];
+    }
+  }
+  var l = B.log2(a).toInt();
+  if(opt_next) l++;
+  var base = undefined;
+  if(opt_base) base = B.cast(opt_base);
+
+  var best = a;
+  var besti = 0;
+  var bestbase = B(0);
+  var bestpow = B(0);
+
+  for(var i = 2; i <= l; i++) {
+    if(i > 5 && i % 5 == 0) { i++; continue; }
+    if(i > 3 && i % 3 == 0) { i++; continue; }
+
+    var s = base || B.rootr(a, i);
+    if(opt_next) s = s.addr(1);
+    var p = s.powr(i);
+    var diff = a.sub(p).abs();
+    if(diff.lt(best)) {
+      best = diff;
+      besti = i;
+      bestbase = s;
+      bestpow = p;
+      if(diff.eqr(0)) break;
+    }
+    
+    if(i > 2) i++; //add one more, skip next even numbers
+  }
+
+  // We want biggest, not smallest, exponent, and smallest, nog biggest, base
+  if(besti == 2 || besti == 3 || besti == 5) {
+    var r2 = Jmat.BigInt.perfectpow(bestbase);
+    if(r2[0].eq(bestbase)) {
+      bestbase = r2[1];
+      besti = besti * r2[2].toInt();
+    }
+  }
+
+  return [bestpow, bestbase, B(besti)];
+};
+
+
 // takes base-y logarithm of x (y is also BigInt, but typically something like 2 or 10. logr is faster with immediately giving regular JS number.)
 Jmat.BigInt.logy = function(x, y) {
   return Jmat.BigInt.logr(x, y.toInt());
@@ -9411,6 +9495,7 @@ Jmat.BigInt.logy = function(x, y) {
 Jmat.BigInt.logr = function(x, y) {  
   if(x.eqr(y)) return Jmat.BigInt(1);
   if(x.minus || y < 0) return undefined;
+  if(x.eqr(0)) return undefined; //-Infinity
   if(y == 1) return x;
   if(y == 2) return Jmat.BigInt.log2(x);
 
@@ -9800,9 +9885,15 @@ Jmat.BigInt.pow = function(a, b) {
   if(minus) a1 = a1.neg();
   return a1;
 };
+Jmat.BigInt.prototype.pow = function(b) {
+  return Jmat.BigInt.pow(this, b);
+};
 
 Jmat.BigInt.powr = function(a, b) {
   return Jmat.BigInt.pow(a, Jmat.BigInt.fromInt(b));
+};
+Jmat.BigInt.prototype.powr = function(b) {
+  return Jmat.BigInt.pow(this, Jmat.BigInt.fromInt(b));
 };
 
 //greatest common divisor
@@ -10236,14 +10327,15 @@ Jmat.BigInt.enrichFunctions_ = function() {
   Jmat.BigInt.enrichFunction_('logr', 1, 1);
   Jmat.BigInt.enrichFunction_('log2', 1, 1);
   Jmat.BigInt.enrichFunction_('log10', 1, 1);
-  Jmat.BigInt.enrichFunction_('pow', 2, 1);
-  Jmat.BigInt.enrichFunction_('powr', 1, 1);
+  Jmat.BigInt.enrichFunction_('pow', 2, 1 + prototoo);
+  Jmat.BigInt.enrichFunction_('powr', 1, 1 + prototoo);
   Jmat.BigInt.enrichFunction_('gcd', 2, 1);
   Jmat.BigInt.enrichFunction_('invmod', 2, 1);
   Jmat.BigInt.enrichFunction_('modpow', 3, 1);
   Jmat.BigInt.enrichFunction_('isPrimeSimple', 1, 0);
   Jmat.BigInt.enrichFunction_('isPrimeMillerRabin', 1, 0);
   Jmat.BigInt.enrichFunction_('isPrime', 1, 0);
+  Jmat.BigInt.enrichFunction_('perfectpow', 1, 0);
 };
 
 Jmat.BigInt.enrichFunctions_();
