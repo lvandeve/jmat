@@ -1288,7 +1288,7 @@ Jmat.Real.smallestPrimeFactor = function(x) {
   return x;
 };
 
-//factorize: returns prime factors as array of real integers. x must be real positive integer.
+//factorize: returns prime factors as array of real integers, sorted from smallest to largest. x must be real positive integer.
 Jmat.Real.factorize = function(x) {
   var x = Math.round(x);
   var result = [];
@@ -1366,42 +1366,76 @@ Jmat.Real.primeCount = function(value) {
 
 Jmat.Real.nearestPrime = function(value) {
   var x = Math.round(value);
-  if(x < 2) return 2;
+  // Anything below 6 does not work with the calculations below.
+  if(x < 7) {
+    if(x <= 2) return 2;
+    if(x <= 4) return 3;
+    return 5;
+  }
   if(x == Infinity || x != x) return NaN;
   if(x >= 9007199254740881) return NaN; //largest supported prime in floating point precision, after this result is not correct because after Jmat.Real.BIGGESTJSINT isPrime gives NaN
 
   if(Jmat.Real.isPrime(x)) return x;
-  var i = x % 2 == 0 ? 1 : 2;
-  while(true) {
-    if(Jmat.Real.isPrime(x + i)) return x + i;
-    if(Jmat.Real.isPrime(x - i)) return x - i;
-    i += 2; //TODO: make faster (e.g. using += 6 at the least)
+  var d = x % 6;
+  var e = 6 - d;
+  var i = 0;
+  var result = 0;
+  for(;;) {
+    if(Jmat.Real.isPrime(x - i - d + 1)) result = x - i - d + 1;
+    else if(Jmat.Real.isPrime(x - i - d - 1)) result = x - i - d - 1;
+
+    if((!result || (x - result) > (i + e - 1)) && Jmat.Real.isPrime(x + i + e - 1)) result = x + i + e - 1;
+    else if((!result || (x - result) > (i + e + 1)) && Jmat.Real.isPrime(x + i + e + 1)) result = x + i + e + 1;
+
+    if(result) return result;
+
+    i += 6;
   }
 };
 
 Jmat.Real.nextPrime = function(value) {
   var x = Math.floor(value);
-  if(x < 2) return 2; //the calculations below would give 3 instead of 2
+  if(x < 2) return 2;
+  if(x < 3) return 3;
   if(x == Infinity || x != x) return NaN;
   if(x >= 9007199254740881) return NaN; //largest supported prime in floating point precision, after this will infinite loop because after Jmat.Real.BIGGESTJSINT isPrime gives NaN
 
-  var i = x % 2 == 0 ? 1 : 2;
-  while(true) {
-    if(Jmat.Real.isPrime(x + i)) return x + i;
-    i += 2; //TODO: make faster
+  var m = x % 6;
+  var step = 2;
+  if(m == 0 || m == 5) {
+    x += (m == 0 ? 1 : 2);
+    step = 4;
+  } else {
+    x += (5 - m);
+  }
+  for(;;) {
+    if(Jmat.Real.isPrime(x)) return x;
+    x += step;
+    step ^= 6; //swap step between 2 and 4
   }
 };
 
 Jmat.Real.previousPrime = function(value) {
   var x = Math.ceil(value);
-  if(x <= 3) return 2; //avoid infinite loop
+  if(x <= 2) return NaN; // there is no lower prime
+  if(x <= 3) return 2;
+  if(x <= 5) return 3;
+  if(x <= 7) return 5;
   if(x == Infinity || x != x) return NaN;
   if(x > Jmat.Real.BIGGESTJSINT) return NaN; //too large for the floating point's integer precision, result will not make sense
 
-  var i = x % 2 == 0 ? 1 : 2;
-  while(true) {
-    if(Jmat.Real.isPrime(x - i)) return x - i;
-    i += 2; //TODO: make faster (e.g. using += 6 at the least)
+  var m = x % 6;
+  var step = 2;
+  if(m == 0 || m == 1) {
+    x -= (m + 1);
+    step = 4;
+  } else {
+    x -= (m - 1);
+  }
+  for(;;) {
+    if(Jmat.Real.isPrime(x)) return x;
+    x -= step;
+    step ^= 6; //swap step between 2 and 4
   }
 };
 
@@ -1455,7 +1489,7 @@ Jmat.Real.pascal_triangle = function(n, p) {
 Jmat.Real.gcd = function(x, y) {
   if(!Jmat.Real.isInt(x) || !Jmat.Real.isInt(y)) return NaN; //prevents infinite loop if both x and y are NaN. Also, reals are not supported here.
  //Euclid's algorithm
- while(true) {
+ for(;;) {
    if(y == 0) return Math.abs(x); //if x or y are negative, the result is still positive by the definition
    var z = Jmat.Real.mod(x, y);
    x = y;
@@ -1832,8 +1866,7 @@ Jmat.Real.minkowski = function(x) {
   var q = 1, r = p + 1, s = 1, m, n;
   var d = 1.0, y = p;
   if(x < p || (p < 0) != (r <= 0)) return x; //out of range ?(x) =~ x
-  while(true) //invariants: q*r-p*s==1 && p/q <= x && x < r/s
-  {
+  for(;;) { //invariants: q*r-p*s==1 && p/q <= x && x < r/s
     d /= 2; if(y + d == y) break; //reached max possible precision
     m = p + r; if((m < 0) != (p < 0)) break; //sum overflowed
     n = q + s; if(n < 0) break; //sum overflowed
@@ -8788,7 +8821,8 @@ Jmat.BigInt.baseloop_ = function(a, ashift, amul, b, bshift, bmul, overflow, bas
 };
 
 Jmat.BigInt.intToArray = function(i, opt_base) {
-  if(i > Jmat.Real.BIGGESTJSINT) return undefined; // Above JS float's integer precision. Return undefined to avoid accidently thinking it's an exact result when typing too big integer literal without string quotes around it.
+  // Above JS float's integer precision. A user may think the literal is a correct big number, but JS silently changes it to JS float. Loudly show that, do not return actual results on this.
+  if(i > Jmat.Real.BIGGESTJSINT) throw 'too large integer literal for JS'; //return undefined;
   var base = opt_base || Jmat.BigInt.ARRAYBASE_;
   var result = [];
   while(i > 0) {
@@ -9076,8 +9110,8 @@ Jmat.BigInt.bitnot = function(a, opt_bits) {
     var n = Math.ceil(opt_bits / B.ARRAYBASE_BITS_);
     var mask = (1 << b) - 1;
     for(var i = 0; i < n; i++) {
-      var x = ar[a.length - n + i] || 0;
-      result.a[i] = ar[i] ^ xinv;
+      var x = ar[ar.length - n + i] || 0;
+      result.a[i] = x ^ xinv;
       if(i == 0 && b != 0) result.a[i] &= mask;
     }
   } else {
@@ -9484,6 +9518,69 @@ Jmat.BigInt.perfectpow = function(a, opt_next, opt_base, opt_k) {
   return [bestpow, bestbase, B(besti)];
 };
 
+Jmat.BigInt.nearestPrime = function(n) {
+  var B = Jmat.BigInt;
+  if(n.lter(2)) return B(2);
+  if(n.lter(4)) return B(3);
+
+  var p = B.previousPrime(n);
+  var diff = n.sub(p);
+  return B.previousPrime(n.add(diff).subr(1));
+};
+
+Jmat.BigInt.nextPrime = function(n) {
+  var B = Jmat.BigInt;
+  if(n.ltr(2)) return B(2);
+  if(n.ltr(3)) return B(3);
+
+  var m = n.modr(6).toInt();
+  var step = 2;
+  if(m == 0 || m == 5) {
+    n = n.addr(m == 0 ? 1 : 2);
+    step = 4;
+  } else {
+    n  = n.addr(5 - m);
+  }
+  for(;;) {
+    if(B.isPrime(n)) return n;
+    n = n.addr(step);
+    step ^= 6; //swap step between 2 and 4
+  }
+};
+
+Jmat.BigInt.previousPrime = function(n) {
+  var B = Jmat.BigInt;
+  // Anything below 6 does not work with the calculations below.
+  if(n.lter(7)) {
+    if(n.lter(2)) return undefined; // there is no lower prime
+    if(n.lter(3)) return B(2);
+    if(n.lter(5)) return B(3);
+    return B(5);
+  }
+
+  var m = n.modr(6).toInt();
+  var step = 2;
+  if(m == 0 || m == 1) {
+    n = n.subr(m + 1);
+    step = 4;
+  } else {
+    n  = n.subr(m - 1);
+  }
+  for(;;) {
+    if(B.isPrime(n)) return n;
+    n = n.subr(step);
+    step ^= 6; //swap step between 2 and 4
+  }
+};
+
+Jmat.BigInt.min = function(a, b) {
+  return a.lt(b) ? a : b;
+};
+
+Jmat.BigInt.max = function(a, b) {
+  return a.gt(b) ? a : b;
+};
+
 
 // takes base-y logarithm of x (y is also BigInt, but typically something like 2 or 10. logr is faster with immediately giving regular JS number.)
 Jmat.BigInt.logy = function(x, y) {
@@ -9581,7 +9678,7 @@ Jmat.BigInt.modr = function(a, b) {
   if(b == 1 || b == -1) return Jmat.BigInt(0);
 
   if(Math.abs(b) < a.radix && a.radix % b == 0) {
-    return Jmat.Real.mod(a.a[a.a.length - 1], b);
+    return Jmat.BigInt(Jmat.Real.mod(a.a[a.a.length - 1], b));
   }
 
   var d = Jmat.BigInt.divr(a, b);
@@ -9902,7 +9999,7 @@ Jmat.BigInt.gcd = function(x, y) {
   x = x.abs();
   y = y.abs();
  //Euclid's algorithm
- while(true) {
+ for(;;) {
    if(y.eqr(0)) return x;
    var z = B.mod(x, y);
    x = y;
@@ -9979,7 +10076,7 @@ Jmat.BigInt.modpow = function(a, b, m, opt_monred) {
   var a1 = B.ONE;
   var a2 = a;
   var l = ba.length;
-  
+
   if(m.modr(2).eqr(1) && l > 1) {
     // Odd m, so faster Montgomery reduction with power of two r possible
 
@@ -10056,7 +10153,7 @@ Jmat.BigInt.isPrimeSimple = function(n) {
 Jmat.BigInt.isPrimeMillerRabin = function(n, base) {
   var B = Jmat.BigInt;
 
-  // choose s and odd d such tht n = 2^s * d
+  // choose s and odd d such that n = 2^s * d
   var d = n.divr(2);
   var s = B.ONE;
   while(B.bitand(d, B.ONE).eqr(0)) {
@@ -10259,7 +10356,7 @@ Jmat.BigInt.toFormat = function(v, format, opt_minus) {
 // 3: add both a non-prototype version, with non-converted output, and, a prototype version, with one numb less, and non-converted output
 // 4: add both a non-prototype version, with converted output, and, a prototype version, with one numb less
 // Prototype means that Jmat.BigInt.prototype is used instead of Jmat.BigInt
-Jmat.BigInt.enrichFunction_ = function(fname, numb, type) {
+Jmat.BigInt.enrichFunction_ = function(object, fname, numb, type) {
   if(type == 3) {
     Jmat.BigInt.enrichFunction_(fname, numb, 0);
     if(numb > 1) Jmat.BigInt.enrichFunction_(fname, numb - 1, 2);
@@ -10291,51 +10388,66 @@ Jmat.BigInt.enrichFunction_ = function(fname, numb, type) {
       return f.call(this, Jmat.BigInt.cast(b));
     };
   }
-  if(type == 2) Jmat.BigInt.prototype[fname] = f2;
-  else Jmat.BigInt[fname] = f2;
+  if(type == 2) object.prototype[fname] = f2;
+  else object[fname] = f2;
 };
 
 Jmat.BigInt.enrichFunctions_ = function() {
+  // set up
   var prototoo = 0; //set to 3 to also replace prototype functions (slower), 0 otherwise
-  Jmat.BigInt.enrichFunction_('add', 2, 1 + prototoo);
-  Jmat.BigInt.enrichFunction_('sub', 2, 1 + prototoo);
-  Jmat.BigInt.enrichFunction_('mul', 2, 1 + prototoo);
-  Jmat.BigInt.enrichFunction_('mulr', 1, 1 + prototoo);
-  Jmat.BigInt.enrichFunction_('div', 2, 1 + prototoo);
-  Jmat.BigInt.enrichFunction_('divr', 1, 1 + prototoo);
-  Jmat.BigInt.enrichFunction_('mod', 2, 1 + prototoo);
-  Jmat.BigInt.enrichFunction_('modr', 1, 1 + prototoo);
-  Jmat.BigInt.enrichFunction_('divmod', 2, 0 + prototoo);
-  Jmat.BigInt.enrichFunction_('lshift', 1, 1 + prototoo);
-  Jmat.BigInt.enrichFunction_('rshift', 1, 1 + prototoo);
-  Jmat.BigInt.enrichFunction_('bitand', 2, 1 + prototoo);
-  Jmat.BigInt.enrichFunction_('bitor', 2, 1 + prototoo);
-  Jmat.BigInt.enrichFunction_('bitxor', 2, 1 + prototoo);
-  Jmat.BigInt.enrichFunction_('bitneg', 1, 1 + prototoo);
-  Jmat.BigInt.enrichFunction_('bitnot', 1, 1 + prototoo);
-  Jmat.BigInt.enrichFunction_('abs', 1, 1 + prototoo);
-  Jmat.BigInt.enrichFunction_('neg', 1, 1 + prototoo);
-  Jmat.BigInt.enrichFunction_('sign', 1, 0);
-  Jmat.BigInt.enrichFunction_('getSign', 1, 0);
-  Jmat.BigInt.enrichFunction_('nonZero', 1, 0);
-  Jmat.BigInt.enrichFunction_('compare', 2, 0 + prototoo);
-  Jmat.BigInt.enrichFunction_('comparer', 1, 0 + prototoo);
-  Jmat.BigInt.enrichFunction_('sqrt', 1, 1);
-  Jmat.BigInt.enrichFunction_('root', 2, 1);
-  Jmat.BigInt.enrichFunction_('rootr', 1, 1);
-  Jmat.BigInt.enrichFunction_('logy', 2, 1);
-  Jmat.BigInt.enrichFunction_('logr', 1, 1);
-  Jmat.BigInt.enrichFunction_('log2', 1, 1);
-  Jmat.BigInt.enrichFunction_('log10', 1, 1);
-  Jmat.BigInt.enrichFunction_('pow', 2, 1 + prototoo);
-  Jmat.BigInt.enrichFunction_('powr', 1, 1 + prototoo);
-  Jmat.BigInt.enrichFunction_('gcd', 2, 1);
-  Jmat.BigInt.enrichFunction_('invmod', 2, 1);
-  Jmat.BigInt.enrichFunction_('modpow', 3, 1);
-  Jmat.BigInt.enrichFunction_('isPrimeSimple', 1, 0);
-  Jmat.BigInt.enrichFunction_('isPrimeMillerRabin', 1, 0);
-  Jmat.BigInt.enrichFunction_('isPrime', 1, 0);
-  Jmat.BigInt.enrichFunction_('perfectpow', 1, 0);
+  var otherobject = true; //apply the enrichment to another object (Jmat.BigIntC, C from "converting") instead, to avoid penalizing performance and make debugging easier
+
+  if(otherobject) {
+    Jmat.BigIntC = function() {
+      return Jmat.BigInt.apply(this, arguments);
+    };
+    for(var v in Jmat.BigInt) Jmat.BigIntC[v] = Jmat.BigInt[v];
+    for(var v in Jmat.BigInt.prototype) Jmat.BigIntC.prototype[v] = Jmat.BigInt.prototype[v];
+  }
+
+  var object = otherobject ? Jmat.BigIntC : Jmat.BigInt;
+
+  Jmat.BigInt.enrichFunction_(object, 'add', 2, 1 + prototoo);
+  Jmat.BigInt.enrichFunction_(object, 'sub', 2, 1 + prototoo);
+  Jmat.BigInt.enrichFunction_(object, 'mul', 2, 1 + prototoo);
+  Jmat.BigInt.enrichFunction_(object, 'mulr', 1, 1 + prototoo);
+  Jmat.BigInt.enrichFunction_(object, 'div', 2, 1 + prototoo);
+  Jmat.BigInt.enrichFunction_(object, 'divr', 1, 1 + prototoo);
+  Jmat.BigInt.enrichFunction_(object, 'mod', 2, 1 + prototoo);
+  Jmat.BigInt.enrichFunction_(object, 'modr', 1, 1 + prototoo);
+  Jmat.BigInt.enrichFunction_(object, 'divmod', 2, 0 + prototoo);
+  Jmat.BigInt.enrichFunction_(object, 'lshift', 1, 1 + prototoo);
+  Jmat.BigInt.enrichFunction_(object, 'rshift', 1, 1 + prototoo);
+  Jmat.BigInt.enrichFunction_(object, 'bitand', 2, 1 + prototoo);
+  Jmat.BigInt.enrichFunction_(object, 'bitor', 2, 1 + prototoo);
+  Jmat.BigInt.enrichFunction_(object, 'bitxor', 2, 1 + prototoo);
+  Jmat.BigInt.enrichFunction_(object, 'bitneg', 1, 1 + prototoo);
+  Jmat.BigInt.enrichFunction_(object, 'bitnot', 1, 1 + prototoo);
+  Jmat.BigInt.enrichFunction_(object, 'abs', 1, 1 + prototoo);
+  Jmat.BigInt.enrichFunction_(object, 'neg', 1, 1 + prototoo);
+  Jmat.BigInt.enrichFunction_(object, 'sign', 1, 0);
+  Jmat.BigInt.enrichFunction_(object, 'getSign', 1, 0);
+  Jmat.BigInt.enrichFunction_(object, 'nonZero', 1, 0);
+  Jmat.BigInt.enrichFunction_(object, 'compare', 2, 0 + prototoo);
+  Jmat.BigInt.enrichFunction_(object, 'comparer', 1, 0 + prototoo);
+  Jmat.BigInt.enrichFunction_(object, 'sqrt', 1, 1);
+  Jmat.BigInt.enrichFunction_(object, 'root', 2, 1);
+  Jmat.BigInt.enrichFunction_(object, 'rootr', 1, 1);
+  Jmat.BigInt.enrichFunction_(object, 'logy', 2, 1);
+  Jmat.BigInt.enrichFunction_(object, 'logr', 1, 1);
+  Jmat.BigInt.enrichFunction_(object, 'log2', 1, 1);
+  Jmat.BigInt.enrichFunction_(object, 'log10', 1, 1);
+  Jmat.BigInt.enrichFunction_(object, 'pow', 2, 1 + prototoo);
+  Jmat.BigInt.enrichFunction_(object, 'powr', 1, 1 + prototoo);
+  Jmat.BigInt.enrichFunction_(object, 'gcd', 2, 1);
+  Jmat.BigInt.enrichFunction_(object, 'invmod', 2, 1);
+  Jmat.BigInt.enrichFunction_(object, 'modpow', 3, 1);
+  Jmat.BigInt.enrichFunction_(object, 'isPrimeSimple', 1, 0);
+  Jmat.BigInt.enrichFunction_(object, 'isPrimeMillerRabin', 1, 0);
+  Jmat.BigInt.enrichFunction_(object, 'isPrime', 1, 0);
+  Jmat.BigInt.enrichFunction_(object, 'perfectpow', 1, 0);
+  Jmat.BigInt.enrichFunction_(object, 'nextPrime', 1, 1);
+  Jmat.BigInt.enrichFunction_(object, 'factorize', 1, 0);
 };
 
 Jmat.BigInt.enrichFunctions_();
@@ -10908,7 +11020,7 @@ Jmat.Quaternion.lambertwm = function(z) {
 var Real = Jmat.Real; // R
 var Complex = Jmat.Complex; // C
 var Matrix = Jmat.Matrix; // M
-var BigInt = Jmat.BigInt; // B
+var BigInt = Jmat.BigIntC || Jmat.BigInt; // B
 var Quaternion = Jmat.Quaternion; // Q
 
 // Expose some of the Real functions into JS Math
