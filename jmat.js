@@ -304,6 +304,8 @@ formatted in such way that it can be parsed to a number or a matrix, e.g. '5+2i'
 
 // Elementary operators
 
+// TODO: add all BigInt functions here, many are currently missing.
+
 /* Add. x,y:{number|Complex|Matrix}. returns {Complex|Matrix}. */
 Jmat.add = function(x, y) {
   if(Jmat.matrixIn_(x) && Jmat.matrixIn_(y)) return Jmat.Matrix.add(Jmat.Matrix.cast(x), Jmat.Matrix.cast(y));
@@ -9192,6 +9194,9 @@ Jmat.BigInt.prototype.add = function(b) {
   
   return new Jmat.BigInt(Jmat.BigInt.baseloop_(this.a, 0, 1, b.a, 0, 1, 0, this.radix), this.radix, this.minus);
 };
+Jmat.BigInt.addr = function(a, b) {
+  return a.addr(b);
+};
 Jmat.BigInt.prototype.addr = function(b) {
   // TODO: make more efficient by usign baseloop directly
   return this.add(Jmat.BigInt.fromInt(b));
@@ -9212,8 +9217,11 @@ Jmat.BigInt.prototype.sub = function(b) {
     return new Jmat.BigInt(Jmat.BigInt.baseloop_(b.a, 0, 1, this.a, 0, -1, 0, this.radix), this.radix, !this.minus);
   }
 };
+Jmat.BigInt.subr = function(a, b) {
+  return a.subr(b);
+};
 Jmat.BigInt.prototype.subr = function(b) {
-  // TODO: make more efficient by usign baseloop directly
+  // TODO: make more efficient by using baseloop directly
   return this.sub(Jmat.BigInt.fromInt(b));
 };
 
@@ -9479,8 +9487,6 @@ Jmat.BigInt.perfectpow = function(a, opt_next, opt_base, opt_k) {
   }
   var l = B.log2(a).toInt();
   if(opt_next) l++;
-  var base = undefined;
-  if(opt_base) base = B.cast(opt_base);
 
   var best = a;
   var besti = 0;
@@ -9491,7 +9497,14 @@ Jmat.BigInt.perfectpow = function(a, opt_next, opt_base, opt_k) {
     if(i > 5 && i % 5 == 0) { i++; continue; }
     if(i > 3 && i % 3 == 0) { i++; continue; }
 
-    var s = base || B.rootr(a, i);
+    var s = B.rootr(a, i); // the potential base
+
+    // For low bases (such as 2 and 3, but especially 2), we will end up having
+    // this base many times, but only the highest possible power gives the nearest answer.
+    // Speed things up by setting the exponent immediately to the highest possible:
+    // log_s(a) (already calculated as l in case of log2)
+    if(s.eqr(2)) i = l;
+
     if(opt_next) s = s.addr(1);
     var p = s.powr(i);
     var diff = a.sub(p).abs();
@@ -9579,6 +9592,64 @@ Jmat.BigInt.min = function(a, b) {
 
 Jmat.BigInt.max = function(a, b) {
   return a.gt(b) ? a : b;
+};
+
+Jmat.BigInt.primeCache_ = [];
+
+// Returns prime factors in array.
+// Will not factorize if the problem is too difficult (only uses simple checks), last element of result is 0 then to indicate the error.
+// Result may be probabilistic since a probabilistic prime test is used.
+Jmat.BigInt.factorize = function(a) {
+  var B = Jmat.BigInt;
+
+  // avoid infinite loops
+  if(a.eqr(0)) return [B(0)];
+  if(a.eqr(1)) return [B(1)];
+
+  // returns a factor, or a itself if end reached (a is prime), or 0 if undetermined because the problem is too hard
+  var f = function(a) {
+    // Check 1: if it's prime, return self and stop.
+    // Note that this may be probabilistic, so to be super sure, if the result has a very large prime factor, factorize a few more times.
+    if(B.isPrime(a)) {
+      return a;
+    }
+
+    // Check 2: simple trial division with primes.
+    var num = Math.min(1000000, B.sqrt(a).toInt());
+    var p = 1; //prime throughout the for loop
+    var i = 0;
+    for(;;) {
+      if(i >= B.primeCache_.length) B.primeCache_[i] = Jmat.Real.nextPrime(p);
+      p = B.primeCache_[i];
+      i++;
+      if(p != p || p > num) break;
+      if(a.modr(p).eqr(0)) {
+        return B(p);
+      }
+    }
+
+    // Check 3: if perfect power, its base is a factor
+    var pw = B.perfectpow(a);
+    if(pw[0].eq(a) && pw[1].lt(a)) {
+      return f(pw[1]); // the perfect power base itself is not necessarily prime, hence recursive call
+    }
+
+    return B(0); // Not found
+  }
+
+  var result = [];
+  for(;;) {
+    var b = f(a);
+    if(b.eqr(0)) {
+      result.push(B(0));
+      return result;
+    }
+    result.push(b);
+    if(b.eqr(a)) {
+      return result;
+    }
+    a = a.div(b);
+  }
 };
 
 
@@ -10039,7 +10110,7 @@ Jmat.BigInt.invmod = function(a, m) {
 //r must be power of 2 and bits is its log2, mask is r-1 (all ones)
 //mi must be -(m^(-1)) mod r (there's a minus sign in front, but since it's mod r it's positive again)
 Jmat.BigInt.monred_ = function(a, bits, mask, m, mi) {
-  var s = a.mul(mi).bitand(mask);
+  var s = a.mul(mi).bitand(mask); // Could also apply mask to a and mi, but usually mask is bigger so not a speedup.
   var t = a.add(s.mul(m)).rshift(bits);
   if(t.gte(m)) t = t.sub(m);
   return t;
@@ -10220,7 +10291,7 @@ Jmat.BigInt.isPrime = function(n) {
 /*
 little benchmark on a prime:
 
-var ta0 = new Date().getTime(); var p = Jmat.BigInt.isPrime('40094690950920881030683735292761468389214899724061'); var ta1 = new Date().getTime();
+var ta0 = new Date().getTime(); var p = BigInt.isPrime('40094690950920881030683735292761468389214899724061'); var ta1 = new Date().getTime();
 console.log(((ta1 - ta0) / 1000.0) + ' ' + p);
 
 Numbers to test that are not prime (each one has 2 large prime factors):
@@ -10408,7 +10479,9 @@ Jmat.BigInt.enrichFunctions_ = function() {
   var object = otherobject ? Jmat.BigIntC : Jmat.BigInt;
 
   Jmat.BigInt.enrichFunction_(object, 'add', 2, 1 + prototoo);
+  Jmat.BigInt.enrichFunction_(object, 'addr', 1, 1 + prototoo);
   Jmat.BigInt.enrichFunction_(object, 'sub', 2, 1 + prototoo);
+  Jmat.BigInt.enrichFunction_(object, 'subr', 1, 1 + prototoo);
   Jmat.BigInt.enrichFunction_(object, 'mul', 2, 1 + prototoo);
   Jmat.BigInt.enrichFunction_(object, 'mulr', 1, 1 + prototoo);
   Jmat.BigInt.enrichFunction_(object, 'div', 2, 1 + prototoo);
