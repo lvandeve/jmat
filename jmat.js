@@ -1013,6 +1013,11 @@ Jmat.Real.isEven = function(x) {
   return x % 2 == 0; //works for negative x too
 };
 
+// x is power of two
+Jmat.Real.isPOT = function(x) {
+  return x != 0 && (x & (x - 1)) == 0;
+};
+
 //isnanorinf isinfornan
 Jmat.Real.isInfOrNaN = function(x) {
   return x == Infinity || x == -Infinity || isNaN(x);
@@ -1117,6 +1122,52 @@ Jmat.Real.factorial = function(a) {
     Jmat.Real.factorialmem_[i] = result;
   }
   return result;
+};
+
+// checks whether a is a perfect power of b, e.g. 27 is a power of 3, but 10 is not a power of 5. Negative values are not supported.
+// returns 0 if not power of (or the power is 0 - that is trivial if a is 1)
+// returns the positive power otherwise
+Jmat.Real.isPowerOf = function(a, b) {
+  var R = Jmat.Real;
+  if(a == b) return 1;
+  if(b <= 0) return 0; // false
+  if(a <= 0) return 0; // false
+  if(a == 1) return 0; // true but it's 0
+  if(b > a) return 0; // false
+  if(R.isPOT(a) && R.isPOT(b)) {
+    var la = R.ilog2(a);
+    var lb = R.ilog2(b);
+    if(la % lb == 0) return la / lb;
+    return 0;
+  }
+  if(R.isPOT(a) != R.isPOT(b)) return 0; // false
+  if(R.isEven(a) != R.isEven(b)) return 0; // false (or a is 1)
+  var c = b;
+  // Binary search with powers.
+  var bs = [];
+  var bb = b;
+  var result = 1;
+  while(c < a) {
+    bs.push(bb);
+    c *= bb;
+    result *= 2;
+    if(c == a) return result;
+    bb = bb * bb;
+  }
+  if(c == Infinity) return 0;
+  while(bs.length > 0) {
+    var p = bs.pop();
+    if(c > a) {
+      c /= p;
+      result -= (1 << bs.length);
+    }
+    else {
+      c *= p;
+      result += (1 << bs.length);
+    }
+    if(c == a) return result;
+  }
+  return 0;
 };
 
 Jmat.Real.firstPrimes_ = [2, 3, 5, 7, 11, 13, 17, 19, 23, 29, 31, 37, 41, 43, 47, 53, 59, 61, 67, 71, 73, 79, 83, 89, 97];
@@ -8687,9 +8738,12 @@ Jmat.BigInt = function(a, b, minus) {
 
 // List all functions without underscore: for(var i in Jmat.BigInt) if(i.indexOf('_') == -1) console.log(i)
 
-Jmat.BigInt.ARRAYBASE_ = 256; // the default array base, must be power of two (otherwise things like 'and' and 'rshift' break), and preferably >= 256
-Jmat.BigInt.ARRAYBASE_BITS_ = 8; // log2(Jmat.BigInt.ARRAYBASE_)
-Jmat.BigInt.STRINGBASE_ = 10; // the default base for numbers given as string. TODO: support hex strings if they start with 0x
+// default array base, must be power of two (otherwise things like 'and' and 'rshift' break). Larger is faster.
+// 32768 is the maximum supported, above that, JS cannot do bit operations on product of two numbers (breaking leemondiv_).
+Jmat.BigInt.ARRAYBASE_ = 32768;
+Jmat.BigInt.ARRAYBASE_BITS_ = 15; // log2(Jmat.BigInt.ARRAYBASE_)
+// the default base for numbers given as string. TODO: support hex strings if they start with 0x
+Jmat.BigInt.STRINGBASE_ = 10;
 
 //Typically, a is array, string, number or BigInt, and b is base of output (that of input may be different, e.g. always 10 for string).
 //minus is only used for array or no input
@@ -8770,10 +8824,77 @@ Jmat.BigInt.arrayToString = function(v, opt_abase, opt_sbase) {
 };
 //may return input object if bases are equal
 Jmat.BigInt.convertArrayBase = function(s, from, to) {
+  var R = Jmat.Real;
+  var B = Jmat.BigInt;
   if(from == to) return s;
   var r = [];
+
+  var p = R.isPowerOf(from, to);
+  if(p) {
+    for(var i = 0; i < s.length; i++) {
+      var el = s[i];
+      for(var j = 0; j < p; j++) {
+        r.push(Math.floor(el / (p - j - 1)) % to);
+      }
+      for(var j = p - 1; j >= 0; j--) {
+        r[i * p + j] = el % to;
+        el = Math.floor(el / to);
+      }
+    }
+    B.stripInPlace_(r);
+    return r;
+  }
+  p = R.isPowerOf(to, from);
+  if(p) {
+    var num = Math.ceil(s.length / p);
+    for(var i = 0; i < num; i++) {
+      var m = 1;
+      r[num - 1 - i] = 0;
+      for(var j = 0; j < p; j++) {
+        var index = s.length - 1 - (i * p) - j;
+        if(index < 0) break;
+        r[num - 1 - i] += s[index] * m;
+        m *= from;
+      }
+    }
+    B.stripInPlace_(r);
+    return r;
+  }
+
+  s = B.maybecopystrip_(s);
+  if(s.length > 8 && R.isPOT(from)) {
+    // Divide and conquer radix conversion. TODO: also do for non power of two from-base.
+    var m = Math.ceil(s.length * R.log2(from) / R.log2(to));
+    var h = R.idiv(m, 2);
+    if(m > 2) {
+      var frombits = R.ilog2(from);
+      var bpe = frombits;
+      while(bpe * 2 <= B.ARRAYBASE_BITS_) bpe *= 2; //ensure that it doesn't become higher than array bits, because that is the max supported one.
+      if(bpe != frombits) {
+        // This conversion is cheap, power of two to power of two, and makes the division below faster.
+        s = Jmat.BigInt.convertArrayBase(s, 1 << frombits, 1 << bpe);
+        frombits = bpe;
+        from = 1 << bpe;
+      }
+
+      var m2 = B.pow(B(to, from), h).a; // to-base to the power of m/2, and that represented in from-base.
+      var dm = B.divmod_(B(s, from), B(m2, from), bpe); //divide: s / m2.
+      var a = dm[0].a;
+      var b = dm[1].a;
+
+      var ac = Jmat.BigInt.convertArrayBase(a, from, to);
+      var bc = Jmat.BigInt.convertArrayBase(b, from, to);
+      // Missing digits in bc are zeroes between ac and bc, so push those zeroes to the end of ac.
+      var missingdigits = h - bc.length;
+      for(var i = 0; i < missingdigits; i++) ac.push(0);
+      var result = ac.concat(bc);
+      return result;
+    }
+  }
+
+  
   for(var i = 0; i < s.length; i++) {
-    r = Jmat.BigInt.baseloop_(r, 0, from, [], 0, 1, s[i], to);
+    r = B.baseloop_(r, 0, from, [], 0, 1, s[i], to);
   }
   return r;
 };
@@ -8785,7 +8906,7 @@ Jmat.BigInt.convertStringBase = function(s, from, to) {
 
 // The basic loop for add, with potential shift, mul, ... a and b are arrays, not BigInt objects. No parameters are optional, use [], 0 or 1.
 // Supports also e.g. multiplying and adding a plain number to a single array: Jmat.BigInt.baseloop_(array, 0, mul, [], 0, 1, add, base)
-// Also ensures the result is trimmed (no leading zeroes), to avoid some calculations accidently becoming slower and slower when using many subtracts
+// Also ensures the result is stripped (no leading zeroes), to avoid some calculations accidently becoming slower and slower when using many subtracts
 Jmat.BigInt.baseloop_ = function(a, ashift, amul, b, bshift, bmul, overflow, base) {
   var result = [];
   var l = Math.max(a.length + ashift, b.length + bshift);
@@ -8815,7 +8936,7 @@ Jmat.BigInt.baseloop_ = function(a, ashift, amul, b, bshift, bmul, overflow, bas
     result.push((overflow + base) % base);
     overflow = Math.floor(overflow / base);
   }
-  // trim leading zeroes
+  // strip leading zeroes
   while(result.length > 1 && result[result.length - 1] == 0) result.length--;
   Jmat.BigInt.mirror_(result);
 
@@ -9230,18 +9351,7 @@ Jmat.BigInt.mul = function(a, b) {
 };
 Jmat.BigInt.prototype.mul = function(b) {
   b = Jmat.BigInt.cast(b, this.radix); //must have same radix
-
-  var l = b.a.length;//Math.max(this.length, b.length);
-
-  var result = [0];
-
-  var bshift = 0;
-  for(var j = 0; j < this.a.length; j++) {
-    var d = this.a[this.a.length - j - 1];
-    result = Jmat.BigInt.baseloop_(b.a, bshift, d, result, 0, 1, 0, this.radix);
-    bshift++; // left shift b
-  }
-
+  var result = Jmat.BigInt.karatsuba_(this.strip().a, b.strip().a, this.radix);
   return new Jmat.BigInt(result, this.radix, this.minus != b.minus);
 };
 
@@ -9253,6 +9363,67 @@ Jmat.BigInt.mulr = function(a, b) {
 Jmat.BigInt.prototype.mulr = function(b) {
   var result = new Jmat.BigInt([], this.radix, this.minus != (b < 0));
   result.a = Jmat.BigInt.baseloop_(this.a, 0, b, [], 0, 1, 0, result.radix);
+  return result;
+};
+
+// Karatsuba multiplication. a and b are arrays with leading zeroes stripped.
+Jmat.BigInt.karatsuba_ = function(a, b, radix) {
+  if(a.length <= 1 || b.length <= 1) return Jmat.BigInt.schoolmul_(a, b, radix);
+
+  // ensure a is the one with longest length
+  if(a.length < b.length) return Jmat.BigInt.karatsuba_(b, a, radix);
+
+  // Karatsuba is only faster for really large numbers.
+  if(a.length <= 20) return Jmat.BigInt.schoolmul_(a, b, radix);
+  var m = Math.floor(a.length / 2);
+
+  var mb = b.length - (a.length - m);
+
+  var a0 = a.slice(0, m);
+  var a1 = a.slice(m, a.length);
+  var b0 = (mb <= 0 ? [0] : b.slice(0, mb));
+  var b1 = (mb <= 0 ? b : b.slice(mb, b.length));
+
+  if(mb <= 0) {
+    // Size difference between the numbers very big. Only one is split in half.
+    var x = Jmat.BigInt.karatsuba_(a0, b1, radix);
+    var y = Jmat.BigInt.karatsuba_(a1, b1, radix);
+    return Jmat.BigInt.baseloop_(x, a.length - m, 1, y, 0, 1, 0, radix);
+  } else {
+    var a01 = Jmat.BigInt.baseloop_(a0, 0, 1, a1, 0, 1, 0, radix);
+    var b01 = Jmat.BigInt.baseloop_(b0, 0, 1, b1, 0, 1, 0, radix);
+
+    var x = Jmat.BigInt.karatsuba_(a0, b0, radix);
+    var y = Jmat.BigInt.karatsuba_(a1, b1, radix);
+    var z = Jmat.BigInt.karatsuba_(a01, b01, radix);
+    var xy = Jmat.BigInt.baseloop_(x, 0, 1, y, 0, 1, 0, radix);
+    var k = Jmat.BigInt.baseloop_(z, 0, 1, xy, 0, -1, 0, radix);
+
+    var s1 = a.length - m;
+    var s2 = s1 * 2;
+    var ky = Jmat.BigInt.baseloop_(k, s1, 1, y, 0, 1, 0, radix);
+    return Jmat.BigInt.baseloop_(x, s2, 1, ky, 0, 1, 0, radix);
+  }
+};
+
+// Schoolbook multiplication. a and b are arrays with leading zeroes stripped.
+Jmat.BigInt.schoolmul_ = function(a, b, radix) {
+  if(a.length == 1 && a[0] == 0) return [0];
+  if(a.length == 1 && a[0] == 1) return b;
+  if(b.length == 1 && b[0] == 0) return [0];
+  if(b.length == 1 && b[0] == 1) return a;
+
+  // ensure a is the one with longest length, the loop below is faster that way
+  if(a.length < b.length) return Jmat.BigInt.schoolmul_(b, a, radix);
+
+  var result = [0];
+  var ashift = 0;
+  for(var j = 0; j < b.length; j++) {
+    var d = b[b.length - j - 1];
+    result = Jmat.BigInt.baseloop_(a, ashift, d, result, 0, 1, 0, radix);
+    ashift++; // left shift a
+  }
+
   return result;
 };
 
@@ -9531,6 +9702,58 @@ Jmat.BigInt.perfectpow = function(a, opt_next, opt_base, opt_k) {
   return [bestpow, bestbase, B(besti)];
 };
 
+// Can calculate factorial of 100000 in 30 seconds. The result has 1.5 million bits, and printing it in decimal then takes another minute or so.
+Jmat.BigInt.factorial = function(a) {
+  var B = Jmat.BigInt;
+  var b = a.toInt();
+  if(b == Infinity) return undefined; //if a does not fit in regular JS number, the result is unreasonably huge anyway.
+
+  if(b < 20) return B(Jmat.Real.factorial(b));
+
+  // TODO: use a prime sieve
+  var primes = [];
+  var p = 2;
+  while(p <= a) {
+    primes.push(p);
+    p = Real.nextPrime(p);
+  }
+
+  var f = [];
+
+  // For each prime, it's easy to calculate the prime factors of the factorial. They are all powers of a prime, stored in f.
+  // E.g. for prime 2, this matches the list "0,1,3,4,7,8,10,11,15,16,18,19,..." in OEIS, and for others it's analogous.
+  for(var i = 0; i < primes.length; i++) {
+    var p = primes[i];
+    var c = Math.floor(b / p);
+    var pw = 0;
+    while(c > 0) {
+      pw += c;
+      c = Math.floor(c / p);
+    }
+
+    f[i] = B.powr(B(p), pw);
+  }
+
+  // Multiplies a list of numbers recursively, to end up with factors of more equal size, ending with large factors that take advantage of sub-quadratic multiplication.
+  // That is faster than just multiplying the list serially. Optimized for roughly sorted list (pairs value from begin with end etc...).
+  var mulmany = function(a) {
+    if(a.length == 0) return Jmat.BigInt.ONE;
+    while(a.length > 1) {
+      var h = Math.floor(a.length / 2);
+      var r = [];
+      for(var i = 0; i < h; i++) {
+        r.push(a[i].mul(a[a.length - i - 1]));
+      }
+      if(a.length % 2 == 1) r.push(a[h]);
+      a = r;
+    }
+
+    return a[0];
+  };
+
+  return mulmany(f);
+};
+
 Jmat.BigInt.nearestPrime = function(n) {
   var B = Jmat.BigInt;
   if(n.lter(2)) return B(2);
@@ -9619,6 +9842,7 @@ Jmat.BigInt.factorize = function(a) {
     var p = 1; //prime throughout the for loop
     var i = 0;
     for(;;) {
+      // TODO: use a prime sieve
       if(i >= B.primeCache_.length) B.primeCache_[i] = Jmat.Real.nextPrime(p);
       p = B.primeCache_[i];
       i++;
@@ -9732,7 +9956,7 @@ Jmat.BigInt.divr = function(a, b) {
       result.a[j] = Math.floor(result.a[j] / b);
       if(j > 0) result.a[j] += (result.a[j - 1] % b) * Math.floor(a.radix / b);
     }
-    Jmat.BigInt.strip_(result.a);
+    Jmat.BigInt.stripInPlace_(result.a);
     if(a.minus != (b < 0)) result = result.neg();
     return result;
   }
@@ -9775,6 +9999,7 @@ Conditions:
 *) y.length >= 2 (otherwise infinite loop occurs)
 *) q and r must be arrays that are exactly the same length as x.
 *) the x array must have at least as many elements as y.
+*) max xupported bpe is 15.
 */
 Jmat.BigInt.leemondiv_ = function(x, y, q, r, opt_bpe) {
   var bpe = opt_bpe || 8;
@@ -9972,12 +10197,16 @@ Jmat.BigInt.leemondiv_ = function(x, y, q, r, opt_bpe) {
 };
 
 // Divides a and b and also returns remainder, but there are some requirements:
-// They must already of type BigInt. Both must have the same base (a.radix). This base must be a power of two.
-Jmat.BigInt.divmod_ = function(a, b, base) {
+// They must already of type BigInt.
+// If the optional bits per element, then radix of a and b are assumed to already be 2^(bpe), and no base conversions will be done.
+Jmat.BigInt.divmod_ = function(a, b, opt_bpe) {
   var B = Jmat.BigInt;
   var R = Jmat.Real;
   if(b.eqr(0)) return undefined;
   if(b.eqr(1)) return [a, B(0)];
+
+  var bpe = opt_bpe || Jmat.BigInt.ARRAYBASE_BITS_;
+  var radix = (opt_bpe ? (1 << opt_bpe) : Jmat.BigInt.ARRAYBASE_);
 
   var minus = (a.minus != b.minus);
   a = a.abs();
@@ -9988,8 +10217,8 @@ Jmat.BigInt.divmod_ = function(a, b, base) {
   //if(b.add(b).gt(a)) return [B(1), a.sub(b)];
 
   // Convert to all the requirements for leemondiv_
-  a = B.cast(a, 256);
-  b = B.cast(b, 256);
+  a = B.cast(a, radix);
+  b = B.cast(b, radix);
   var y = B.copyarray_(b.a);
   y.reverse();
   while(y[y.length - 1] == 0) y.length--;
@@ -10007,15 +10236,15 @@ Jmat.BigInt.divmod_ = function(a, b, base) {
     r[i] = 0;
   }
   
-  B.leemondiv_(x, y, q, r);
+  B.leemondiv_(x, y, q, r, bpe);
 
   while(q[q.length - 1] == 0) q.length--;
   while(r[r.length - 1] == 0) r.length--;
   q.reverse();
   r.reverse();
 
-  var result = new B(q, 256);
-  var m = new B(r, 256);
+  var result = new B(q, radix);
+  var m = new B(r, radix);
 
   // To test correctness: m must be equal to a.sub(result.mul(b)), and in range [0, b)
 
@@ -10030,15 +10259,16 @@ Jmat.BigInt.divmod_ = function(a, b, base) {
 Jmat.BigInt.pow = function(a, b) {
   var origb = b;
   b = Jmat.BigInt.cast(b, 2);
+  var radix = a.radix;
   
-  if(b.minus) return Jmat.BigInt(0);
+  if(b.minus) return Jmat.BigInt(0, radix);
   var minus = false;
   if(a.minus && b.modr(2).eqr(1)) minus = true;
   a = a.abs();
   
   // Montgomery's ladder
   var ba = Jmat.BigInt.maybecopystrip_(b.a, b != origb);
-  var a1 = Jmat.BigInt.ONE;
+  var a1 = Jmat.BigInt(1, radix);
   var a2 = a;
   var l = ba.length;
   for(var i = 0; i < l; i++) {
@@ -10343,7 +10573,7 @@ Jmat.BigInt.getNumDigits = function(x) {
 };
 
 //strips array a (removing leading zeroes unless it is zero), modifying the object
-Jmat.BigInt.strip_ = function(a) {
+Jmat.BigInt.stripInPlace_ = function(a) {
   while(a[0] == 0 && a.length > 1) a.shift(); //JS array shift function (a is array, not BigInt)
 };
 
@@ -10365,11 +10595,11 @@ Jmat.BigInt.copystrip_ = function(a) {
 Jmat.BigInt.maybecopystrip_ = function(a, allowmodify) {
   if(a.length <= 1 || a[0] != 0) return a;
   if(!allowmodify) a = Jmat.BigInt.copyarray_(a);
-  Jmat.BigInt.strip_(a);
+  Jmat.BigInt.stripInPlace_(a);
   return a;
 };
 
-//strips bigint a of zeroes. May return input. Does not make copy if not needed. Does not modify input.
+//strips (trims) bigint a of zeroes. May return input. Does not make copy if not needed. Does not modify input.
 Jmat.BigInt.strip = function(a) {
   return a.strip();
 };
@@ -10521,6 +10751,7 @@ Jmat.BigInt.enrichFunctions_ = function() {
   Jmat.BigInt.enrichFunction_(object, 'perfectpow', 1, 0);
   Jmat.BigInt.enrichFunction_(object, 'nextPrime', 1, 1);
   Jmat.BigInt.enrichFunction_(object, 'factorize', 1, 0);
+  Jmat.BigInt.enrichFunction_(object, 'factorial', 1, 1);
 };
 
 Jmat.BigInt.enrichFunctions_();
