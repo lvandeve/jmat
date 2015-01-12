@@ -38,6 +38,11 @@ Jmat.Test.expectTrue = function(value, opt_message) {
   if (!value) throw message;
 }
 
+Jmat.Test.expectFalse = function(value, opt_message) {
+  var message = opt_message ? ('fail: ' + opt_message) : 'fail';
+  if (value) throw message;
+}
+
 // Works both for Complex or Matrix objects.
 // Precision is number of decimal digits that should match
 Jmat.Test.expectNear = function(e, a, precision) {
@@ -187,13 +192,16 @@ Jmat.doUnitTest = function() {
   // bigints
   Jmat.Test.testFunction('40094690950920881030683735292761468389214899724061', 0, Jmat.div, '1522605027922533360535618378132637429718068114961380688657908494580122963258952897654000350692006139', '37975227936943673922808872755445627854565536638199');
   Jmat.Test.testFunction('1250000000', 0, Jmat.div, '50000000000', '40');
-  Jmat.Test.testFunction('20000000000', 0, Jmat.BigInt.sqrt, '400000000000000000000');
-  Jmat.Test.testFunction('5', 0, Jmat.BigInt.log2, '63');
-  Jmat.Test.testFunction('6', 0, Jmat.BigInt.log2, '64');
-  Jmat.Test.expectTrue(Jmat.BigInt.log2(Jmat.BigInt.fromInt(63, 2)).toString() == '5');
-  Jmat.Test.expectTrue(Jmat.BigInt.log2(Jmat.BigInt.fromInt(64, 2)).toString() == '6');
-  Jmat.Test.expectTrue(Jmat.BigInt.log2(Jmat.BigInt.fromInt(63, 4)).toString() == '5');
-  Jmat.Test.expectTrue(Jmat.BigInt.log2(Jmat.BigInt.fromInt(64, 4)).toString() == '6');
+  Jmat.Test.testFunction('20000000000', 0, BigInt.sqrt, '400000000000000000000');
+  Jmat.Test.testFunction('5', 0, BigInt.log2, '63');
+  Jmat.Test.testFunction('6', 0, BigInt.log2, '64');
+  Jmat.Test.testFunction('30414093201713378043612608166064768844377641568960512000000000000', 0, BigInt.factorial, 50);
+  Jmat.Test.expectTrue(BigInt.log2(BigInt.fromInt(63, 2)).toString() == '5');
+  Jmat.Test.expectTrue(BigInt.log2(BigInt.fromInt(64, 2)).toString() == '6');
+  Jmat.Test.expectTrue(BigInt.log2(BigInt.fromInt(63, 4)).toString() == '5');
+  Jmat.Test.expectTrue(BigInt.log2(BigInt.fromInt(64, 4)).toString() == '6');
+  Jmat.Test.expectTrue(BigInt.isPrime('671998030559713968361666935769'));
+  Jmat.Test.expectFalse(BigInt.isPrime('19923108241787117701'));
 
   console.log('success');
   return 'success';
