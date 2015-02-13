@@ -1343,6 +1343,7 @@ Jmat.Real.smallestPrimeFactor = function(x) {
 
 //factorize: returns prime factors as array of real integers, sorted from smallest to largest. x must be real positive integer.
 Jmat.Real.factorize = function(x) {
+  if(x > Jmat.Real.BIGGESTJSINT) return undefined; //too large for the floating point's integer precision, will cause crash
   var x = Math.round(x);
   var result = [];
   for(;;) {
@@ -10146,7 +10147,7 @@ Jmat.BigInt.divmod_ = function(a, b, opt_bpe) {
   if(b.eqr(-1)) return [a.neg(), B(0)];
   if(b.abs().ltr(65536)) return Jmat.BigInt.divsmall_(a, b.toInt());
 
-  if(b.gt(a)) return [B(0), a];
+  if(b.abs().gt(a.abs())) return [B(0), a];
   if(b.eq(a)) return [B(1), B(0)];
 
   var minus = (a.minus != b.minus);
