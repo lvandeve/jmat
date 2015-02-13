@@ -10229,6 +10229,43 @@ Jmat.BigInt.gcd = function(x, y) {
  }
 };
 
+
+// Extended Euclidean algorithm. Returns array of 5 values: [gcd, bezout coeff. x, bezout coeff. y, x / gcd, y / gcd]
+Jmat.BigInt.egcd = function(x, y) {
+  var B = Jmat.BigInt;
+  var s = B(0);
+  var olds = B(1);
+  var t = B(1);
+  var oldt = B(0);
+  var r = x;
+  var oldr = y;
+  var temp;
+  while(!r.eqr(0)) {
+    var q = oldr.div(r);
+    temp = r;
+    r = oldr.sub(q.mul(r));
+    oldr = temp;
+    temp = s;
+    s = olds.sub(q.mul(s));
+    olds = temp;
+    temp = t;
+    t = oldt.sub(q.mul(t));
+    oldt = temp;
+  }
+  if(t.sign() != x.sign() || s.sign() != y.sign()) {
+    temp = t;
+    t = s;
+    s = temp;
+    temp = oldt;
+    oldt = olds;
+    olds = temp;
+    if(t.sign() != x.sign()) t = t.neg();
+    if(s.sign() != y.sign()) s = s.neg();
+  }
+  // [gcd, bezout coeff. x, bezout coeff. y, x / gcd, y / gcd]
+  return [oldr, olds, oldt, t, s];
+};
+
 // calculates a^-1 mod m, integer modular multiplicative inverse
 // result only exists if gcd(a, m) == 1, they're coprime
 Jmat.BigInt.invmod = function(a, m) {
@@ -10664,6 +10701,7 @@ Jmat.BigInt.enrichFunctions_ = function() {
   Jmat.BigInt.enrichFunction_(object, 'pow', 2, 1 + prototoo);
   Jmat.BigInt.enrichFunction_(object, 'powr', 1, 1 + prototoo);
   Jmat.BigInt.enrichFunction_(object, 'gcd', 2, 1);
+  Jmat.BigInt.enrichFunction_(object, 'egcd', 2, 0);
   Jmat.BigInt.enrichFunction_(object, 'invmod', 2, 1);
   Jmat.BigInt.enrichFunction_(object, 'modpow', 3, 1);
   Jmat.BigInt.enrichFunction_(object, 'isPrimeSimple', 1, 0);
