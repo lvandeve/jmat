@@ -8830,6 +8830,7 @@ Jmat.BigInt.convertArrayBase = function(s, from, to) {
   if(from == to) return s;
   var r = [];
 
+  // If one base is a power of the other base, an O(n) algorithm can be used
   var p = R.isPowerOf(from, to);
   if(p) {
     for(var i = 0; i < s.length; i++) {
@@ -8878,7 +8879,7 @@ Jmat.BigInt.convertArrayBase = function(s, from, to) {
         from = 1 << bpe;
       }
 
-      var m2 = B.pow(B(to, from), h).a; // to-base to the power of m/2, and that represented in from-base.
+      var m2 = B.powr(B(to, from), h).a; // to-base to the power of m/2, and that represented in from-base.
       var dm = B.divmod_(B(s, from), B(m2, from), bpe); //divide: s / m2.
       var a = dm[0].a;
       var b = dm[1].a;
@@ -9731,7 +9732,7 @@ Jmat.BigInt.factorial = function(a) {
   // TODO: use a prime sieve
   var primes = [];
   var p = 2;
-  while(p <= a) {
+  while(p <= b) {
     primes.push(p);
     p = Real.nextPrime(p);
   }
