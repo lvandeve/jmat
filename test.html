@@ -1,0 +1,83 @@
+<html>
+<head>
+  <title>Jmat Unit Test</title>
+  <script>
+    // redefine console.log to also output to web page directly
+    (function() {
+      var cl = console.log;
+      console.log = function(s) {
+        var el;
+        try {
+          el = document.getElementById("log");
+          el.innerHTML = el.innerHTML + s.toString() + '<br>';
+        } catch (e) {};
+        cl.apply(this, arguments);
+      };
+    })();
+  </script>
+</head>
+
+<body>
+  <h1>Jmat Unit Test</h1>
+  <pre id="log">Console output:<p></pre>
+
+  <script>
+      function removeMath() {
+        console.log("Removing Math functions Jmat can polyfill...");
+        ['gamma', 'factorial', 'lambertw', 'erf', 'erfc'].map(function(fun) {
+           Math[fun] = undefined; 
+        });
+        ['sinh', 'cosh', 'tanh', 'asinh', 'acosh', 'atanh', 'clz32', 'log2', 'log10', 'log1p', 'expm1'].map(function(fun) {
+           Math[fun] = undefined; 
+        });
+      };
+      removeMath();
+      console.log("Loading jmat.js...");
+  </script>
+  <script src="jmat.js"></script>
+  <script>
+      // uncomment to sabotage (have unit test fail)
+      // Jmat.near = undefined;
+  </script>
+  <script src="jmat_test.js"></script>
+  <script>
+      console.log("Testing jmat.js...");
+      success = !1;
+      success =  (Jmat.doUnitTest() === 'success');
+  </script>
+  <script>
+      if (!success) {
+        console.log("<b>TEST FAILED!</b> Use developer tools to look for an exception.");
+      };
+  </script>
+
+  <script>
+      console.log("Trying to forget having seen jmat.js...");
+      Real = undefined;
+      Complex = undefined;
+      Matrix = undefined;
+      BigInt = undefined;
+      Quaternion = undefined;
+      Jmat = undefined;
+      console.log("");
+      removeMath();
+      console.log("Loading jmat.min.js...");
+  </script>
+  <script src="jmat.min.js"></script>
+  <script>
+      // uncomment to sabotage (have unit test fail)
+      // Jmat.near = undefined;
+  </script>
+  <script src="jmat_test.js"></script>
+  <script>
+      console.log("Testing jmat.min.js...");
+      success = !1;
+      success =  (Jmat.doUnitTest() === 'success');
+  </script>
+  <script>
+      if (!success) {
+        console.log("<b>TEST FAILED!</b> Use developer tools to look for an exception.");
+      };
+  </script>
+</body>
+</html>

@@ -24,7 +24,9 @@ DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
 THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
 (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF
 THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+*/
 
+/*
 --------------------------------------------------------------------------------
 
 Jmat.js is a numerical library in JavaScript for complex, matrix and statistical
@@ -7800,15 +7802,16 @@ Jmat.Matrix.dot = function(a, b) {
 ////////////////////////////////////////////////////////////////////////////////
 ////////////////////////////////////////////////////////////////////////////////
 // Based on LINPACK zsvdc.f, converted to JavaScript.
-// Licensing: This is from linpack, from http://www.netlib.org/linpack/
-// The license is not mentioned directly in the source code or the website, but
-// has been said to now be a variant of the BSD license: see
-// https://bugzilla.redhat.com/show_bug.cgi?id=1000829.
-// Here is the original author comment from zsvdc.f:
-//     linpack. this version dated 03/19/79 .
-//              correction to shift calculation made 2/85.
-//     g.w. stewart, university of maryland, argonne national lab.
-//
+/*
+Licensing: This is from linpack, from http://www.netlib.org/linpack/
+The license is not mentioned directly in the source code or the website, but
+has been said to now be a variant of the BSD license: see
+https://bugzilla.redhat.com/show_bug.cgi?id=1000829.
+Here is the original author comment from zsvdc.f:
+    linpack. this version dated 03/19/79 .
+             correction to shift calculation made 2/85.
+    g.w. stewart, university of maryland, argonne national lab.
+*/
 // Modifies argument arrays in place.
 // Parameters:
 //  x: input matrix, n*p, as a 1D array, row-wise
