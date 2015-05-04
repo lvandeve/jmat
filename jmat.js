@@ -9724,11 +9724,29 @@ Jmat.BigInt.perfectpow = function(a, opt_next, opt_base, opt_k) {
   return [bestpow, bestbase, B(besti)];
 };
 
+// Multiplies a list of numbers recursively, to end up with factors of more equal size, ending with large factors that take advantage of sub-quadratic multiplication.
+// That is faster than just multiplying the list serially. Optimized for roughly sorted list (pairs value from begin with end etc...).
+Jmat.BigInt.mulmany_ = function(a) {
+  if(a.length == 0) return Jmat.BigInt.ONE;
+  while(a.length > 1) {
+    var h = Math.floor(a.length / 2);
+    var r = [];
+    for(var i = 0; i < h; i++) {
+      r.push(a[i].mul(a[a.length - i - 1]));
+    }
+    if(a.length % 2 == 1) r.push(a[h]);
+    a = r;
+  }
+
+  return a[0];
+};
+
+
 // Can calculate factorial of 100000 in 30 seconds. The result has 1.5 million bits, and printing it in decimal then takes another minute or so.
 Jmat.BigInt.factorial = function(a) {
   var B = Jmat.BigInt;
-  var b = a.toInt();
-  if(b == Infinity) return undefined; //if a does not fit in regular JS number, the result is unreasonably huge anyway.
+  var b = a.toInt(); //if a does not fit in regular JS number, the result is unreasonably huge anyway.
+  if(b == Infinity) return undefined;
 
   if(b < 20) return B(Jmat.Real.factorial(b));
 
@@ -9756,24 +9774,25 @@ Jmat.BigInt.factorial = function(a) {
     f[i] = B.powr(B(p), pw);
   }
 
-  // Multiplies a list of numbers recursively, to end up with factors of more equal size, ending with large factors that take advantage of sub-quadratic multiplication.
-  // That is faster than just multiplying the list serially. Optimized for roughly sorted list (pairs value from begin with end etc...).
-  var mulmany = function(a) {
-    if(a.length == 0) return Jmat.BigInt.ONE;
-    while(a.length > 1) {
-      var h = Math.floor(a.length / 2);
-      var r = [];
-      for(var i = 0; i < h; i++) {
-        r.push(a[i].mul(a[a.length - i - 1]));
-      }
-      if(a.length % 2 == 1) r.push(a[h]);
-      a = r;
-    }
 
-    return a[0];
-  };
+  return B.mulmany_(f);
+};
 
-  return mulmany(f);
+// Primorial, with a being an upper bound on the prime (not the nth prime)
+Jmat.BigInt.primorial = function(a) {
+  var B = Jmat.BigInt;
+  var b = a.toInt(); //if a does not fit in regular JS number, the result is unreasonably huge anyway.
+  if(b == Infinity) return undefined;
+
+  // TODO: use a prime sieve
+  var primes = [];
+  var p = 2;
+  while(p <= b) {
+    primes.push(B(p));
+    p = Real.nextPrime(p);
+  }
+
+  return B.mulmany_(primes);
 };
 
 Jmat.BigInt.nearestPrime = function(n) {
@@ -10715,6 +10734,7 @@ Jmat.BigInt.enrichFunctions_ = function() {
   Jmat.BigInt.enrichFunction_(object, 'nextPrime', 1, 1);
   Jmat.BigInt.enrichFunction_(object, 'factorize', 1, 0);
   Jmat.BigInt.enrichFunction_(object, 'factorial', 1, 1);
+  Jmat.BigInt.enrichFunction_(object, 'primorial', 1, 1);
 };
 
 Jmat.BigInt.enrichFunctions_();
