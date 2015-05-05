@@ -11001,7 +11001,7 @@ Jmat.Quaternion.sign = function(q) {
 
 Jmat.Quaternion.normalize = Jmat.Quaternion.sign;
 Jmat.Quaternion.prototype.normalize = function() {
-  return normalize = Jmat.Quaternion.sign(this);
+  return Jmat.Quaternion.sign(this);
 };
 
 // Convert to 2x2 matrix representation
