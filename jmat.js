@@ -1520,7 +1520,7 @@ Jmat.Real.pascal_triangle_cache_ = [
     [1, 4, 6, 4, 1],
     [1, 5, 10, 10, 5, 1],
     [1, 6, 15, 20, 15, 6, 1],
-    [1, 7, 21, 35, 35, 21, 7, 1],
+    [1, 7, 21, 35, 35, 21, 7, 1]
 ];
 
 // A helper function for integer binomial. Uses cached pascal triangle, so is guaranteed to be O(1) once the cache is filled up.
@@ -3798,7 +3798,7 @@ Jmat.Complex.besselj = function(nu, z) {
   if(nu.eqr(-0.5)) return C.bessel_sqrt2piz_(z).mul(C.cos(z));
 
   if(nu.re > 300 && Math.abs(nu.im) < nu.re && z.abssq() < 50*50) return C(0); // underflow, 0 is approximate. Also, for integer n would cause too much loops in miller algorithm
-  if(nu.re < -300 && C.isInt(nu) && z.abssq() < 50*50); //also 0, however for negative nu if there is the slightest deviation of integer, it becomes huge result instead
+  if(nu.re < -300 && C.isInt(nu) && z.abssq() < 50*50) return C(0); //also 0, however for negative nu if there is the slightest deviation of integer, it becomes huge result instead
 
   // TODO: check if this function can work for complex z and/or nu. It performs bad for Jmat.besselj('112.5', '-5.5i'), besselj_series_ handles that one much better.
   if(nu.re > 50 && C.isReal(z) && nu.re > z.abs() * 16) {
@@ -5076,7 +5076,7 @@ Jmat.Complex.bernoulli = [
     -3617/510, 0, 43867/798, 0, //16-19
     -174611/330, 0, 854513/138, 0, //20-23
     -23749461029/2730, 0, 8615841276005/6, 0, //24-27
-    -7709321041217/870, 0, 2577687858367/14322, 0, //28-31
+    -7709321041217/870, 0, 2577687858367/14322, 0 //28-31
 ];
 
 // Stieltjes constants. Only supports a hardcoded first few dozens.
@@ -5088,7 +5088,7 @@ Jmat.Complex.stieltjes = [
   -0.000199696858308969775, 0.0000262770371099183367, 0.000307368408149252827, 0.000503605453047355629,
   0.000466343561511559449, 0.000104437769756000116, -0.000541599582203997702, -0.00124396209040824578,
   -0.00158851127890356156, -0.00107459195273848882, 0.000656803518637154432, 0.00347783691361853821,
-  0.00640006853170062946, 0.00737115177047223913, 0.00355772885557316095, -0.00751332599781522893,
+  0.00640006853170062946, 0.00737115177047223913, 0.00355772885557316095, -0.00751332599781522893
 ];
 
 // Stieltjes constants times (-1)^n / n!, this is for calculating riemann zeta. Only supports a hardcoded first few dozens (0-31).
@@ -5100,7 +5100,7 @@ Jmat.Complex.stieltjes_zeta = [
   -9.54446607636696517e-18, -7.38767666053863650e-20, 4.80085078248806523e-20, -4.13995673771330564e-21,
   1.91682015939912339e-22, -2.04415431222621661e-24, -4.81849850110735344e-25, 4.81185705151256648e-26,
   -2.56026331031881494e-27, 6.92784089530466712e-29, 1.62860755048558674e-30, -3.19393756115325558e-31,
-  2.09915158936342553e-32, -8.33674529544144048e-34, 1.34125937721921867e-35, 9.13714389129817200e-37,
+  2.09915158936342553e-32, -8.33674529544144048e-34, 1.34125937721921867e-35, 9.13714389129817200e-37
 ];
 
 // This is really a last resort, very inaccurate and slow
@@ -5362,7 +5362,6 @@ Jmat.Complex.polylog = function(s, z) {
     // Polylog is supposed to be very interesting at s=0.5+t*i. But no code here is precise enough for that.
     return Jmat.Complex.polylog_integral_(s, z);
   }
-  return Jmat.Complex(NaN);
 };
 
 //Jacobi theta1 function
@@ -6041,7 +6040,7 @@ Jmat.Complex.newtonStartValue_ = function(f) {
   return best;
 };
 
-Jmat.Complex.newtonStartValuesAround_ = [ Jmat.Complex(1), Jmat.Complex(-1), Jmat.Complex.newi(1), Jmat.Complex.newi(-1), ];
+Jmat.Complex.newtonStartValuesAround_ = [ Jmat.Complex(1), Jmat.Complex(-1), Jmat.Complex.newi(1), Jmat.Complex.newi(-1) ];
 
 //Find a new value to start at after having accidentally encountered a bad point like NaN or Inf
 //dist: e.g. 0.1 or 0.01
@@ -8267,7 +8266,7 @@ Jmat.Matrix.eq = function(a, b) {
 
   for(var y = 0; y < a.h; y++) {
     for(var x = 0; x < a.w; x++) {
-      return a.e[y][x].eq(b.e[y][x]);
+      if(!a.e[y][x].eq(b.e[y][x])) return false;
     }
   }
 
@@ -9724,11 +9723,29 @@ Jmat.BigInt.perfectpow = function(a, opt_next, opt_base, opt_k) {
   return [bestpow, bestbase, B(besti)];
 };
 
+// Multiplies a list of numbers recursively, to end up with factors of more equal size, ending with large factors that take advantage of sub-quadratic multiplication.
+// That is faster than just multiplying the list serially. Optimized for roughly sorted list (pairs value from begin with end etc...).
+Jmat.BigInt.mulmany_ = function(a) {
+  if(a.length == 0) return Jmat.BigInt.ONE;
+  while(a.length > 1) {
+    var h = Math.floor(a.length / 2);
+    var r = [];
+    for(var i = 0; i < h; i++) {
+      r.push(a[i].mul(a[a.length - i - 1]));
+    }
+    if(a.length % 2 == 1) r.push(a[h]);
+    a = r;
+  }
+
+  return a[0];
+};
+
+
 // Can calculate factorial of 100000 in 30 seconds. The result has 1.5 million bits, and printing it in decimal then takes another minute or so.
 Jmat.BigInt.factorial = function(a) {
   var B = Jmat.BigInt;
-  var b = a.toInt();
-  if(b == Infinity) return undefined; //if a does not fit in regular JS number, the result is unreasonably huge anyway.
+  var b = a.toInt(); //if a does not fit in regular JS number, the result is unreasonably huge anyway.
+  if(b == Infinity) return undefined;
 
   if(b < 20) return B(Jmat.Real.factorial(b));
 
@@ -9756,24 +9773,25 @@ Jmat.BigInt.factorial = function(a) {
     f[i] = B.powr(B(p), pw);
   }
 
-  // Multiplies a list of numbers recursively, to end up with factors of more equal size, ending with large factors that take advantage of sub-quadratic multiplication.
-  // That is faster than just multiplying the list serially. Optimized for roughly sorted list (pairs value from begin with end etc...).
-  var mulmany = function(a) {
-    if(a.length == 0) return Jmat.BigInt.ONE;
-    while(a.length > 1) {
-      var h = Math.floor(a.length / 2);
-      var r = [];
-      for(var i = 0; i < h; i++) {
-        r.push(a[i].mul(a[a.length - i - 1]));
-      }
-      if(a.length % 2 == 1) r.push(a[h]);
-      a = r;
-    }
 
-    return a[0];
-  };
+  return B.mulmany_(f);
+};
 
-  return mulmany(f);
+// Primorial, with a being an upper bound on the prime (not the nth prime)
+Jmat.BigInt.primorial = function(a) {
+  var B = Jmat.BigInt;
+  var b = a.toInt(); //if a does not fit in regular JS number, the result is unreasonably huge anyway.
+  if(b == Infinity) return undefined;
+
+  // TODO: use a prime sieve
+  var primes = [];
+  var p = 2;
+  while(p <= b) {
+    primes.push(B(p));
+    p = Real.nextPrime(p);
+  }
+
+  return B.mulmany_(primes);
 };
 
 Jmat.BigInt.nearestPrime = function(n) {
@@ -10715,6 +10733,7 @@ Jmat.BigInt.enrichFunctions_ = function() {
   Jmat.BigInt.enrichFunction_(object, 'nextPrime', 1, 1);
   Jmat.BigInt.enrichFunction_(object, 'factorize', 1, 0);
   Jmat.BigInt.enrichFunction_(object, 'factorial', 1, 1);
+  Jmat.BigInt.enrichFunction_(object, 'primorial', 1, 1);
 };
 
 Jmat.BigInt.enrichFunctions_();
@@ -11149,7 +11168,7 @@ Jmat.Quaternion.eqr = function(x, y) {
   return (x.w == y && x.x == 0 && x.y == 0 && x.z == 0);
 };
 Jmat.Quaternion.prototype.eqr = function(y) {
-  this.w == y && this.x == 0 && this.y == 0 && this.z == 0;
+  return this.w == y && this.x == 0 && this.y == 0 && this.z == 0;
 };
 
 Jmat.Quaternion.near = function(x, y, epsilon) {
