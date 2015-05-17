@@ -6798,16 +6798,16 @@ Jmat.Matrix.make = function(a, b, var_arg) {
   // Tolerant to all kinds of nonexisting array
   // Also supports a 1D array representing an Nx1 2D array
   var softget = function(a, y, x) {
-    return (a && a[y]) ? Jmat.Complex.cast(a[y][x] == undefined ? a[y] : a[y][x]) : Jmat.Complex();
+    return (a && a[y] != undefined) ? Jmat.Complex.cast(a[y][x] == undefined ? a[y] : a[y][x]) : Jmat.Complex();
   };
   var softgetr = function(a, y, x) {
-    return (a && a[y]) ? Jmat.Real.cast(a[y][x] == undefined ? a[y] : a[y][x]) : 0;
+    return (a && a[y] != undefined) ? Jmat.Real.cast(a[y][x] == undefined ? a[y] : a[y][x]) : 0;
   };
   var softget2 = function(a, b, y, x) {
     return new Jmat.Complex(softgetr(a, y, x), softgetr(b, y, x)); // real from a, imag from b
   };
   var arrayw = function(a) {
-    if(!a || !a[0]) return 0; // empty array
+    if(!a || a[0] == undefined) return 0; // empty array
     if(a[0].length == undefined) return 1; // this means it's a 1D array, such array has width 1, not width 0
     return a[0].length;
   };
