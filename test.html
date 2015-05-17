@@ -15,6 +15,9 @@
       };
     })();
   </script>
+  <style>
+    b { color: #f00 }
+  </style>
 </head>
 
 <body>
@@ -42,12 +45,10 @@
   <script src="jmat_test.js"></script>
   <script>
       console.log("Testing jmat.js...");
-      success = !1;
-      success =  (Jmat.doUnitTest() === 'success');
-  </script>
-  <script>
-      if (!success) {
-        console.log("<b>TEST FAILED!</b> Use developer tools to look for an exception.");
+      try {
+        Jmat.doUnitTest();
+      } catch (e) {
+        console.log('<b>'+e.toString()+'</b>');
       };
   </script>
 
@@ -71,12 +72,10 @@
   <script src="jmat_test.js"></script>
   <script>
       console.log("Testing jmat.min.js...");
-      success = !1;
-      success =  (Jmat.doUnitTest() === 'success');
-  </script>
-  <script>
-      if (!success) {
-        console.log("<b>TEST FAILED!</b> Use developer tools to look for an exception.");
+      try {
+        Jmat.doUnitTest();
+      } catch (e) {
+        console.log('<b>'+e.toString()+'</b>');
       };
   </script>
 </body>
