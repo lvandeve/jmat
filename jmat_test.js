@@ -203,6 +203,19 @@ Jmat.doUnitTest = function() {
   Jmat.Test.expectTrue(BigInt.isPrime('671998030559713968361666935769'));
   Jmat.Test.expectFalse(BigInt.isPrime('19923108241787117701'));
 
+  // 0d matrix generation
+  var vec1 = Jmat.Matrix.parse('[1]');
+  Jmat.Test.expectNear(vec1, Jmat.Matrix.make([1]), eps);
+  Jmat.Test.expectNear(Jmat.sub(vec1,vec1), Jmat.Matrix.make([0]), eps);
+
+  // 1d matrix generation
+  var vec01 = Jmat.Matrix.parse('[0,1]');
+  Jmat.Test.expectNear(vec01, Jmat.Matrix.make([0,1]), eps);
+  Jmat.Test.expectNear(vec01, Jmat.Matrix.subcol(Jmat.Matrix.make([[2,0],[0,1]]), 0), eps);
+
+  Jmat.Test.expectNear(vec01.transpose(), Jmat.Matrix.make([[0,1]]), eps);
+  Jmat.Test.expectNear(vec01.transpose(), Jmat.Matrix.subrow(Jmat.Matrix.make([[2,0],[0,1]]), 0), eps);
+
   console.log('success');
   return 'success';
 };

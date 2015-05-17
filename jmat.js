@@ -6847,7 +6847,7 @@ Jmat.Matrix.make = function(a, b, var_arg) {
   };
 
   // one or two arrays, make all elements from them, size defined by the arrays
-  if((a && a.length) || (b && b.length)) {
+  if((("undefined" !== typeof a) && a.length) || (("undefined" !== typeof b) && b.length)) {
     var h = Math.max((a && a.length) || 0, (b && b.length) || 0);
     var w = Math.max(arrayw(a), arrayw(b));
     return loop(h, w, a, -1, b);
