@@ -8116,7 +8116,7 @@ Jmat.Matrix.zsvdc_ = function(x, ldx, n, p, s, e, u, ldu, v, ldv, work, job) {
         s[k - 1] = Jmat.Complex(t1);
         if(k != l) {
           f = -sn * dreal(e[k - 2]);
-          e[k - 2] = cs * e[k - 2];
+          e[k - 2] = e[k - 2].mulr(cs);
         }
         if(wantv) zdrot(p, v, (k - 1) * ldv, v, (m - 1) * ldv, cs, sn);
       }
@@ -8312,12 +8312,12 @@ Jmat.Matrix.relnear = function(a, b, precision) {
 //a: input matrix, h*w size
 //b: input vector, h*1 size
 Jmat.Matrix.solve = function(a, b) {
-  if(a.h != b.h) return null;
+  if(a.h != b.h) return undefined; // input error
   var ag = Jmat.Matrix.pseudoinverse(a);
 
   var aag = Jmat.Matrix.mul(a, ag);
   var aagb = Jmat.Matrix.mul(aag, b);
-  if(!Jmat.Matrix.near(b, aagb)) return null; //inconsistent system with no solution
+  if(!Jmat.Matrix.near(b, aagb, 1e-5)) return null; //inconsistent system with no solution
 
   return Jmat.Matrix.mul(ag, b);
 };
