@@ -1,7 +1,7 @@
 /*
 Jmat.js
 
-Copyright (c) 2011-2014, Lode Vandevenne
+Copyright (c) 2011-2015, Lode Vandevenne
 All rights reserved.
 
 Redistribution and use in source and binary forms, with or without modification,
@@ -2514,7 +2514,7 @@ Jmat.Complex.prototype.inc = function() {
 Jmat.Complex.dec = function(z) {
   return new Jmat.Complex(z.re - 1, z.im);
 };
-Jmat.Complex.prototype.dec = function(z) {
+Jmat.Complex.prototype.dec = function() {
   return new Jmat.Complex(this.re - 1, this.im);
 };
 
@@ -3669,7 +3669,7 @@ Jmat.Complex.besselj_miller_ = function(n, z) {
 
 Jmat.Complex.besselj_series_ = function(nu, z) {
   var C = Jmat.Complex;
-  var pi = Math.PI;
+
   // Works for all complex nu except 0 (0 is already handled above)
   // The gamma functions give NaN if nu is negative integer < -1.
   var negintn = C.isNegativeInt(nu);
@@ -3784,7 +3784,6 @@ Jmat.Complex.besselj_large_nu_ = function(nu, z) {
 // TODO: Find fast algorithm that reliably supports high |z| and |nu|, that does not require arbitrary precision arithmetic and does not require too much iterations.
 Jmat.Complex.besselj = function(nu, z) {
   var C = Jmat.Complex;
-  var pi = Math.PI;
 
   // Infinities. If any of nu or z is any infinity, the answer is 0
   if(C.isInf(nu)) return C(0);
@@ -3913,7 +3912,6 @@ Jmat.Complex.bessely_hankelexpansion_ = function(nu, z) {
 // Mostly an approximation, there are problems with high z
 Jmat.Complex.bessely = function(nu, z) {
   var C = Jmat.Complex;
-  var pi = Math.PI;
 
   // Special values
   if(C.isInf(nu)) return C.isInf(z) ? C(NaN) : (C.isPositive(z) ? C(-Infinity) : C(Infinity, Infinity)); // strictly positive z gives -Infinity, anything else, including 0 and complex values, gives complex infinity
@@ -4028,7 +4026,6 @@ Jmat.Complex.airyloop_ = function(z, pl, pr, s) {
   var zzz = z.mul(z).mul(z);
   var zr = Jmat.Complex.ONE;
   var zl = z;
-  var r = Jmat.Complex.ONE;
   var kk = 1;
   var result = Jmat.Complex.ZERO;
   for(var k = 0; k < 30; k++) {
@@ -4115,7 +4112,6 @@ Jmat.Complex.airy_deriv_loop_ = function(z, pl, pr, s) {
   var zzz = z.mul(z).mul(z);
   var zr = Jmat.Complex.ONE;
   var zl = z.mul(z);
-  var r = Jmat.Complex.ONE;
   var kk = 1;
   var result = Jmat.Complex.ZERO;
   for(var k = 0; k < 30; k++) {
@@ -4204,7 +4200,6 @@ Jmat.Complex.zetaint_ = function(s) {
   var q = Jmat.Complex.ONE;
   for(;;) {
     var q1 = it(s, q);
-    var q2 = it(s, q.inc());
     if(q1.abssq() < 1e-4 && q1.abssq() < 1e-4) break;
     if(q.re > 1000) break; // do not do too many doublings or we are doing as many calculations in here as in the integral...
 
@@ -4429,7 +4424,6 @@ Jmat.Complex.hurwitzzeta_simple_series_ = function(s, q) {
 // See (7.1) in paper "efficient algorithm for accelerating the convergence of ..." by Linas Vepstas.
 // This algorithm works for: complex s with s.re > 0, and complex q with q.re > -20 (or even > -1). For q with very large negative real part, it goes numerically very wrong.
 Jmat.Complex.hurwitzzeta_euler_ = function(s, q) {
-  var result = Jmat.Complex.ZERO;
   var N = 25; // D/2 + 10 where D is desired decimal digits of precision
   var p = 15; // TODO: find better value for it? It should not go above 15 though, the bernoulli number table ends at 30 (and k*2 is needed)
   var fn = q.addr(N).pow(s).inv(); // f(N)
@@ -4676,8 +4670,6 @@ Jmat.Complex.hypergeometric1F1_asymp_ = function(a, b, z) {
   var C = Jmat.Complex;
 
   if(C.isNegativeInt(b)) return C(NaN); // not supported, even if a is compensating negative int
-
-  var limit = a.mul(z).div(b).abssq() * 1e-10;
 
   // asymptotic expansion, abramowitz&stegun 13.5.1
   var sum0 = C.ONE;
@@ -5202,8 +5194,6 @@ Jmat.Complex.polylog_borwein_ = function(s, z) {
   var zz = Jmat.Complex.ONE;
   var result0 = Jmat.Complex.ZERO;
 
-  var barray = [];
-
   // First sum, and preparation for binomial sum
   for(var k = 1; k <= n; k++) {
     zz = zz.mul(z); // numerically critical...
@@ -5327,12 +5317,12 @@ Jmat.Complex.polylog = function(s, z) {
   // or:
   // Li_s(z) = 2^(1-s)*Li_s(z^2) - Li_s(-z)
   // Li_s(-z) = 2^(1-s)*Li_s(z^2) - Li_s(z)
-  var square = function(s, z) {
+  /*var square = function(s, z) {
     var a = Jmat.Complex.polylog(s, z.mul(z));
     var b = Jmat.Complex.polylog(s, z.neg());
     var c = Jmat.Complex.TWO.pow(Jmat.Complex.ONE.sub(s));
     return c.mul(a).sub(b);
-  };
+  };*/
 
   var a = z.abs();
 
@@ -6430,7 +6420,6 @@ Jmat.Complex.cdf_studentt = function(x, nu) {
 
   // METHOD A: in terms of incomplete beta (probably slightly faster than with hypergeometric)
   if(x.eqr(0)) return Jmat.Complex(0.5);
-  var nu2 = nu.inc().divr(2);
   var g = Jmat.Complex.calcCache_(nu, Jmat.Complex.pdf_studentt_cachefun_, Jmat.Complex.pdf_studentt_cache_);
   var b = Jmat.Complex.incbeta(x.mul(x).div(nu).neg(), Jmat.Complex(0.5), Jmat.Complex.ONE.sub(nu).mulr(0.5));
   var n = Jmat.Complex.I.mul(x).mul(b);
@@ -7828,7 +7817,7 @@ Here is the original author comment from zsvdc.f:
 // NOTE: "leading dimension" means first dimension of a 2D array, but the arrays are 1D.
 //        Normally, leading dimension is the height, or higher if superfluous values were allocated in between.
 Jmat.Matrix.zsvdc_ = function(x, ldx, n, p, s, e, u, ldu, v, ldv, work, job) {
-  var i,iter,j,jobu,k,kase,kk,l,ll,lls,lm1,lp1,ls,lu,m,
+  var i,iter,j,jobu,k,kase,kk,l,ll,lls,lp1,ls,lu,m,
       mm,mm1,mp1,nct,ncu,nrt,info; // integers
   var maxit = 30;
   var t,r; //complex
@@ -10083,7 +10072,7 @@ Jmat.BigInt.leemondiv_ = function(x, y, bpe) {
   var mask = x.radix - 1;
 
   var kx, ky;
-  var i,j,y1,y2,c,a,b;
+  var i,y1,y2,c,a,b;
   var r = B.copy(x);
 
   x = x.strip();
@@ -10163,7 +10152,6 @@ Jmat.BigInt.leemondiv_ = function(x, y, bpe) {
 // If the optional bits per element, then radix of a and b are assumed to already be 2^(bpe), and no base conversions will be done.
 Jmat.BigInt.divmod_ = function(a, b, opt_bpe) {
   var B = Jmat.BigInt;
-  var R = Jmat.Real;
   if(b.eqr(0)) return undefined;
   if(b.eqr(1)) return [a, B(0)];
   if(b.eqr(-1)) return [a.neg(), B(0)];
