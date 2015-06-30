@@ -7414,7 +7414,8 @@ Jmat.Matrix.norm = function(m) {
   var result = 0;
   for(var y = 0; y < m.h; y++) {
     for(var x = 0; x < m.w; x++) {
-      result += m.e[y][x].abssq();
+      var e = m.e[y][x];
+      result += e.mul(e.conj());
     }
   }
   result = Math.sqrt(result);
@@ -7793,8 +7794,7 @@ Jmat.Matrix.dot = function(a, b) {
   }
   var n = a.w * a.h;
   var result = Jmat.Complex(0);
-  // TODO: use conjugate on b, for complex matrices/vectors?
-  for(var i = 0; i < n; i++) result = result.add(a.get1(i).mul(b.get1(i)));
+  for(var i = 0; i < n; i++) result = result.add(a.get1(i).mul(b.get1(i).conj()));
   return result;
 };
 
@@ -7847,7 +7847,7 @@ Jmat.Matrix.zsvdc_ = function(x, ldx, n, p, s, e, u, ldu, v, ldv, work, job) {
     var result = Jmat.Complex(0);
     for(var i = 0; i < n; i++) {
       var e = arr[start + i];
-      result = result.add(e.mul(e));
+      result = result.add(e.mul(e.conj()));
     }
     return Jmat.Complex.sqrt(result);
   };
@@ -7861,7 +7861,7 @@ Jmat.Matrix.zsvdc_ = function(x, ldx, n, p, s, e, u, ldu, v, ldv, work, job) {
   var zdotc = function(n, arrx, startx, arry, starty) {
     var result = Jmat.Complex(0);
     for(var i = 0; i < n; i++) {
-      result = result.add(arry[starty + i].mul(arrx[startx + i]));
+      result = result.add(arrx[startx + i].conj().mul(arry[starty + i]));
     }
     return result;
   };
