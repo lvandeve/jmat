@@ -7451,7 +7451,7 @@ Jmat.Matrix.norm = function(m) {
   for(var y = 0; y < m.h; y++) {
     for(var x = 0; x < m.w; x++) {
       var e = m.e[y][x];
-      result += e.mul(e.conj());
+      result += e.abssq();
     }
   }
   result = Math.sqrt(result);
