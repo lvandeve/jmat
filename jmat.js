@@ -6911,6 +6911,53 @@ Jmat.Matrix.parse = function(text) {
   return Jmat.Matrix.make(e);
 };
 
+// Makes ascii art rendering of the matrix (requires fixed width font)
+Jmat.Matrix.render = function(a, opt_precision) {
+  opt_precision = opt_precision == undefined ? 3 : opt_precision;
+  var result = '';
+  var real = Jmat.Matrix.isReal(a);
+  var strings = [];
+  var longest = [];
+  for (var y = 0; y < a.h; y++) {
+    strings.push([]);
+    for (var x = 0; x < a.w; x++) {
+      if(y == 0) longest.push([0, 0]);
+      var s = [a.e[y][x].re.toFixed(opt_precision), Math.abs(a.e[y][x].im).toFixed(opt_precision)];
+      longest[x] = [Math.max(s[0].length, longest[x][0]), Math.max(s[1].length, longest[x][1])];
+      strings[y].push(s);
+    }
+  }
+  for (var y = 0; y < a.h; y++) {
+    var line = '';
+    line += '|' + (y + 1 == a.h ? '_' : ' ');
+    for (var x = 0; x < a.w; x++) {
+      var s = strings[y][x][0];
+      while (s.length < longest[x][0]) s = ' ' + s;
+      if (!real) {
+        var neg = a.e[y][x].im < 0;
+        var t = strings[y][x][1];
+        while (t.length < longest[x][1]) t = '0' + t;
+        t = (neg ? '-' : '+') + t;
+        s += t + 'i';
+      }
+
+      line += s + ((y + 1 == a.h && x + 1 == a.w) ? '_' : ' ');
+    }
+    line += '|';
+    if(y == 0) {
+      var top = ' _';
+      while(top.length + 2 < line.length) top += ' ';
+      top += '_';
+      result += top + '\n';
+    }
+    result += line + '\n';
+  }
+  return result;
+};
+Jmat.Matrix.prototype.render = function(opt_precision) {
+  return Jmat.Matrix.render(this, opt_precision);
+};
+
 
 // Does not copy if a is of type Jmat.Matrix.
 Jmat.Matrix.cast = function(a) {
@@ -7874,7 +7921,7 @@ Jmat.Matrix.zsvdc_ = function(x, ldx, n, p, s, e, u, ldu, v, ldv, work, job) {
   var zdrot = function(n, arrx, startx, arry, starty, c, s) {
     for(var i = 0; i < n; i++) {
       var ax = arrx[startx + i];
-      var ay = arrx[starty + i];
+      var ay = arry[starty + i];
       arrx[startx + i] = ax.mulr(c).add(ay.mulr(s));
       arry[starty + i] = ay.mulr(c).sub(ax.mulr(s));
     }
@@ -8005,7 +8052,7 @@ Jmat.Matrix.zsvdc_ = function(x, ldx, n, p, s, e, u, ldu, v, ldv, work, job) {
       l = p - ll - 1;
       lp1 = l + 1;
       if(l < nrt) {
-        if(cabs1(e[l + 1]) != 0.0) {
+        if(cabs1(e[l]) != 0.0) {
           for(j = lp1; j < p; j++) {
             t = zdotc(p - lp1, v, lp1 + l * ldv, v, lp1 + j * ldv).neg().div(v[lp1 + l * ldv]);
             zaxpy(p - lp1, t, v, lp1 + l * ldv, v, lp1 + j * ldv);
@@ -8198,13 +8245,15 @@ Jmat.Matrix.svd = function(m) {
   Checks in console:
   function testSvd(m) {
     var result = Jmat.Matrix.svd(Jmat.Matrix(m));
-    console.log(Jmat.toString(result) + ' | ' + Jmat.Matrix.mul(Jmat.Matrix.mul(result.u, result.s), Jmat.Matrix.transpose(result.v)).toString());
+    console.log(Jmat.toString(result) + ' | ' + Jmat.Matrix.mul(Jmat.Matrix.mul(result.u, result.s), Jmat.Matrix.transjugate(result.v)).toString());
   }
   testSvd(Jmat.Matrix(2,2,1,2,3,4))
   testSvd(Jmat.Matrix(2,2,1,2,3,4).mulc(Jmat.Complex.I))
   testSvd(Jmat.Matrix(2,2,1,2,1,2))
   testSvd(Jmat.Matrix([[1,2]]))
   testSvd(Jmat.Matrix([[1],[2]]))
+
+  var x = Jmat.Matrix([[1,2,3,4],[5,6,7,8]]); var svd = Jmat.svd(x); 'X:\n' + Jmat.Matrix.render(x) + '\nU:\n' + Jmat.Matrix.render(svd.u) + '\nS:\n' + Jmat.Matrix.render(svd.s) + '\nV:\n' + Jmat.Matrix.render(svd.v) + '\n reconstruct: \n' + Jmat.Matrix.render(svd.u.mul(svd.s).mul(svd.v.transjugate()))
   */
 
   // 1D array representing the matrix
