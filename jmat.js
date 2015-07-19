@@ -7875,6 +7875,11 @@ Jmat.Matrix.zsvdc_ = function(x, ldx, n, p, s, e, u, ldu, v, ldv, work, job) {
 
   var dreal = function(z) { return z.re; };
   var cabs1 = function(z) { return Math.abs(z.re) + Math.abs(z.im); };
+  var nearzero = function(z) {
+    // At each nearzero call below, the original zsvdc instead checked "cabs1(z) != 0.0". Usually a division then follows. That
+    // complex division can still result in inf and NaN for tiny numbers (e.g. 1e-307). Hence replaced with this check here.
+    return cabs1(z) < 1e-150;
+  };
   // returns value with absolute value of x, argument of y (transfers sign)
   var csign = function(x, y) { return y.eqr(0) ? Jmat.Complex(0) : y.mulr(x.abs() / y.abs()); };
   var sign = function(x, y) { return y == 0 ? 0 : (y < 0 ? -Math.abs(x) : Math.abs(x)); };
@@ -7952,8 +7957,8 @@ Jmat.Matrix.zsvdc_ = function(x, ldx, n, p, s, e, u, ldu, v, ldv, work, job) {
       // compute the transformation for the l-th column and
       // place the l-th diagonal in s(l).
       s[l] = Jmat.Complex(dznrm2(n - l, x, l + l * ldx));
-      if(cabs1(s[l]) != 0.0) {
-        if(cabs1(x[l + l * ldx]) != 0.0) s[l] = csign(s[l], x[l + l * ldx]);
+      if(!nearzero(s[l])) {
+        if(!nearzero(x[l + l * ldx])) s[l] = csign(s[l], x[l + l * ldx]);
         t = Jmat.Complex(1.0).div(s[l]);
         zscal(n - l, t, x, l + l * ldx);
         x[l + l * ldx] = x[l + l * ldx].addr(1);
@@ -7962,7 +7967,7 @@ Jmat.Matrix.zsvdc_ = function(x, ldx, n, p, s, e, u, ldu, v, ldv, work, job) {
     }
     for(j = lp1; j < p; j++) {
       if(l < nct) {
-        if(cabs1(s[l]) != 0.0) {
+        if(!nearzero(s[l])) {
           t = zdotc(n - l, x, l + l * ldx, x, l + j * ldx).neg().div(x[l + l * ldx]);
           zaxpy(n - l, t, x, l + l * ldx, x, l + j * ldx);
         }
@@ -7982,8 +7987,8 @@ Jmat.Matrix.zsvdc_ = function(x, ldx, n, p, s, e, u, ldu, v, ldv, work, job) {
       // l-th super-diagonal in e(l).
       e[l] = Jmat.Complex(dznrm2(p - l - 1, e, lp1));
 
-      if(cabs1(e[l]) != 0.0) {
-        if(cabs1(e[lp1]) != 0.0) {
+      if(!nearzero(e[l])) {
+        if(!nearzero(e[lp1])) {
           e[l] = csign(e[l], e[lp1]);
         }
         t = Jmat.Complex(1.0).div(e[l]);
@@ -7992,7 +7997,7 @@ Jmat.Matrix.zsvdc_ = function(x, ldx, n, p, s, e, u, ldu, v, ldv, work, job) {
       }
       e[l] = e[l].conj().neg();
       // apply the transformation.
-      if(lp1 < n && cabs1(e[l]) != 0.0) {
+      if(lp1 < n && !nearzero(e[l])) {
         for(j = lp1; j < n; j++) {
           work[j] = Jmat.Complex(0.0);
         }
@@ -8052,7 +8057,7 @@ Jmat.Matrix.zsvdc_ = function(x, ldx, n, p, s, e, u, ldu, v, ldv, work, job) {
       l = p - ll - 1;
       lp1 = l + 1;
       if(l < nrt) {
-        if(cabs1(e[l]) != 0.0) {
+        if(!nearzero(e[l])) {
           for(j = lp1; j < p; j++) {
             t = zdotc(p - lp1, v, lp1 + l * ldv, v, lp1 + j * ldv).neg().div(v[lp1 + l * ldv]);
             zaxpy(p - lp1, t, v, lp1 + l * ldv, v, lp1 + j * ldv);
@@ -8067,24 +8072,20 @@ Jmat.Matrix.zsvdc_ = function(x, ldx, n, p, s, e, u, ldu, v, ldv, work, job) {
   }
   // transform s and e so that they are real.
   for(i = 0; i < m; i++) {
-    if(cabs1(s[i]) != 0.0) {
+    if(!nearzero(s[i])) {
       t = Jmat.Complex.abs(s[i]);
       r = s[i].div(t);
-      if (!Jmat.Complex.isInfOrNaN(r)) {
-        s[i] = t;
-        if(i + 1 < m) e[i] = e[i].div(r);
-        if(wantu) zscal(n, r, u, i * ldu);
-      }
+      s[i] = t;
+      if(i + 1 < m) e[i] = e[i].div(r);
+      if(wantu) zscal(n, r, u, i * ldu);
     }
     if(i + 1 == m) break;
-    if(cabs1(e[i]) != 0.0) {
+    if(!nearzero(e[i])) {
       t = Jmat.Complex.abs(e[i]);
       r = t.div(e[i]);
-      if (!Jmat.Complex.isInfOrNaN(r)) {
-        e[i] = t;
-        s[i + 1] = s[i + 1].mul(r);
-        if(wantv) zscal(p, r, v, (i + 1) * ldv);
-      }
+      e[i] = t;
+      s[i + 1] = s[i + 1].mul(r);
+      if(wantv) zscal(p, r, v, (i + 1) * ldv);
     }
   }
   // main iteration loop for the singular values.
