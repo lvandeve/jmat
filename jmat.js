@@ -8070,17 +8070,21 @@ Jmat.Matrix.zsvdc_ = function(x, ldx, n, p, s, e, u, ldu, v, ldv, work, job) {
     if(cabs1(s[i]) != 0.0) {
       t = Jmat.Complex.abs(s[i]);
       r = s[i].div(t);
-      s[i] = t;
-      if(i + 1 < m) e[i] = e[i].div(r);
-      if(wantu) zscal(n, r, u, i * ldu);
+      if (!Jmat.Complex.isInfOrNaN(r)) {
+        s[i] = t;
+        if(i + 1 < m) e[i] = e[i].div(r);
+        if(wantu) zscal(n, r, u, i * ldu);
+      }
     }
     if(i + 1 == m) break;
     if(cabs1(e[i]) != 0.0) {
       t = Jmat.Complex.abs(e[i]);
       r = t.div(e[i]);
-      e[i] = t;
-      s[i + 1] = s[i + 1].mul(r);
-      if(wantv) zscal(p, r, v, (i + 1) * ldv);
+      if (!Jmat.Complex.isInfOrNaN(r)) {
+        e[i] = t;
+        s[i + 1] = s[i + 1].mul(r);
+        if(wantv) zscal(p, r, v, (i + 1) * ldv);
+      }
     }
   }
   // main iteration loop for the singular values.
