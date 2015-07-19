@@ -8146,13 +8146,13 @@ Jmat.Matrix.zsvdc_ = function(x, ldx, n, p, s, e, u, ldu, v, ldv, work, job) {
       f = dreal(e[m - 2]);
       e[m - 2] = Jmat.Complex(0.0);
       for(kk = 1; kk <= mm1; kk++) {
-        k = mm1 - kk + l - 1;
+        k = mm1 - kk + l;
         t1 = dreal(s[k - 1]);
         dr = drotg(t1, f); t1 = dr[0]; f = dr[1]; cs = dr[2]; sn = dr[3];
         s[k - 1] = Jmat.Complex(t1);
         if(k != l) {
-          f = -sn * dreal(e[k - 1]);
-          e[k - 1] = e[k - 1].mulr(cs);
+          f = -sn * dreal(e[k - 2]);
+          e[k - 2] = e[k - 2].mulr(cs);
         }
         if(wantv) zdrot(p, v, (k - 1) * ldv, v, (m - 1) * ldv, cs, sn);
       }
