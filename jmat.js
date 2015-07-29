@@ -8961,7 +8961,6 @@ Jmat.BigInt.convertArrayBase = function(s, from, to, opt_powrcache_) {
           var a = fbits - bp;
           r[i] = s[pos] >> bp;
           pos--;
-          var mask2 = (1 << (tbits - 1)) - 1;
           r[i] |= ((s[pos] & mask) << a);
           bp = tbits - a;
         } else {
