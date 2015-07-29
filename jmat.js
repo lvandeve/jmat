@@ -1321,6 +1321,28 @@ Jmat.Real.isPrime = function(n) {
   return (n < 1500000) ? Jmat.Real.isPrimeSlow_(n) : Jmat.Real.isPrimeMillerRabin_(n);
 };
 
+// Sieve of Eratosthenes: returns array of all the primes up to n.
+Jmat.Real.eratosthenes = function(n) {
+  if(n < 2) return [];
+  var result = [2];
+  var a = [];
+  var s = Math.floor(Math.sqrt(n));
+
+  var num = Math.ceil(n / 2);
+  // a[i] represents odd numbers: a[0] represents 1, a[1] represents 3, a[n] represents n*2 + 1, m is represented by a[floor(m / 2)]
+  for(var i = 0; i < num; i++) a[i] = true;
+  for(var m = 3; m <= s; m += 2) {
+    var i = Math.floor(m / 2);
+    if(!a[i]) continue;
+    for(var j = i + m; j < num; j += m) a[j] = false;
+  }
+
+  for(var i = 1; i <= n; i++) {
+    if(a[i]) result.push((i * 2) + 1);
+  }
+  return result;
+};
+
 //for factorize
 Jmat.Real.smallestPrimeFactor = function(x) {
   if(x == Infinity || x != x) return NaN;
@@ -1805,11 +1827,15 @@ Jmat.Real.log2 = Math.log2 || function(x) {
   return Math.log(x) / Math.LN2;
 };
 
-// To get number of bits, use Jmat.Real.ilog2(Math.abs(x)) + 1
+// Integer log2: the floor of log2
 Jmat.Real.ilog2 = function(x) {
   if(x <= 0) return NaN;
   if(x < 2147483648) return 31 - Jmat.Real.clz32(x);
   return Math.floor(Jmat.Real.log2(Math.floor(x) + 0.5));
+};
+
+Jmat.Real.getNumBits = function(x) {
+  return Jmat.Real.ilog2(Math.abs(x)) + 1;
 };
 
 Jmat.Real.log10 = Math.log10 || function(x) {
@@ -8788,7 +8814,7 @@ Jmat.Matrix.powc = function(m, s) {
 //Constructor. All parameters are optional.
 Jmat.BigInt = function(a, b, minus) {
   if(this instanceof Jmat.BigInt) {
-    this.a = a || [];
+    this.a = a || []; // least significant in rightmost element
     this.radix = b || Jmat.BigInt.ARRAYBASE_;
     this.minus = minus || false; //if true, represents negative integer
   } else {
@@ -8870,6 +8896,7 @@ Jmat.BigInt.stringToArray = function(s, opt_abase, opt_sbase) {
 
   return Jmat.BigInt.convertArrayBase(result, sbase, abase);
 };
+
 Jmat.BigInt.arrayToString = function(v, opt_abase, opt_sbase) {
   var abase = opt_abase || Jmat.BigInt.ARRAYBASE_;
   var sbase = opt_sbase || Jmat.BigInt.STRINGBASE_;
@@ -8883,12 +8910,70 @@ Jmat.BigInt.arrayToString = function(v, opt_abase, opt_sbase) {
 
   return result;
 };
+
+// This can be used by functions from within convertArrayBase to avoid recursive call if a binary BigInt is needed...
+Jmat.BigInt.getInBaseTwoWithoutConvert_ = function(v) {
+  var a = [];
+  while(v > 0) {
+    a.push(v & 1);
+    v = v >> 1;
+  }
+  Jmat.BigInt.mirror_(a);
+  return new Jmat.BigInt(a, 2);
+};
+
 //may return input object if bases are equal
-Jmat.BigInt.convertArrayBase = function(s, from, to) {
+Jmat.BigInt.convertArrayBase = function(s, from, to, opt_powrcache_) {
   var R = Jmat.Real;
   var B = Jmat.BigInt;
   if(from == to) return s;
   var r = [];
+  s = B.maybecopystrip_(s);
+
+  // O(n) algorithm if both bases are powers of two
+  if(from <= 2147483648 && to <= 2147483648 && R.isPOT(from) && R.isPOT(to)) {
+    var fbits = R.ilog2(from);
+    var tbits = R.ilog2(to);
+    var rlen = Math.ceil(s.length * fbits / tbits);
+    for(var i = 0; i < rlen; i++) r[i] = 0;
+
+    if(from < to) {
+      var pos = rlen - 1; // element pos in result array
+      var bp = 0; // bit pos into result element (from right)
+      for(var i = s.length - 1; i >= 0; i--) {
+        if(bp + fbits > tbits) {
+          var a = tbits - bp;
+          if(a != 0) r[pos] |= ((s[i] & ((1 << a) - 1)) << bp);
+          pos--;
+          r[pos] = (s[i] >> a);
+          bp = fbits - a;
+        } else {
+          r[pos] |= (s[i] << bp);
+          bp += fbits;
+        }
+      }
+    } else {
+      var mask = to - 1;
+      var pos = s.length - 1; // element pos in input array
+      var bp = 0; // bit pos into input element (from right)
+      for(var i = rlen - 1; i >= 0; i--) {
+        if(bp + tbits > fbits) {
+          var a = fbits - bp;
+          r[i] = s[pos] >> bp;
+          pos--;
+          var mask2 = (1 << (tbits - 1)) - 1;
+          r[i] |= ((s[pos] & mask) << a);
+          bp = tbits - a;
+        } else {
+          r[i] |= ((s[pos] >> bp) & mask);
+          bp += tbits;
+        }
+      }
+    }
+
+    B.stripInPlace_(r);
+    return r;
+  }
 
   // If one base is a power of the other base, an O(n) algorithm can be used
   var p = R.isPowerOf(from, to);
@@ -8923,41 +9008,42 @@ Jmat.BigInt.convertArrayBase = function(s, from, to) {
     return r;
   }
 
-  s = B.maybecopystrip_(s);
-  if(s.length > 8 && R.isPOT(from)) {
-    // Divide and conquer radix conversion. TODO: also do for non power of two from-base.
-    var m = Math.ceil(s.length * R.log2(from) / R.log2(to));
-    var h = R.idiv(m, 2);
-    if(m > 2) {
-      var frombits = R.ilog2(from);
-      var bpe = frombits;
-      while(bpe * 2 <= B.ARRAYBASE_BITS_) bpe *= 2; //ensure that it doesn't become higher than array bits, because that is the max supported one.
-      if(bpe != frombits) {
-        // This conversion is cheap, power of two to power of two, and makes the division below faster.
-        s = Jmat.BigInt.convertArrayBase(s, 1 << frombits, 1 << bpe);
-        frombits = bpe;
-        from = 1 << bpe;
-      }
+  if(s.length > 8) {
+    // Divide and conquer radix conversion
+    var h = R.idiv(s.length, 2);
+    var high = [];
+    var low = [];
+    for(var i = 0; i < h; i++) high[i] = s[i];
+    for(var i = h; i < s.length; i++) low[i - h] = s[i];
 
-      var m2 = B.powr(B(to, from), h).a; // to-base to the power of m/2, and that represented in from-base.
-      var dm = B.divmod_(B(s, from), B(m2, from), bpe); //divide: s / m2.
-      var a = dm[0].a;
-      var b = dm[1].a;
+    var cache = opt_powrcache_ || [];
 
-      var ac = Jmat.BigInt.convertArrayBase(a, from, to);
-      var bc = Jmat.BigInt.convertArrayBase(b, from, to);
-      // Missing digits in bc are zeroes between ac and bc, so push those zeroes to the end of ac.
-      var missingdigits = h - bc.length;
-      for(var i = 0; i < missingdigits; i++) ac.push(0);
-      var result = ac.concat(bc);
-      return result;
+    var high2 = B.convertArrayBase(high, from, to, cache);
+    var low2 = B.convertArrayBase(low, from, to, cache);
+
+    var e = s.length - h;
+    var p = cache[e];
+    if (!p) {
+      var eh = R.idiv(e, 2);
+      var el = e - eh;
+      var ph = cache[eh];
+      var pl = cache[el];
+      // getInBaseTwoWithoutConvert_ is used to make sure the pow function does not call us, use more primitive base convert
+      if(ph && pl) p = ph.mul(pl);
+      else if(ph) p = ph.mul(B.pow(B(from, to), B.getInBaseTwoWithoutConvert_(el)));
+      else if(pl) p = pl.mul(B.pow(B(from, to), B.getInBaseTwoWithoutConvert_(eh)));
+      else p = B.pow(B(from, to), B.getInBaseTwoWithoutConvert_(e));
     }
+    cache[e] = p;
+
+    return B(low2, to).add(B(high2, to).mul(p)).a;
   }
 
 
   for(var i = 0; i < s.length; i++) {
     r = B.baseloop_(r, 0, from, [], 0, 1, s[i], to, false);
   }
+  if(r.length == 0) r = [0];
   return r;
 };
 Jmat.BigInt.convertStringBase = function(s, from, to) {
@@ -8966,6 +9052,7 @@ Jmat.BigInt.convertStringBase = function(s, from, to) {
   return Jmat.BigInt.arrayToString(a, to, to);
 };
 
+// Returns a + b in the simplest case
 // The basic loop for add, with potential shift, mul, ... a and b are arrays, not BigInt objects. No parameters are optional, use [], 0 or 1.
 // Supports also e.g. multiplying and adding a plain number to a single array: Jmat.BigInt.baseloop_(array, 0, mul, [], 0, 1, add, base, false)
 // Also ensures the result is stripped (no leading zeroes), to avoid some calculations accidently becoming slower and slower when using many subtracts
@@ -9219,6 +9306,17 @@ Jmat.BigInt.bitand = function(a, b) {
 };
 Jmat.BigInt.prototype.bitand = function(b) {
   return Jmat.BigInt.bitand(this, b);
+};
+
+// same as bitand, but with b a regular JS number (max 31 bits), and returning a regular JS number
+Jmat.BigInt.bitandr = function(a, b) {
+  var B = Jmat.BigInt;
+  if(a.minus) {
+    // TODO: make also this case faster
+    return B.bitand(a, B(b)).toInt();
+  }
+  a = B.cast(a, (b < B.ARRAYBASE_) ? B.ARRAYBASE_ : 2147483648);
+  return a.a[a.a.length - 1] & b;
 };
 
 // result is always positive. If a or b is negative, their two's complement representation is taken.
@@ -9692,6 +9790,19 @@ Jmat.BigInt.rootr = function(a, n) {
   return result;
 };
 
+// tests whether the number is a perfect square. Returns null if not, its square root if it is
+Jmat.BigInt.perfectsquare = function(a) {
+  var B = Jmat.BigInt;
+  if(a.minus) return null;
+  var nibble = B.bitandr(a, 15);
+  // only if the last nibble is 0, 1, 4 or 9, it's a square.
+  if(!(nibble == 0 || nibble == 1 || nibble == 4 || nibble == 9)) {
+    return null;
+  }
+  var s = B.sqrt(a);
+  if(s.mul(s).eq(a)) return s;
+  return null;
+};
 
 //Finds the nearest perfect power <= a, returns array with [base^exponent, base, exponent], with base >= 1 and exponent >= 2
 //To test if number is perfect power, simply check whether result is same as input.
@@ -9807,14 +9918,7 @@ Jmat.BigInt.factorial = function(a) {
 
   if(b < 20) return B(Jmat.Real.factorial(b));
 
-  // TODO: use a prime sieve
-  var primes = [];
-  var p = 2;
-  while(p <= b) {
-    primes.push(p);
-    p = Real.nextPrime(p);
-  }
-
+  var primes = Jmat.Real.eratosthenes(b);
   var f = [];
 
   // For each prime, it's easy to calculate the prime factors of the factorial. They are all powers of a prime, stored in f.
@@ -9841,14 +9945,7 @@ Jmat.BigInt.primorial = function(a) {
   var b = a.toInt(); //if a does not fit in regular JS number, the result is unreasonably huge anyway.
   if(b == Infinity) return undefined;
 
-  // TODO: use a prime sieve
-  var primes = [];
-  var p = 2;
-  while(p <= b) {
-    primes.push(B(p));
-    p = Real.nextPrime(p);
-  }
-
+  var primes = Jmat.Real.eratosthenes(b);
   return B.mulmany_(primes);
 };
 
@@ -9975,13 +10072,13 @@ Jmat.BigInt.factorize = function(a) {
 };
 
 
-// takes base-y logarithm of x (y is also BigInt, but typically something like 2 or 10. logr is faster with immediately giving regular JS number.)
+// takes floor of base-y logarithm of x (y is also BigInt, but typically something like 2 or 10. logr is faster with immediately giving regular JS number.)
 Jmat.BigInt.logy = function(x, y) {
   return Jmat.BigInt.logr(x, y.toInt());
 };
 
 
-// takes base-y logarithm of x (with y a regular JS number)
+// takes floor of base-y logarithm of x (with y a regular JS number, returns BigInt)
 Jmat.BigInt.logr = function(x, y) {
   if(x.eqr(y)) return Jmat.BigInt(1);
   if(x.minus || y < 0) return undefined;
@@ -10005,6 +10102,28 @@ Jmat.BigInt.log2 = function(x) {
 
 Jmat.BigInt.log10 = function(x) {
   return Jmat.BigInt.logr(x, 10);
+};
+
+// TODO: rename log2 to ilog2, and rlog2 to log2. Idem for log10, log, logy, ...
+// returns log2 of BigInt x as a real value, including fractional part
+Jmat.BigInt.rlog2 = function(x) {
+  var bits = Jmat.BigInt.getNumBits(x);
+  // Could actually work with up to 1022 bits: x.toInt() can return double precision float approximating the integer
+  if(bits > 128) {
+    x = Jmat.BigInt.rshift(x, bits - 128);
+    return Jmat.Real.log2(x.toInt()) + bits - 128;
+  }
+  return Jmat.Real.log2(x.toInt());
+};
+
+// returns ln of BigInt x as a real value, including fractional part
+Jmat.BigInt.rlog = function(x) {
+  return Jmat.BigInt.rlog2(x) * Math.LN2;
+};
+
+// returns ln of BigInt x as a real value, including fractional part
+Jmat.BigInt.rlog10 = function(x) {
+  return Jmat.BigInt.rlog2(x) / 3.321928094887362 /*log2(10)*/;
 };
 
 /*
@@ -10636,7 +10755,7 @@ Jmat.BigInt.maybecopystrip_ = function(a, allowmodify) {
   return a;
 };
 
-//strips (trims) BigInt a of zeroes. May return input. Does not make copy if not needed. Does not modify input.
+//strips (trims) BigInt a of leading zeroes. May return input. Does not make copy if not needed. Does not modify input.
 Jmat.BigInt.strip = function(a) {
   return a.strip();
 };
@@ -10777,6 +10896,9 @@ Jmat.BigInt.enrichFunctions_ = function() {
   Jmat.BigInt.enrichFunction_(object, 'logr', 1, 1);
   Jmat.BigInt.enrichFunction_(object, 'log2', 1, 1);
   Jmat.BigInt.enrichFunction_(object, 'log10', 1, 1);
+  Jmat.BigInt.enrichFunction_(object, 'rlog2', 1, 0);
+  Jmat.BigInt.enrichFunction_(object, 'rlog', 1, 0);
+  Jmat.BigInt.enrichFunction_(object, 'rlog10', 1, 0);
   Jmat.BigInt.enrichFunction_(object, 'pow', 2, 1 + prototoo);
   Jmat.BigInt.enrichFunction_(object, 'powr', 1, 1 + prototoo);
   Jmat.BigInt.enrichFunction_(object, 'gcd', 2, 1);
