@@ -6913,6 +6913,7 @@ Jmat.Matrix.parse = function(text) {
 
 // Makes ascii art rendering of the matrix (requires fixed width font)
 Jmat.Matrix.render = function(a, opt_precision) {
+  if(!a) return '' + a; // e.g. 'null'
   opt_precision = opt_precision == undefined ? 3 : opt_precision;
   var result = '';
   var real = Jmat.Matrix.isReal(a);
@@ -6976,7 +6977,7 @@ Jmat.Matrix.copy = function(a) {
   return result;
 };
 
-// Returns new h*w identity matrix
+// Returns new h*w identity matrix. AKA "eye".
 Jmat.Matrix.identity = function(h, w) {
   var r = new Jmat.Matrix(h, w);
   for(var y = 0; y < h; y++) {
@@ -7183,6 +7184,16 @@ Jmat.Matrix.isNaN = function(a) {
   for(var y = 0; y < a.h; y++) {
     for(var x = 0; x < a.w; x++) {
       if(Jmat.Complex.isNaN(a.e[y][x])) return true;
+    }
+  }
+  return false;
+};
+
+//returns true if any infinity or NaN in matrix. For the rest, must be valid object.
+Jmat.Matrix.isInfOrNaN = function(a) {
+  for(var y = 0; y < a.h; y++) {
+    for(var x = 0; x < a.w; x++) {
+      if(Jmat.Complex.isInfOrNaN(a.e[y][x])) return true;
     }
   }
   return false;
@@ -7560,82 +7571,82 @@ Jmat.Matrix.overlap = function(a, b, row, col) {
   return result;
 };
 
+// given b shifted by row,col, insert it into a, overwriting the matching elements of a, leaving other elements of a untouched. Parts of b outside of a, are discarded. The result has the same size as a.
+Jmat.Matrix.insert = function(a, b, row, col) {
+  var result = Jmat.Matrix.copy(a);
+
+  for(var y = 0; y < b.h; y++) {
+    for(var x = 0; x < b.w; x++) {
+      var rx = x + col;
+      var ry = y + row;
+      if(rx >= 0 && rx < a.w && ry >= 0 && ry < a.h) {
+        result.e[ry][rx] = b.e[y][x];
+      }
+    }
+  }
+
+  return result;
+};
+
 // QR factorization of complex matrix (with householder transformations)
-// m is h*w matrix with h >= w (however, it seems to work correct with h < w too ...)
+// requirement: m.h >= m.w
 // returns {q: Q, r: R}
-// q is unitary matrix of h*h
+// q is h*h unitary matrix
 // r is h*w upper triangular matrix
 Jmat.Matrix.qr = function(m) {
   /*
-  Checks in console:
-  var result = Jmat.Matrix.qr(Jmat.Matrix(2,2,1,2,3,4));
-  Jmat.Matrix.toString(result.q) + ' \n ' + Jmat.Matrix.toString(result.r) + ' \n ' + Jmat.Matrix.toString(Jmat.Matrix.mul(result.q, result.r));
-
-  var result = Jmat.Matrix.qr(Jmat.Matrix(3,3,1,2,3,4,5,6,7,8,9));
-  Jmat.Matrix.toString(result.q) + ' \n ' + Jmat.Matrix.toString(result.r) + ' \n ' + Jmat.Matrix.toString(Jmat.Matrix.mul(result.q, result.r));
-
-  var result = Jmat.Matrix.qr(Jmat.Matrix(3,3,12,-51,4,6,167,-68,-4,24,-41));
-  Jmat.Matrix.toString(result.q) + ' \n ' + Jmat.Matrix.toString(result.r) + ' \n ' + Jmat.Matrix.toString(Jmat.Matrix.mul(result.q, result.r));
+  Tests in console:
+  var qr = Jmat.qr([[1,2],[3,'4i']]); console.log(Matrix.render(qr.q)); console.log(Matrix.render(qr.r)); console.log(Matrix.render(qr.q.mul(qr.r)));
+  var qr = Jmat.qr([[1,2,3,4],[5,6,7,8],[9,10,11,12],[13,14,15,16]]); console.log(Matrix.render(qr.q)); console.log(Matrix.render(qr.r)); console.log(Matrix.render(qr.q.mul(qr.r)));
+  var qr = Jmat.qr(Jmat.Matrix(3,3,12,-51,4,6,167,-68,-4,24,-41)); console.log(Matrix.render(qr.q)); console.log(Matrix.render(qr.r)); console.log(Matrix.render(qr.q.mul(qr.r)));
+  degenerate matrix:
+  var qr = Jmat.qr([[1,0,0,0],[0,0,0,0],[0,0,0,0],[0,0,0,0]]); console.log(Matrix.render(qr.q)); console.log(Matrix.render(qr.r)); console.log(Matrix.render(qr.q.mul(qr.r)));
   */
 
-  //if(m.h < m.w) return null; //seems to work anyway, so don't do this check. TODO: verify this
+  if(m.h < m.w) return null;
 
-  var t = Math.min(m.h - 1, m.w);
+  var M = Jmat.Matrix;
+  var C = Jmat.Complex;
+  var T = M.transjugate;
   var real = Jmat.Matrix.isReal(m);
-  var a = Jmat.Matrix.copy(m);
-  var r;
-  var q;
-
-  for(var k = 0; k < t; k++) {
-    var x = Jmat.Matrix.col(a, 0);
-
-    var xk = a.e[0][0];
-    var normx = Jmat.Matrix.norm(x);
-
-    var alpha;
-    if(xk.im != 0) alpha = Jmat.Complex.exp(Jmat.Complex.newi(xk.arg())).neg().mul(normx);
-    else if(xk.re < 0) alpha = normx;
-    else alpha = normx.neg();
-
-    var u = Jmat.Matrix.col(a, 0);
-    u.e[0][0] = u.e[0][0].sub(alpha);
-    var normu = Jmat.Matrix.norm(u);
-
-    var v = Jmat.Matrix.divc(u, normu);
-
-    var vv;
-    if(real) {
-      vv = Jmat.Matrix.mulr(Jmat.Matrix.mul(v, Jmat.Matrix.transpose(v)), 2);
+  var a = M.copy(m);
+  var h = a.h;
+  var w = a.w;
+  var v = []; // the reflection vectors
+  var taus = []; // the multiplication values
+  for(var k = 0; k < w; k++) {
+    var x = M.submatrix(a, k, h, k, k + 1);
+    var s = x.e[0][0].eqr(0) ? C(-1) : C.sign(x.e[0][0]);
+    v[k] = M.identity(h - k, 1).mulc(s.mul(M.norm(x))).add(x);
+    var normv = M.norm(v[k]);
+    var degenerate = normv.eqr(0);
+    var tau;
+    if(degenerate) {
+      // In case of a degenerate column, do no reflection by setting tau to zero
+      tau = C(0);
     } else {
-      var xhv = Jmat.Matrix.mul(Jmat.Matrix.transjugate(x), v);
-      var vhx = Jmat.Matrix.mul(Jmat.Matrix.transjugate(v), x);
-      var w = xhv.e[0][0].div(vhx.e[0][0]);
-      vv = Jmat.Matrix.mulc(Jmat.Matrix.mul(v, Jmat.Matrix.transjugate(v)), w.inc());
-    }
-    var id = Jmat.Matrix.identity(a.h, a.h);
-    var qk = Jmat.Matrix.sub(id, vv); // here, qk*x = [alpha, 0,...,0]^T
-
-    if (k + 1 < t) {
-      a = Jmat.Matrix.mul(qk, a);
-      a = Jmat.Matrix.minorsub(a, 0, 0);
+      v[k] = v[k].divc(normv);
+      tau = C(2);
+      if(!real) {
+        var xhv = M.mul(M.transjugate(x), v[k]);
+        var vhx = M.mul(M.transjugate(v[k]), x);
+        tau = xhv.e[0][0].div(vhx.e[0][0]).addr(1);
+      }
     }
 
-    if(k == 0) {
-      q = Jmat.Matrix.transjugate(qk);
-    } else {
-      qk = Jmat.Matrix.overlap(Jmat.Matrix.identity(k, k), qk, k, k);
-      q = Jmat.Matrix.mul(q, Jmat.Matrix.transjugate(qk)); //Q1^h * Q2^h * ... * Qt^h
-    }
-    //r = Jmat.Matrix.mul(qk, r); // Qt * ... * Q2 * Q1 * A //not needed to calculate here, done below instead, is q^t * m
+    taus[k] = tau;
+    var as = M.submatrix(a, k, h, k, w);
+    as = as.sub(v[k].mul(T(v[k])).mul(as).mulc(tau));
+    a = M.insert(a, as, k, k);
   }
-  r = Jmat.Matrix.mul(Jmat.Matrix.transjugate(q), m);
+  var r = a;
 
-  // Solve numerical problem: 0-values of the upper triangular matrix sometimes become a tiny e-16 value
-  for(var y = 0; y < r.h; y++) {
-    for(var x = 0; x < r.w && x < y; x++) {
-      // every value below diagonal should be 0, but leave big ones so that miscalculation bugs can be seen.
-      if(r.e[y][x].abs() < 1e-15) r.e[y][x] = Jmat.Complex(0);
-    }
+  var q = M.identity(h, h);
+  for(var k = w - 1; k >= 0; k--) {
+    var z = M.submatrix(q, k, h, 0, h);
+    var z = M.submatrix(q, k, h, 0, h);
+    z = z.sub(v[k].mul(T(v[k])).mul(z).mulc(taus[k]));
+    q = M.insert(q, z, k, 0);
   }
 
   return { q: q, r: r };
@@ -7652,8 +7663,8 @@ Jmat.Matrix.eig11 = function(m) {
   return result;
 };
 
-// explicit algebraic formula for eigenvalues and vectors of 2x2 matrix
-Jmat.Matrix.eig22 = function(m) {
+// explicit algebraic formula for eigenvalues of 2x2 matrix
+Jmat.Matrix.eigval22 = function(m) {
   if(m.w != 2 || m.h != 2) return null;
   var a = Jmat.Complex(1);
   var b = m.e[0][0].neg().sub(m.e[1][1]);
@@ -7661,6 +7672,16 @@ Jmat.Matrix.eig22 = function(m) {
   var d = Jmat.Complex.sqrt(b.mul(b).sub(a.mul(c).mulr(4)));
   var l1 = b.neg().add(d).div(a.mulr(2));
   var l2 = b.neg().sub(d).div(a.mulr(2));
+  return [l1, l2];
+};
+
+// explicit algebraic formula for eigenvalues and vectors of 2x2 matrix
+Jmat.Matrix.eig22 = function(m) {
+  if(m.w != 2 || m.h != 2) return null;
+
+  var l = Jmat.Matrix.eigval22(m);
+  var l1 = l[0];
+  var l2 = l[1];
 
   var v11 = m.e[0][1].div(l1.sub(m.e[0][0]));
   var v12 = Jmat.Complex(1);
@@ -7679,21 +7700,10 @@ Jmat.Matrix.eig22 = function(m) {
   return result;
 };
 
-// explicit algebraic formula for eigenvalues of 2x2 matrix
-Jmat.Matrix.eigval22 = function(m) {
-  if(m.w != 2 || m.h != 2) return null;
-  var a = Jmat.Complex(1);
-  var b = m.e[0][0].add(m.e[1][1]);
-  var c = m.e[0][0].mul(m.e[1][1]).sub(m.e[0][1].mul(m.e[1][0]));
-  var d = Jmat.Complex.sqrt(b.mul(b).sub(a.mul(c).mulr(4)));
-  var l1 = b.add(d).div(a.add(a));
-  var l2 = b.sub(d).div(a.add(a));
-  return [l1, l2];
-};
-
 // Returns the eigenvectors and eigenvalues of m as { l: eigenvalues, v: eigenvectors }
 // eigenvalues as n*1 column vector, eigenvectors as n*n matrix
 // for each column of v and corresponding eigenvalue: A*v = l*v (l represents lambda, A is m)
+// TODO: currently often fails to find some eigenvectors (returning NaNs), due to inconsistency in the "solve" method used.
 Jmat.Matrix.eig = function(m) {
   /*
   Checks in console:
@@ -7744,26 +7754,31 @@ Jmat.Matrix.eig = function(m) {
 
   a = good;
 
-  var v = new Jmat.Matrix(n, n);
+  // The lambda's
+  var l = new Jmat.Matrix(m.w, 1);
+  for(var i = 0; i < m.w; i++) l.e[i][0] = a.e[i][i];
 
   // Find eigenvectors by solving system of linear equations.
   // TODO: this is not very efficient...
   // Normally, the product of all the qr.q's of the loop above should give the eigenvectors, but that applies only for symmetric matrices while this is supposed to support all
   // So, instead, solve system equation (A - lambda * I) * x = 0, but with last element of 0 set to 1, and bottom row of (A - lambda * I) set to 0,0,...,0,1.
   // That makes the system solvable, and makes each vector have its last element be 1.
+  var v = new Jmat.Matrix(n, n);
   for(var j = 0; j < n; j++) {
-    var value = a.e[j][j];
+    var lambda = a.e[j][j];
     var e = Jmat.Matrix.copy(m); //TODO: this makes it even slower, copy only the needed columns
-    for(var i = 0; i < n; i++) e.e[i][i] = e.e[i][i].sub(value);
+    for(var i = 0; i < n; i++) e.e[i][i] = e.e[i][i].sub(lambda);
     for(var i = 0; i < n; i++) e.e[e.h - 1][i] = Jmat.Complex(i == n - 1 ? 1 : 0);
     var f = Jmat.Matrix.zero(n, 1);
     f.e[f.h - 1][0] = Jmat.Complex(1);
     var g = Jmat.Matrix.solve(e, f);
-    for(var i = 0; i < n; i++) v.e[i][j] = g.e[i][0]; // The eigenvectors are stored as column vectors
+    if(g) {
+      for(var i = 0; i < n; i++) v.e[i][j] = g.e[i][0]; // The eigenvectors are stored as column vectors
+    } else {
+      // failed to find the corresponding eigenvectors (system inconsistent)
+      for(var i = 0; i < n; i++) v.e[i][j] = Jmat.Complex(NaN, NaN); // The eigenvectors are stored as column vectors
+    }
   }
-
-  var l = new Jmat.Matrix(m.w, 1);
-  for(var i = 0; i < m.w; i++) l.e[i][0] = a.e[i][i];
 
   return { l: l, v: v };
 };
