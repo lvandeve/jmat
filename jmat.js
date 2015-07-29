@@ -8924,6 +8924,12 @@ Jmat.BigInt.getInBaseTwoWithoutConvert_ = function(v) {
 
 //may return input object if bases are equal
 Jmat.BigInt.convertArrayBase = function(s, from, to, opt_powrcache_) {
+  if(s.length > 8 && to == 10 && Jmat.Real.isPOT(from)) {
+    // Using larger to-bases for the non-linear algos gives huge speedup.
+    // TODO: do this for all such to-bases rather than hardcoded for 10.
+    var a = Jmat.BigInt.convertArrayBase(s, from, 1000000);
+    return Jmat.BigInt.convertArrayBase(a, 1000000, 10);
+  }
   var R = Jmat.Real;
   var B = Jmat.BigInt;
   if(from == to) return s;
