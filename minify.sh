@@ -5,4 +5,4 @@
 # or
 #  > npm install -g uglify-js
 
-uglifyjs jmat.js -m -c --lint -v --comments "/(Copyright)|(Licensing)/" --source-map jmat.map >jmat.min.js
+uglifyjs jmat_real.js jmat_complex.js jmat_matrix.js jmat_quaternion.js jmat_special.js jmat_bigint.js jmat.js -m -c --lint -v --comments --source-map jmat.map >jmat.min.js

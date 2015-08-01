@@ -26,6 +26,8 @@ THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
 THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 */
 
+// REQUIRES: jmat_real.js, jmat_complex.js, jmat_matrix.js, jmat_quaternion.js, jmat_special.js, jmat_bigint.js, jmat.js
+
 // Unit tests for Jmat.js
 
 // constructor

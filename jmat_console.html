@@ -1,0 +1,159 @@
+<!DOCTYPE html>
+<meta charset="utf-8">
+<html>
+<head>
+<title>Jmat.js Demo</title>
+<style type="text/css">
+body {
+  color: #444;
+  margin: 0;
+  font: 16px Monospace, sans-serif
+}
+</style>
+</head>
+<body>
+
+<script type="text/javascript" src="jmat_real.js" ></script>
+<script type="text/javascript" src="jmat_complex.js" ></script>
+<script type="text/javascript" src="jmat_matrix.js" ></script>
+<script type="text/javascript" src="jmat_quaternion.js" ></script>
+<script type="text/javascript" src="jmat_special.js" ></script>
+<script type="text/javascript" src="jmat_bigint.js" ></script>
+<script type="text/javascript" src="jmat.js" ></script>
+<script type="text/javascript" src="jmat_plot.js" ></script>
+<script type="text/javascript" src="jmat_test.js" ></script>
+<script type="text/javascript">
+/*
+Copyright (c) 2011-2015, Lode Vandevenne
+All rights reserved.
+
+Redistribution and use in source and binary forms, with or without modification,
+are permitted provided that the following conditions are met:
+1. Redistributions of source code must retain the above copyright notice, this
+   list of conditions and the following disclaimer.
+2. Redistributions in binary form must reproduce the above copyright notice,
+   this list of conditions and the following disclaimer in the documentation
+   and/or other materials provided with the distribution.
+3. The name of the author may not be used to endorse or promote products
+   derived from this software without specific prior written permission.
+
+THIS SOFTWARE IS PROVIDED BY THE AUTHOR ``AS IS'' AND ANY EXPRESS OR
+IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES
+OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE DISCLAIMED.
+IN NO EVENT SHALL THE AUTHOR BE LIABLE FOR ANY DIRECT, INDIRECT,
+INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT
+NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE,
+DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY
+THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
+(INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF
+THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+*/
+function makeElement(parent, tag) {
+  var el =  document.createElement(tag);
+  parent.appendChild(el);
+  return el;
+}
+
+function makeRelElement(px, py, parent, tag) {
+  var el =  document.createElement(tag);
+  el.style.position = 'relative';
+  el.style.left = '' + Math.floor(px) + 'px';
+  el.style.top = '' + Math.floor(py) + 'px';
+  parent.appendChild(el);
+  return el;
+}
+
+function makeRelDivAt(px, py, parent) {
+  return makeRelElement(px, py, parent, 'div');
+}
+
+function makeBlockDivAt(px, py, parent) {
+  var el = makeBlockDiv(parent);
+  el.style.paddingLeft = '' + Math.floor(px) + 'px';
+  el.style.paddingTop = '' + Math.floor(py) + 'px';
+  parent.appendChild(el);
+  return el;
+}
+
+function makeBlockDiv(parent) {
+  var el =  document.createElement('div');
+  parent.appendChild(el);
+  return el;
+}
+
+var evalContainer = makeBlockDiv(document.body);
+
+var area = makeElement(evalContainer, 'textarea');
+area.style.width = '500px';
+area.style.height = '50px';
+var button = makeRelDivAt(0, 5, evalContainer);
+button.innerHTML = 'eval';
+button.style.textAlign = 'center';
+button.style.backgroundColor = '#eee';
+button.style.border = '1px solid black';
+button.style.width = '50px';
+button.style.height = '20px';
+var result = makeBlockDivAt(0, 10, evalContainer);
+
+result.style.width = '500px';
+result.style.wordWrap = 'break-word';
+button.onclick = function() {
+  var before = new Date().getTime();
+  var a = eval(area.value) || 'error';
+  var after = new Date().getTime();
+  var time = (after - before) / 1000;
+  a = '' + a;
+  var resultsize = (a.length > 1) ? (' (size: ' + a.length + ' chars)') : '';
+  var evaluated = (time > 0.5) ? (' (evaluated in ' + ((after - before) / 1000) + 's)') : '';
+  a = a.replace(/\n/g, '<br/>').replace(/ /g, '&nbsp');
+  result.innerHTML = 'answer' + evaluated + resultsize + ':<p/>' + a;
+};
+
+var examples = makeBlockDivAt(0, 10, evalContainer);
+examples.style.color = '#aaa';
+examples.style.width = '1000px';
+examples.style.fontSize = 'small';
+examples.innerHTML = 'Examples:<br/>' +
+    '<ul>' +
+    '<li>BigInt.factorial(\'10000\') </li>' +
+    '<li>Complex(\'1+2i\').add(Complex(\'3+4i\')) </li>' +
+    '<li>Jmat.besselj(5, Complex(5.5, 1)) </li>' +
+    '<li>Jmat.fft([[1,2],[3,4]]).toString()</li>' +
+    '<li>Jmat.eig([[1,2],[3,4]]).l.toString()</li>' +
+    '<li>Jmat.gamma(5.5).add(Jmat.trigamma(5.5)) </li>' +
+    '<li>Jmat.factorize(30030) </li>' +
+    '</ul>';
+
+info = makeBlockDivAt(0, 10, document.body);
+info.style.width = '500px';
+info.innerHTML = 'This software is provided \'as-is\', without any express or implied warranty. In no event will the authors be held liable for any damages arising from the use of this software.<p/>' +
+    'Copyright (c) 2011-2015 by Lode Vandevenne.';
+
+
+function localStorageSupported() {
+  try {
+    return 'localStorage' in window && window['localStorage'] != null;
+  } catch(e) {
+    return false;
+  }
+}
+
+function setLocalStorage() {
+  if(!localStorageSupported()) return;
+
+  localStorage['jmat_console_value'] = area.value;
+}
+
+//no longer a cookie, but html5 local storage
+function getLocalStorage() {
+  if(!localStorageSupported()) return;
+
+  area.value = localStorage['jmat_console_value'] || '';
+}
+
+window.onbeforeunload = setLocalStorage;
+getLocalStorage();
+</script>
+
+</body>
+</html>

@@ -1,7 +1,7 @@
 /*
 Jmat.js
 
-Copyright (c) 2011-2014, Lode Vandevenne
+Copyright (c) 2011-2015, Lode Vandevenne
 All rights reserved.
 
 Redistribution and use in source and binary forms, with or without modification,
@@ -26,7 +26,8 @@ THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
 THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 */
 
-// For documentation, see jmat.js
+// REQUIRES: jmat_real.js, jmat_complex.js
+
 // NOTE: requires charset="utf-8" to render navigation arrow characters correctly
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -244,7 +245,7 @@ Jmat.Plot.getComplexColor = function(y, maxval) {
     l *= 255;
     if(l < (255-m) & a > 0) l = (255-m);
     if(l > m) l = m;
-    
+
     if(Jmat.Plot.complexColorFormula_ == 2) rgb = Jmat.Plot.hslToRgb(h, s, l);
     else rgb = Jmat.Plot.hsvToRgb(h, s, l);
   }
@@ -358,7 +359,7 @@ Jmat.Plot.addPlotLabels_ = function(xlabel, ylabel, x0, x1, y0, y1, parent) {
   var plotx1 = plotx0 + 322;
   var ploty0 = 32;
   var ploty1 = ploty0 + 322;
-  
+
   var yc = (y0 + y1) / 2;
   Jmat.Plot.makeSizedDiv(parent, plotx0 - 8, ploty0, 8, 1).style.backgroundColor = 'black';
   Jmat.Plot.makeSizedDiv(parent, plotx0 - 8, (ploty0 + ploty1) / 2, 8, 1).style.backgroundColor = 'black';
@@ -383,7 +384,7 @@ Jmat.Plot.addPlotLabels_ = function(xlabel, ylabel, x0, x1, y0, y1, parent) {
 Jmat.Plot.makeRealPixel_ = function(div, width, height, params, px, y, prevy, rgb, title) {
   var p = params.p;
   var ysize = params.ysize;
-  
+
   var py = Math.floor(height / 2 - ((y+params.yshift) / ysize * height) - 1);
   var prevpy = Math.floor(height / 2 - ((prevy+params.yshift) / ysize * height) - 1);
 
@@ -526,14 +527,14 @@ Jmat.Plot.plot2DLineTimeout_ = function(fun, size, steps, params, py, div) {
   var stage = 1;
   var params1 = params;
   var steps1 = steps;
-  
+
   if(params.p <= 2) {
     stage = 0;
     params = JSON.parse(JSON.stringify(params));
     params.p *= 4;
     steps /= 4;
   }
-  
+
   var linefun = function(py) {
     window.setTimeout(function() {
       for(var i = 0; i < 4; i++) {
