@@ -448,6 +448,7 @@ Jmat.Complex.prototype.dec = function() {
   return new Jmat.Complex(this.re - 1, this.im);
 };
 
+// TODO: consider no longer have prototype.abs return real and Complex.abs return Complex. Use absr for real instead.
 // absolute value, aka modulus of complex number, as a Jmat.Complex object (its imaginary part is 0)
 Jmat.Complex.abs = function(x) {
   return Jmat.Complex(x.abs());
@@ -1018,6 +1019,12 @@ Jmat.Complex.near = function(x, y, epsilon) {
   //return Jmat.Complex.manhattan(x, y) <= epsilon;
   // Manhattan NOT used, because then this function returns false for equal infinities
   return x.re - epsilon <= y.re && x.re + epsilon >= y.re && x.im - epsilon <= y.im && x.im + epsilon >= y.im;
+};
+
+// Near regular JS number y
+Jmat.Complex.nearr = function(x, y, epsilon) {
+  // Manhattan NOT used, because then this function returns false for equal infinities
+  return x.re - epsilon <= y && x.re + epsilon >= y && x.im - epsilon <= 0 && x.im + epsilon >= 0;
 };
 
 /*

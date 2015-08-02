@@ -809,6 +809,12 @@ Jmat.minkowski = function(x) { return Jmat.Complex.minkowski(Jmat.Complex.cast(x
 
 // Matrix (NOTE: more are above: add, sub, mul, div, inv, neg, conj, exp, log, sqrt, cos, sin)
 
+/* LUP decomposition. m:{Array|Matrix}. returns {Object.<string, Matrix>} object with p:P, l:L, u:U */
+Jmat.lu = function(m) { return Jmat.Matrix.lu(Jmat.Matrix.cast(m)); };
+/* QR decomposition. m:{Array|Matrix}. returns {Object.<string, Matrix>} object with q:Q, r:R */
+Jmat.qr = function(m) { return Jmat.Matrix.qr(Jmat.Matrix.cast(m)); };
+/* singular value decomposition. m:{Array|Matrix}. returns {Object.<string, Matrix>} object with u:U, s:S, v:V */
+Jmat.svd = function(m) { return Jmat.Matrix.svd(Jmat.Matrix.cast(m)); };
 /* Eigenvalues and eigenvectors. m:{Array|Matrix}. returns {Object.<string, Matrix>} object with l:eigenvalues, v:eigenvectors */
 Jmat.eig = function(m) { return Jmat.Matrix.eig(Jmat.Matrix.cast(m)); };
 /* Moore-Penrose pseudo-inverse. m:{Array|Matrix}. returns {Matrix} */
@@ -905,14 +911,16 @@ Jmat.bigIntIn_ = function(v) {
   // No test for array, that can already mean matrix
 };
 
-// Nice string of any known object, like Complex and Matrix and the objects of named matrices returned by svd or array returned by factorize
-Jmat.toString = function(a) {
+Jmat.toString_ = function(a, opt_render) {
   if(!a) return '' + a;
   var result = '';
+  if(opt_render && a.render) {
+    return ('\n' + a.render());
+  }
   // For arrays of known types
   if(typeof a == 'object' && Array.isArray(a)) {
     result += '[';
-    for(var i = 0; i < a.length; i++) result += (Jmat.toString(a[i]) + (i + 1 == a.length ? '' : ', '));
+    for(var i = 0; i < a.length; i++) result += (Jmat.toString_(a[i], opt_render) + (i + 1 == a.length ? '' : ', '));
     result += ']';
     return result;
   }
@@ -924,15 +932,25 @@ Jmat.toString = function(a) {
       if(!it || !a[it]) continue;
       if(comma) result += ', ';
       result += it + ': ';
-      result += Jmat.toString(a[it]);
+      result += Jmat.toString_(a[it], opt_render);
       comma = true;
     }
     result += '}';
     return result;
   }
   // Prefer toString implementation if available (that is where this function is better than JSON.stringify! :))
-  result = a.toString ? a.toString() : ('' + a);
+  result = (opt_render && a.render) ? ('\n' + a.render()) : (a.toString ? a.toString() : ('' + a));
   return result;
+};
+
+// Nice string of any known object, like Complex and Matrix and the objects of named matrices returned by svd or array returned by factorize
+Jmat.toString = function(a) {
+  return Jmat.toString_(a, false);
+};
+
+// Nice string of any known object, with possibly some multiline rendered matrices
+Jmat.render = function(a) {
+  return Jmat.toString_(a, true);
 };
 
 
