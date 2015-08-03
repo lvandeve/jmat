@@ -1050,10 +1050,12 @@ Jmat.Matrix.doolittle_lup_ = function(a) {
       }
     }
 
-    if(C.nearr(a.e[k][k], 0, 1e-15)) return null; // singular
+    //Returning for singular commented out: still works, resulting U will be singular.
+    //if(C.nearr(a.e[k][k], 0, 1e-15)) return null; // singular
 
     for(var i = k + 1; i < a.h; i++) {
       a.e[i][k] = a.e[i][k].div(a.e[k][k]);
+      if(C.isNaN(a.e[i][k])) a.e[i][k] = C(0); // Set 0/0 to 0 for singular input matrix.
     }
     for(var i = k + 1; i < a.h; i++) {
       for(var j = k + 1; j < a.h; j++) {
@@ -1357,7 +1359,9 @@ Jmat.Matrix.norm2 = function(m) {
 Jmat.Matrix.conditionNumber = function(m) {
   var svd = Jmat.Matrix.svd(m);
   var d = Math.min(m.w, m.h);
-  return svd.s.e[0][0].div(svd.s.e[d - 1][d - 1]);
+  var result = svd.s.e[0][0].div(svd.s.e[d - 1][d - 1]);
+  if (Jmat.Complex.isNaN(result)) result = Jmat.Complex(Infinity);
+  return result;
 };
 
 //Rank of matrix
