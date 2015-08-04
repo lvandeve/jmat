@@ -1560,39 +1560,40 @@ Jmat.Matrix.eig22 = function(m) {
 
 // Returns the eigenvalues of m in an array, from largest to smallest
 Jmat.Matrix.eigval = function(m) {
+  var M = Jmat.Matrix;
   if(m.w != m.h || m.w < 1) return null;
   var n = m.w;
   if(n == 1) return [m.e[0][0]];
-  if(n == 2) return Jmat.Matrix.eigval22(m);
+  if(n == 2) return M.eigval22(m);
 
   // using the QR algorithm
-  var a = Jmat.Matrix.copy(m); //will contain the eigenvalues on the diagonal
+  var a = M.copy(m); //will contain the eigenvalues on the diagonal
 
   // Naive implicit QR without shifts, does not work in many cases, left commented out for demo purpose only
   // for(var i = 0; i < 30; i++) {
-  //  var qr = Jmat.Matrix.qr(a);
-  //  a = Jmat.Matrix.mul(qr.r, qr.q); // RQ instead of QR: A_k -> QR, A_(k+1) = RQ
+  //  var qr = M.qr(a);
+  //  a = M.mul(qr.r, qr.q); // RQ instead of QR: A_k -> QR, A_(k+1) = RQ
   // }
 
   // QR with double shifting. This because with single shift or no shift, it does not support complex eigenvalues of real matrix, e.g. [[1,-1],[5,-1]]
   // TODO: this is slow, optimize like with Hessenberg form
-  var id = Jmat.Matrix.identity(n, n);
+  var id = M.identity(n, n);
   var good = undefined; // good a (no NaNs)
   for(var i = 0; i < 15; i++) {
     // var s = a.e[a.h - 1][a.w - 1]; //value that would be chosen for single shift
     // double shift: choose two sigma's, the eigenvalues of the bottom right 2x2 matrix (for which we have the explicit solution)
-    var l = Jmat.Matrix.eigval22(Jmat.Matrix.submatrix(a, a.h - 2, a.h, a.w - 2, a.w));
+    var l = M.eigval22(M.submatrix(a, a.h - 2, a.h, a.w - 2, a.w));
 
     var si0 = id.mulc(l[0]);
     a = a.sub(si0);
-    var qr = Jmat.Matrix.qr(a);
-    a = Jmat.Matrix.mul(qr.r, qr.q).add(si0);
+    var qr = M.qr(a);
+    a = M.mul(qr.r, qr.q).add(si0);
 
     var si1 = id.mulc(l[1]);
     a = a.sub(si1);
-    qr = Jmat.Matrix.qr(a);
-    a = Jmat.Matrix.mul(qr.r, qr.q).add(si1);
-    if(Jmat.Matrix.isValid(a)) {
+    qr = M.qr(a);
+    a = M.mul(qr.r, qr.q).add(si1);
+    if(M.isValid(a)) {
       good = a;
     } else {
       // Sometimes QR starts returning NaNs, e.g. if some values are too small. E.g. happens with [[1,2,3],[4,5,6],[7,8,9]] at input. Breaking out if i is large enough is still ok.
@@ -1612,20 +1613,22 @@ Jmat.Matrix.eigval = function(m) {
 // Returns the eigenvectors and eigenvalues of m as { l: eigenvalues, v: eigenvectors }
 // eigenvalues as n*1 column vector, eigenvectors as n*n matrix
 // for each column of v and corresponding eigenvalue: A*v = l*v (l represents lambda, A is m)
-// TODO: currently often fails to find some eigenvectors (returning NaNs), due to inconsistency in the "solve" method used.
-Jmat.Matrix.eig = function(m) {
+// opt_normalize is how to normalize the eigenvectors: 0: don't (length unspecified), 1: last element equals 1, 2: length 1. The default is "1".
+Jmat.Matrix.eig = function(m, opt_normalize) {
+  var M = Jmat.Matrix;
+  var normalize_mode = (opt_normalize == undefined) ? 1 : opt_normalize;
   if(m.w != m.h || m.w < 1) return null;
   var n = m.w;
-  if(n == 1) return Jmat.Matrix.eig11(m);
-  if(n == 2) return Jmat.Matrix.eig22(m);
+  if(n == 1) return M.eig11(m);
+  if(n == 2) return M.eig22(m);
   /*
   Checks in console:
   var result = Jmat.Matrix.eig(Jmat.Matrix(2,2,1,2,3,4))
   Jmat.Matrix.toString(result.l) + ' \n ' + Jmat.Matrix.toString(result.v);
   */
 
-  var val = Jmat.Matrix.eigval(m);
-  var l = new Jmat.Matrix(m.w, 1);
+  var val = M.eigval(m);
+  var l = new M(m.w, 1);
   for(var i = 0; i < m.w; i++) l.e[i][0] = val[i];
 
   // Find eigenvectors by solving system of linear equations.
@@ -1633,19 +1636,19 @@ Jmat.Matrix.eig = function(m) {
   // Normally, the product of all the qr.q's of the loop above should give the eigenvectors, but that applies only for symmetric matrices while this is supposed to support all
   // So, instead, solve system equation (A - lambda * I) * x = 0, but with last element of 0 set to 1, and bottom row of (A - lambda * I) set to 0,0,...,0,1.
   // That makes the system solvable (TODO: not really, what if a bottom row 0 makes a whole column 0?), and makes each vector have its last element be 1.
-  var v = new Jmat.Matrix(n, n);
+  var v = new M(n, n);
   for(var j = 0; j < n; j++) {
     var lambda = val[j];
-    var e = Jmat.Matrix.copy(m); //TODO: this makes it even slower, copy only the needed columns
+    var e = M.copy(m); //TODO: this makes it even slower, copy only the needed columns
     for(var i = 0; i < n; i++) e.e[i][i] = e.e[i][i].sub(lambda);
-    for(var i = 0; i < n; i++) e.e[e.h - 1][i] = Jmat.Complex(i == n - 1 ? 1 : 0);
-    var f = Jmat.Matrix.zero(n, 1);
-    f.e[f.h - 1][0] = Jmat.Complex(1);
-    var g = Jmat.Matrix.solve(e, f);
+    var f = M.zero(n, 1);
+    var g = M.solve(e, f);
     if(g) {
+      if(normalize_mode == 2) g = g.divc(M.norm(g));
+      if(normalize_mode == 1) if(!g.e[n - 1][0].eqr(0)) g = g.divc(g.e[n - 1][0]);
       for(var i = 0; i < n; i++) v.e[i][j] = g.e[i][0]; // The eigenvectors are stored as column vectors
     } else {
-      // failed to find the corresponding eigenvectors (system inconsistent)
+      // failed to find the corresponding eigenvectors, avoid crash, set values to NaN
       for(var i = 0; i < n; i++) v.e[i][j] = Jmat.Complex(NaN, NaN); // The eigenvectors are stored as column vectors
     }
   }
@@ -2273,15 +2276,26 @@ Jmat.Matrix.relnear = function(a, b, precision) {
 //a: input matrix, h*w size
 //b: input vector, h*1 size
 Jmat.Matrix.solve = function(a, b) {
+  var M = Jmat.Matrix;
   if(a.h != b.h) return undefined; // input error
-  var ag = Jmat.Matrix.pseudoinverse(a);
+
+  if (M.isZero(b)) {
+    // Homogenous system. Also used by eigenvector calculation.
+    var svd = M.svd(a);
+    if (!Jmat.Complex.nearr(svd.s.e[svd.s.h - 1][svd.s.h - 1], 0)) return null;
+    // A is assumed singular. Last column should correspond to singular value which is zero, corresponding to a solution.
+    return M.col(svd.v, a.w - 1);
+  }
+  var ag = Jmat.Matrix.pseudoinverse_(a); // with SVD
 
   var aag = Jmat.Matrix.mul(a, ag);
   var aagb = Jmat.Matrix.mul(aag, b);
   if(!Jmat.Matrix.near(b, aagb, 1e-5)) return null; //inconsistent system with no solution
 
-  return Jmat.Matrix.mul(ag, b);
+  var x = Jmat.Matrix.mul(ag, b);
+  return x;
 };
+
 
 
 ////////////////////////////////////////////////////////////////////////////////

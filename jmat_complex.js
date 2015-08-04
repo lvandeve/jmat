@@ -1015,14 +1015,16 @@ Jmat.Complex.manhattan = function(a, b) {
   return Math.max(Math.abs(a.re - b.re), Math.abs(a.im - b.im));
 };
 
-Jmat.Complex.near = function(x, y, epsilon) {
+Jmat.Complex.near = function(x, y, opt_epsilon) {
+  var epsilon = (opt_epsilon == undefined) ? 1e-15 : opt_epsilon;
   //return Jmat.Complex.manhattan(x, y) <= epsilon;
   // Manhattan NOT used, because then this function returns false for equal infinities
   return x.re - epsilon <= y.re && x.re + epsilon >= y.re && x.im - epsilon <= y.im && x.im + epsilon >= y.im;
 };
 
 // Near regular JS number y
-Jmat.Complex.nearr = function(x, y, epsilon) {
+Jmat.Complex.nearr = function(x, y, opt_epsilon) {
+  var epsilon = (opt_epsilon == undefined) ? 1e-15 : opt_epsilon;
   // Manhattan NOT used, because then this function returns false for equal infinities
   return x.re - epsilon <= y && x.re + epsilon >= y && x.im - epsilon <= 0 && x.im + epsilon >= 0;
 };
