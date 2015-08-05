@@ -176,6 +176,7 @@ Jmat.doUnitTest = function() {
   Jmat.Test.testEIG([[1]], [[1]], 1e-5, [[1]]);
   Jmat.Test.testEIG([[5.37228], [-0.372281]], [[0.457427, -1.45743],[1, 1]], 1e-5, [[1,2],[3,4]]);
   Jmat.Test.testEIG([[16.1168], [-1.11684], [0]], [[0.283349, -1.28335, 1],[0.641675, -0.141675, -2], [1, 1, 1]], 1e-4, [[1,2,3],[4,5,6],[7,8,9]]); //wolfram|alpha only gave 4 digits
+  Jmat.Test.expectNear(Jmat.Matrix([[0.5],[-1],[0.5]]), Jmat.Matrix.solve(Jmat.Matrix([[0,1,2],[3,5,7],[11,13,17]]), Jmat.Matrix([[0],[0],[1]])), eps);
 
   // matrix parsing
   Jmat.Test.testFunction([[1,2],[3,4]], eps, Jmat.Matrix.parse, '[[1,2],[3,4]]');

@@ -1074,7 +1074,7 @@ Jmat.Matrix.lu = function(a) {
   var M = Jmat.Matrix;
   var C = Jmat.Complex;
   var r = M.doolittle_lup_(a);
-  if(!r) return r; // singular or input error
+  if(!r) return r; // error
   a = r[0];
   var pivot = r[1];
 
@@ -1097,9 +1097,7 @@ Jmat.Matrix.lu = function(a) {
   var pivot2 = []; // list with index of each row in the permutation matrix
   for(var i = 0; i < a.h; i++) pivot2[i] = i;
   for(var i = 0; i < a.h; i++) {
-    var temp = pivot2[i];
-    pivot2[i] = pivot2[pivot[i]];
-    pivot2[pivot[i]] = temp;
+    var temp = pivot2[i]; pivot2[i] = pivot2[pivot[i]]; pivot2[pivot[i]] = temp;
   }
   for(var i = 0; i < a.h; i++) {
     p.e[pivot2[i]][i] = C(1);
@@ -2245,8 +2243,7 @@ Jmat.Matrix.near = function(a, b, epsilon) {
     for(var x = 0; x < a.w; x++) {
       var ea = a.e[y][x];
       var eb = b.e[y][x];
-      if(Math.abs(ea.re - eb.re) > epsilon) return false;
-      if(Math.abs(ea.im - eb.im) > epsilon) return false;
+      if(!Jmat.Complex.near(ea, eb, epsilon)) return false;
     }
   }
 
@@ -2280,19 +2277,33 @@ Jmat.Matrix.solve = function(a, b) {
   if(a.h != b.h) return undefined; // input error
 
   if (M.isZero(b)) {
-    // Homogenous system. Also used by eigenvector calculation.
+    // Homogenous system.
     var svd = M.svd(a);
-    if (!Jmat.Complex.nearr(svd.s.e[svd.s.h - 1][svd.s.h - 1], 0)) return null;
+    if (!Jmat.Complex.nearr(svd.s.e[svd.s.h - 1][svd.s.h - 1], 0, 1e-5)) return null; //allow large imprecision, so that it works if eigenvector calculation is a bit imprecise.
     // A is assumed singular. Last column should correspond to singular value which is zero, corresponding to a solution.
     return M.col(svd.v, a.w - 1);
   }
-  var ag = Jmat.Matrix.pseudoinverse_(a); // with SVD
 
-  var aag = Jmat.Matrix.mul(a, ag);
-  var aagb = Jmat.Matrix.mul(aag, b);
-  if(!Jmat.Matrix.near(b, aagb, 1e-5)) return null; //inconsistent system with no solution
+  var r = M.doolittle_lup_(a);
+  if(!r) return null; // error
+  lu = r[0];
+  var pivot = r[1];
+  var pivot2 = r[1];
 
-  var x = Jmat.Matrix.mul(ag, b);
+  var n = lu.h;
+  var x = M(n, 1);
+
+  for (var k = 0; k < n; k++) {
+    if (pivot[k] != k) { var temp = b.e[k][0]; b.e[k][0] = b.e[pivot[k]][0]; b.e[pivot[k]][0] = temp; }
+    x.e[k][0] = b.e[k][0];
+    for(var i = 0; i < k; i++) x.e[k][0] = x.e[k][0].sub(x.e[i][0].mul(lu.e[k][i]));
+  }
+  for (var k = n-1; k >= 0; k--) {
+    if (pivot[k] != k) { var temp = b.e[k][0]; b.e[k][0] = b.e[pivot[k]][0]; b.e[pivot[k]][0] = temp; }
+    for(var i = k + 1; i < n; i++) x.e[k][0] = x.e[k][0].sub(x.e[i][0].mul(lu.e[k][i]));
+    if (!lu.e[k][k].eqr(0)) x.e[k][0] = x.e[k][0].div(lu.e[k][k]);
+  }
+
   return x;
 };
 
