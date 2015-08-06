@@ -812,25 +812,47 @@ Jmat.Matrix.isPermutation = function(a, opt_epsilon) {
   return true;
 };
 
+// constant elements along diagonals
 Jmat.Matrix.isToeplitz = function(a, opt_epsilon) {
   var epsilon = (opt_epsilon == undefined) ? 1e-15 : opt_epsilon;
   if (!Jmat.Matrix.isSquare(a)) return false;
 
   for(var y = 0; y + 1 < a.h; y++) {
     for(var x = 0; x + 1 < a.w; x++) {
-      if (!Jmat.Complex.nearr(a.e[y][x], a.e[y + 1][x + 1], epsilon)) return false;
+      if (!Jmat.Complex.near(a.e[y][x], a.e[y + 1][x + 1], epsilon)) return false;
     }
   }
   return true;
 };
 
+// constant elements along anti-diagonals
 Jmat.Matrix.isHankel = function(a, opt_epsilon) {
   var epsilon = (opt_epsilon == undefined) ? 1e-15 : opt_epsilon;
   if (!Jmat.Matrix.isSquare(a)) return false;
 
   for(var y = 1; y < a.h; y++) {
     for(var x = 0; x + 1 < a.w; x++) {
-      if (!Jmat.Complex.nearr(a.e[y][x], a.e[y - 1][x + 1], epsilon)) return false;
+      if (!Jmat.Complex.near(a.e[y][x], a.e[y - 1][x + 1], epsilon)) return false;
+    }
+  }
+  return true;
+};
+
+// like identity except one column may have arbitrary elements below the diagonal
+Jmat.Matrix.isFrobenius = function(a, opt_epsilon) {
+  var epsilon = (opt_epsilon == undefined) ? 1e-15 : opt_epsilon;
+  if (!Jmat.Matrix.isSquare(a)) return false;
+
+  var col = -1; //the one column that non-zero elements below the diagonal
+
+  for(var y = 0; y < a.h; y++) {
+    for(var x = 0; x < a.w; x++) {
+      if (x == y && !Jmat.Complex.nearr(a.e[y][x], 1, epsilon)) return false;
+      if (x > y && !Jmat.Complex.nearr(a.e[y][x], 0, epsilon)) return false;
+      if (x < y && !Jmat.Complex.nearr(a.e[y][x], 0, epsilon)) {
+        if(col >= 0 && x != col) return false;
+        col = x;
+      }
     }
   }
   return true;
@@ -877,15 +899,14 @@ Jmat.Matrix.getProperties = function(a) {
   result['permutation'] = M.isPermutation(a);
   result['toeplitz'] = M.isToeplitz(a);
   result['hankel'] = M.isHankel(a);
+  result['frobenius'] = M.isFrobenius(a);
   if(result['hermitian']) {
     var d = M.definiteness(a);
-    if(d == M.INDEFINITE) result['definiteness'] = 'indefinite';
-    else if(d == M.POSITIVE_DEFINITE) result['definiteness'] = 'positive definite';
-    else if(d == M.NEGATIVE_DEFINITE) result['definiteness'] = 'negative definite';
-    else if(d == M.POSITIVE_SEMI_DEFINITE) result['definiteness'] = 'positive semidefinite';
-    else if(d == M.NEGATIVE_SEMI_DEFINITE) result['definiteness'] = 'negative semidefinite';
-  } else {
-    result['definiteness'] = 'N/A';
+    if(d == M.INDEFINITE) result['indefinite'] = true;
+    else if(d == M.POSITIVE_DEFINITE) result['positiveDefinite'] = result['positiveSemidefinite'] = true;
+    else if(d == M.NEGATIVE_DEFINITE) result['negativeDefinite'] = result['negativeSemidefinite'] = true;
+    else if(d == M.POSITIVE_SEMI_DEFINITE || result['zero']) result['positiveSemidefinite'] = true;
+    else if(d == M.NEGATIVE_SEMI_DEFINITE || result['zero']) result['negativeSemidefinite'] = true;
   }
 
   return result;
@@ -905,6 +926,7 @@ Jmat.Matrix.summary = function(a) {
     name = name.replace('frobenius', 'Frobenius');
     name = name.replace('toeplitz', 'Toeplitz');
     name = name.replace('hankel', 'Hankel');
+    name = name.replace('frobenius', 'Frobenius');
     return name;
   };
 
@@ -914,7 +936,8 @@ Jmat.Matrix.summary = function(a) {
   //order of properties only applicable for square matrices
   var square = ['identity', 'symmetrical', 'hermitian', 'skewSymmetrical', 'skewHermitian', 'diagonal', 'tridiagonal',
                 'upperTriangular', 'lowerTriangular', 'strictlyUpperTriangular', 'strictlyLowerTriangular', 'upperHessenberg', 'lowerHessenberg',
-                'singular', 'invertible', 'determinant', 'trace', 'orthogonal', 'unitary', 'normal', 'permutation', 'toeplitz', 'hankel', 'definiteness'];
+                'singular', 'invertible', 'determinant', 'trace', 'orthogonal', 'unitary', 'normal', 'permutation', 'toeplitz', 'hankel',
+                'indefinite', 'positiveDefinite', 'negativeDefinite', 'positiveSemidefinite', 'negativeSemidefinite', 'frobenius'];
 
   var opposite = { 'square' : 'non-square', 'real' : 'complex' };
   // these properties are added only to avoid some redundancy in summary output with the "sub" sytem
@@ -922,32 +945,35 @@ Jmat.Matrix.summary = function(a) {
   p['small1x1'] = (a.w <= 1 && a.h <= 1);
   p['realsym'] = p['real'] && p['symmetrical'];
   p['realskewsym'] = p['real'] && p['skewSymmetrical'];
-  // pairs of child:parent, where child is always true if parent is true, with the intention to not display child in a list if parent is already true as it's redundant
+  // pairs of child:parents, where child is always true if any of the parents is true, with the intention to not display child in a list if parent is already true as it's redundant
   var sub = {
-    'strictlyUpperTriangular' : 'zero', 'strictlyLowerTriangular' : 'zero',
-    'upperTriangular' : 'diagonal', 'lowerTriangular' : 'diagonal',
-    'upperHessenberg' : 'upperTriangular', 'lowerHessenberg' : 'lowerTriangular',
-    'upperHessenberg' : 'tridiagonal', 'lowerHessenberg' : 'tridiagonal',
-    'diagonal' : 'small1x1', 'tridiagonal' : 'small2x2', 'tridiagonal' : 'diagonal',
-    'orthogonal' : 'normal', 'unitary' : 'normal',
-    'hermitian' : 'normal', 'hermitian' : 'realsym',  'skewHermitian' : 'realskewsym',
-    'orthogonal' : 'identity', 'diagonal' : 'identity', 'normal' : 'identity',
-    'symmetrical' : 'identity', 'permutation' : 'identity', 'invertible' : 'identity',
-    'real' : 'identity', 'toeplitz' : 'identity'
+    'strictlyUpperTriangular': ['zero'], 'strictlyLowerTriangular' : ['zero'],
+    'upperTriangular' : ['diagonal', 'strictlyUpperTriangular'], 'lowerTriangular' : ['diagonal', 'frobenius', 'strictlyLowerTriangular'],
+    'upperHessenberg' : ['upperTriangular', 'tridiagonal'], 'lowerHessenberg' : ['lowerTriangular', 'tridiagonal'],
+    'diagonal' : ['small1x1', 'identity', 'zero'], 'tridiagonal' : ['small2x2', 'diagonal'],
+    'orthogonal' : ['normal', 'identity'], 'unitary' : ['normal'], 'normal' : ['identity', 'zero'],
+    'hermitian' : ['normal'], 'hermitian' : ['realsym'],  'skewHermitian' : ['realskewsym'],
+    'symmetrical' : ['diagonal'], 'skewSymmetrical' : ['zero'],
+    'permutation' : ['identity'], 'invertible' : ['identity'], 'singular' : ['zero'],
+    'real' : ['identity', 'zero'], 'toeplitz' : ['identity', 'zero'], 'hankel' : ['zero'], 'frobenius' : ['identity'],
+    'positiveDefinite' : ['identity'], 'negativeSemidefinite' : ['zero', 'negativeDefinite'], 'positiveSemidefinite' : ['zero', 'positiveDefinite']
   };
 
   var summary = p['dimensions'] + ', ' + (p['square'] ? 'square' : opposite['square']);
   for(var i = 0; i < nonsquare.length + square.length; i++) {
     var e = i < nonsquare.length ? nonsquare[i] : square[i - nonsquare.length];
     if (p[e] === true) {
-      if (sub[e] && p[sub[e]] === true) continue; //redundant, e.g. don't say "upper triangular" if it's already "strictly upper triangular"
+      if (sub[e]) {
+        var redundant = false;
+        for(var j = 0; j < sub[e].length; j++) if(p[sub[e][j]] === true) redundant = true; //e.g. don't say "upper triangular" if it's already "strictly upper triangular"
+        if(redundant) continue;
+      }
       summary += ', ' + toName(e);
     }
     if (p[e] === false && opposite[e]) {
       summary += ', ' + toName(opposite[e]);
     }
   }
-  if (p['hermitian']) summary += ', ' + p['definiteness'];
   var det = p['square'] ? (', determinant ' + p['determinant']) : '';
   summary = '' + summary + ' matrix with rank ' + p['rank'] + det + ' and condition number ' + p['conditionNumber'] + '.\n';
 
@@ -1665,6 +1691,25 @@ Jmat.Matrix.evd = function(m) {
   return { v: eig.v, d: Jmat.Matrix.diag(eig.l) };
 };
 
+// returns the definiteness as an array of 3 booleans
+// the first boolean means negative eigenvalues are present
+// the second boolean means eigenvalues of zero are present
+// the third boolean means positive eigenvalues are present
+// ignores whether it's hermitian or not, but requires square matrix
+Jmat.Matrix.definiteness_ = function(m, opt_epsilon) {
+  var epsilon = (opt_epsilon == undefined) ? 1e-12 : opt_epsilon; // default is 1e-12 instead of the usual 1e-15 because eigenvalues of [[1,1,1,1],[1,1,1,1],[1,1,1,1],[1,1,1,1]] is otherwise not precise enough, making it think that one is indefinite
+  // TODO: faster method than eigenvalues
+  var e = Jmat.Matrix.eigval(m);
+  if(!e) return null;
+  var result = [false, false, false];
+  for (var i = 0; i < e.length; i++) {
+    if(Jmat.Real.near(e[i].re, 0, epsilon)) result[1] = true;
+    else if(e[i].re > 0) result[2] = true;
+    else result[0] = true;
+  }
+  return result;
+};
+
 Jmat.Matrix.INDEFINITE = 0;
 Jmat.Matrix.POSITIVE_DEFINITE = 1;
 Jmat.Matrix.POSITIVE_SEMI_DEFINITE = 2;
@@ -1673,26 +1718,19 @@ Jmat.Matrix.NEGATIVE_SEMI_DEFINITE = 4;
 
 // For a hermitian matrix (symmetric if real), returns its definiteness using the constants above.
 // For non-hermitian matrix, returns null to indicate invalid. Use (M + transjugate(M)) / 2 to get it anyway
+// Returns only one value that best describes the matrix. In practice, multiple values may apply:
+// -a POSITIVE_DEFINITE matrix is always also POSITIVE_SEMI_DEFINITE
+// -a NEGATIVE_DEFINITE matrix is always also NEGATIVE_SEMI_DEFINITE
+// -a null matrix is both POSITIVE_SEMI_DEFINITE and NEGATIVE_SEMI_DEFINITE but this function only returns one of those
 Jmat.Matrix.definiteness = function(m, opt_epsilon) {
-  var epsilon = (opt_epsilon == undefined) ? 1e-15 : opt_epsilon;
-  if(!Jmat.Matrix.isHermitian(m)) return null;
-  var n = m.w; //it's an nxn square matrix
-  // TODO: faster method than eigenvalues
-  var e = Jmat.Matrix.eigval(m);
-  if(!e) return null;
-  var numpos = 0;
-  var numneg = 0;
-  var numzero = 0;
-  for (var i = 0; i < e.length; i++) {
-    if(Jmat.Real.near(e[i].re, 0, epsilon)) numzero++;
-    else if(e[i].re > 0) numpos++;
-    else numneg++;
-  }
-  if(numpos == n) return Jmat.Matrix.POSITIVE_DEFINITE;
-  else if(numneg == n) return Jmat.Matrix.NEGATIVE_DEFINITE;
-  else if(numneg == 0) return Jmat.Matrix.POSITIVE_SEMI_DEFINITE;
-  else if(numpos == 0) return Jmat.Matrix.NEGATIVE_SEMI_DEFINITE;
-  else return Jmat.Matrix.INDEFINITE;
+  if(!Jmat.Matrix.isHermitian(m, opt_epsilon)) return null;
+  var bools = Jmat.Matrix.definiteness_(m, opt_epsilon);
+  if(bools[2] && !bools[0] && !bools[1]) return Jmat.Matrix.POSITIVE_DEFINITE;
+  if(bools[0] && !bools[2] && !bools[1]) return Jmat.Matrix.NEGATIVE_DEFINITE;
+  if(!bools[0]) return Jmat.Matrix.POSITIVE_SEMI_DEFINITE;
+  if(!bools[2]) return Jmat.Matrix.NEGATIVE_SEMI_DEFINITE;
+  if(bools[0] && bools[2]) return Jmat.Matrix.INDEFINITE;
+  return null; // unreachable
 };
 
 // Puts all the elements of d in a single diagonal matrix
@@ -2286,9 +2324,8 @@ Jmat.Matrix.solve = function(a, b) {
 
   var r = M.doolittle_lup_(a);
   if(!r) return null; // error
-  lu = r[0];
+  var lu = r[0];
   var pivot = r[1];
-  var pivot2 = r[1];
 
   var n = lu.h;
   var x = M(n, 1);
