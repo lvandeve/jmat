@@ -1224,3 +1224,10 @@ Jmat.Complex.dawson = function(z) {
     return a.sub(w).mul(Jmat.Complex.I.mulr(Jmat.Real.SQRTPI / 2));
   }
 };
+
+// gives a random complex number by default inside the unit circle, or else with absolute value between r0 and r1
+Jmat.Complex.random = function(r0, r1) {
+  r0 = (r0 == undefined) ?  0 : r0;
+  r1 = (r1 == undefined) ?  1 : r1;
+  return Jmat.Complex.polar(Math.random() * (r1 - r0) + r0, Math.random() * Math.PI * 2);
+};

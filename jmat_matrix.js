@@ -195,7 +195,7 @@ Jmat.Matrix.make = function(a, b, var_arg) {
 };
 
 //debugstring
-Jmat.Matrix.toString = function(m) {
+Jmat.Matrix.toString = function(m, opt_precision) {
   // e.g in console: Jmat.Matrix.toString(getMatrixFromMem(Jmat.Complex(100))
   if(!m) return '' + m;
   var s = '[';
@@ -203,7 +203,7 @@ Jmat.Matrix.toString = function(m) {
     s += '[';
     for(var x = 0; x < m.w; x++) {
       var e = m.e[y][x];
-      s += Jmat.Complex.toString(e);
+      s += Jmat.Complex.toString(e, opt_precision);
       if(x + 1 < m.w) s += ', ';
     }
     s += ']';
@@ -211,16 +211,16 @@ Jmat.Matrix.toString = function(m) {
   }
   return s + ']';
 };
-Jmat.Matrix.prototype.toString = function() {
-  return Jmat.Matrix.toString(this);
+Jmat.Matrix.prototype.toString = function(opt_precision) {
+  return Jmat.Matrix.toString(this, opt_precision);
 };
 
 //similar to toString, but using curly braces instead of square brackets
-Jmat.Matrix.toCurly = function(m) {
-  return Jmat.Matrix.toString(m).replace(/\[/g, '{').replace(/\]/g, '}');
+Jmat.Matrix.toCurly = function(m, opt_precision) {
+  return Jmat.Matrix.toString(m, opt_precision).replace(/\[/g, '{').replace(/\]/g, '}');
 };
-Jmat.Matrix.prototype.toCurly = function() {
-  return Jmat.Matrix.toCurly(this);
+Jmat.Matrix.prototype.toCurly = function(opt_precision) {
+  return Jmat.Matrix.toCurly(this, opt_precision);
 };
 
 Jmat.Matrix.parse = function(text) {
@@ -255,7 +255,7 @@ Jmat.Matrix.parse = function(text) {
 // Makes ascii art rendering of the matrix (requires fixed width font)
 Jmat.Matrix.render = function(a, opt_precision) {
   if(!a) return '' + a; // e.g. 'null'
-  opt_precision = opt_precision == undefined ? 3 : opt_precision;
+  opt_precision = opt_precision == undefined ? (Jmat.Matrix.isInteger(a) ? 0 : 3) : opt_precision;
   //turn undefined into nan
   if (!Jmat.Matrix.isValid(a)) {
     a = Jmat.Matrix.copy(a);
@@ -384,7 +384,8 @@ Jmat.Matrix.prototype.sub = function(b) {
   return Jmat.Matrix.sub(this, b);
 };
 
-Jmat.Matrix.mul = function(a, b) {
+// the iterative O(n^3) multiplication algorithm
+Jmat.Matrix.n3mul_ = function(a, b) {
   if(a.w != b.h) return null;
   var result = new Jmat.Matrix(a.h, b.w);
 
@@ -396,6 +397,51 @@ Jmat.Matrix.mul = function(a, b) {
     }
   }
   return result;
+};
+
+// Strassen matrix multiplication algorithm
+// Only executes the algorithm for large enough square even-sized matrix
+// TODO: also support odd-sized and non-square matrices
+// Measurably faster in JS for 256x256 matrices and higher
+Jmat.Matrix.strassen_ = function(a, b) {
+  var M = Jmat.Matrix;
+  if(a.w < 128 || b.w < 128) return M.n3mul_(a, b);
+  if(a.w != b.h) return null;
+  if(a.w != a.h || b.w != b.h) return M.n3mul_(a, b);
+  if((a.w & 1) || (b.w & 1)) return M.n3mul_(a, b);
+
+  var a00 = M.submatrix(a, 0, a.h / 2, 0, a.w / 2);
+  var a01 = M.submatrix(a, 0, a.h / 2, a.w / 2, a.w);
+  var a10 = M.submatrix(a, a.h / 2, a.h, 0, a.w / 2);
+  var a11 = M.submatrix(a, a.h / 2, a.h, a.w / 2, a.w);
+  var b00 = M.submatrix(b, 0, b.h / 2, 0, b.w / 2);
+  var b01 = M.submatrix(b, 0, b.h / 2, b.w / 2, b.w);
+  var b10 = M.submatrix(b, b.h / 2, b.h, 0, b.w / 2);
+  var b11 = M.submatrix(b, b.h / 2, b.h, b.w / 2, b.w);
+
+  var m0 = (a00.add(a11)).mul(b00.add(b11));
+  var m1 = (a10.add(a11)).mul(b00);
+  var m2 = a00.mul(b01.sub(b11));
+  var m3 = a11.mul(b10.sub(b00));
+  var m4 = (a00.add(a01)).mul(b11);
+  var m5 = (a10.sub(a00)).mul(b00.add(b01));
+  var m6 = (a01.sub(a11)).mul(b10.add(b11));
+
+  var c00 = m0.add(m3).sub(m4).add(m6); // a00.mul(b00).add(a01.mul(b10));
+  var c01 = m2.add(m4);                 // a00.mul(b01).add(a01.mul(b11));
+  var c10 = m1.add(m3);                 // a10.mul(b00).add(a11.mul(b10));
+  var c11 = m0.sub(m1).add(m2).add(m5); // a10.mul(b01).add(a11.mul(b11));
+
+  var c = c00;
+  c = M.augment(c, c01, 0, c00.w);
+  c = M.augment(c, c10, c00.h, 0);
+  c = M.augment(c, c11, c00.h, c00.w);
+
+  return c;
+};
+
+Jmat.Matrix.mul = function(a, b) {
+  return Jmat.Matrix.strassen_(a, b);
 };
 Jmat.Matrix.prototype.mul = function(b) {
   return Jmat.Matrix.mul(this, b);
@@ -430,6 +476,19 @@ Jmat.Matrix.prototype.mulr = function(s) {
   return Jmat.Matrix.mulr(this, s);
 };
 
+//hadamard product: element-wise product
+Jmat.Matrix.elmul = function(a, b) {
+  if(a.w != b.w || a.h != b.h) return null;
+  var result = new Jmat.Matrix(a.h, a.w);
+
+  for(var y = 0; y < a.h; y++) {
+    for(var x = 0; x < a.w; x++) {
+      result.e[y][x] = a.e[y][x].mul(b.e[y][x]);
+    }
+  }
+  return result;
+};
+
 // returns a/b = a * b^-1
 // In other words, "divides" matrix through matrix
 Jmat.Matrix.div = function(a, b) {
@@ -449,6 +508,19 @@ Jmat.Matrix.div = function(a, b) {
 };
 Jmat.Matrix.prototype.div = function(b) {
   return Jmat.Matrix.div(this, b);
+};
+
+//element-wise division
+Jmat.Matrix.eldiv = function(a, b) {
+  if(a.w != b.w || a.h != b.h) return null;
+  var result = new Jmat.Matrix(a.h, a.w);
+
+  for(var y = 0; y < a.h; y++) {
+    for(var x = 0; x < a.w; x++) {
+      result.e[y][x] = a.e[y][x].div(b.e[y][x]);
+    }
+  }
+  return result;
 };
 
 // returns a/b = b^-1 * a
@@ -858,6 +930,30 @@ Jmat.Matrix.isFrobenius = function(a, opt_epsilon) {
   return true;
 };
 
+Jmat.Matrix.isInteger = function(a, opt_epsilon) {
+  var epsilon = (opt_epsilon == undefined) ? 1e-15 : opt_epsilon;
+  for(var y = 0; y < a.h; y++) {
+    for(var x = 0; x < a.w; x++) {
+      var e = a.e[y][x];
+      if(!Jmat.Real.near(e.im, 0, epsilon)) return false;
+      if(Math.abs(Math.round(e.re) - e.re) > epsilon) return false;
+    }
+  }
+  return true;
+};
+
+// only 0's and 1's
+Jmat.Matrix.isBinary = function(a, opt_epsilon) {
+  var epsilon = (opt_epsilon == undefined) ? 1e-15 : opt_epsilon;
+  for(var y = 0; y < a.h; y++) {
+    for(var x = 0; x < a.w; x++) {
+      var e = a.e[y][x];
+      if(!Jmat.Real.near(e, 0, epsilon) && !Jmat.Real.near(e, 1, epsilon)) return false;
+    }
+  }
+  return true;
+};
+
 // Returns an object with various named boolean and scalar properties of the given matrix
 Jmat.Matrix.getProperties = function(a) {
   var M = Jmat.Matrix;
@@ -900,6 +996,8 @@ Jmat.Matrix.getProperties = function(a) {
   result['toeplitz'] = M.isToeplitz(a);
   result['hankel'] = M.isHankel(a);
   result['frobenius'] = M.isFrobenius(a);
+  result['integer'] = M.isInteger(a);
+  result['binary'] = M.isBinary(a);
   if(result['hermitian']) {
     var d = M.definiteness(a);
     if(d == M.INDEFINITE) result['indefinite'] = true;
@@ -932,7 +1030,7 @@ Jmat.Matrix.summary = function(a) {
 
   //order of non-square related properties
   var nonsquare = ['height', 'width', 'zero', 'real', 'NaN',
-                   'rank', 'frobeniusNorm', 'spectralNorm', 'conditionNumber'];
+                   'rank', 'frobeniusNorm', 'spectralNorm', 'conditionNumber', 'integer', 'binary'];
   //order of properties only applicable for square matrices
   var square = ['identity', 'symmetrical', 'hermitian', 'skewSymmetrical', 'skewHermitian', 'diagonal', 'tridiagonal',
                 'upperTriangular', 'lowerTriangular', 'strictlyUpperTriangular', 'strictlyLowerTriangular', 'upperHessenberg', 'lowerHessenberg',
@@ -955,8 +1053,9 @@ Jmat.Matrix.summary = function(a) {
     'hermitian' : ['normal'], 'hermitian' : ['realsym'],  'skewHermitian' : ['realskewsym'],
     'symmetrical' : ['diagonal'], 'skewSymmetrical' : ['zero'],
     'permutation' : ['identity'], 'invertible' : ['identity'], 'singular' : ['zero'],
-    'real' : ['identity', 'zero'], 'toeplitz' : ['identity', 'zero'], 'hankel' : ['zero'], 'frobenius' : ['identity'],
-    'positiveDefinite' : ['identity'], 'negativeSemidefinite' : ['zero', 'negativeDefinite'], 'positiveSemidefinite' : ['zero', 'positiveDefinite']
+    'real' : ['integer'], 'toeplitz' : ['identity', 'zero'], 'hankel' : ['zero'], 'frobenius' : ['identity'],
+    'positiveDefinite' : ['identity'], 'negativeSemidefinite' : ['zero', 'negativeDefinite'], 'positiveSemidefinite' : ['zero', 'positiveDefinite'],
+    'integer': ['binary'], 'binary': ['identity', 'zero']
   };
 
   var summary = p['dimensions'] + ', ' + (p['square'] ? 'square' : opposite['square']);
@@ -1046,7 +1145,8 @@ Jmat.Matrix.prototype.transjugate = function() {
 };
 
 // Internal algorithm for lu.
-// Returns L and U merged into one matrix (without L's diagonal 1's), and a pivot array with element i the pivot row interchanged with row i.
+// Returns L and U merged into one matrix (without L's diagonal 1's), a pivot array (permutation) with element i the pivot row interchanged with row i, and the parity (0 or 1) of the permutation.
+// TODO: usually the permutation format of this function is what you want, not the matrix that lu() returns, so make this public in some way
 Jmat.Matrix.doolittle_lup_ = function(a) {
   if(a.h != a.w) return null; //must be square
   var M = Jmat.Matrix;
@@ -1054,6 +1154,7 @@ Jmat.Matrix.doolittle_lup_ = function(a) {
   a = M.copy(a); // we'll modify it to interchange rows and insert elements from L and U
 
   var pivot = [];
+  var parity = 0;
 
   for(var k = 0; k < a.h; k++)
   {
@@ -1074,6 +1175,7 @@ Jmat.Matrix.doolittle_lup_ = function(a) {
         a.e[y][i] = a.e[k][i];
         a.e[k][i] = temp;
       }
+      parity ^= 1;
     }
 
     //Returning for singular commented out: still works, resulting U will be singular.
@@ -1090,10 +1192,10 @@ Jmat.Matrix.doolittle_lup_ = function(a) {
     }
   }
 
-  return [a, pivot];
+  return [a, pivot, parity];
 };
 
-// LUP decomposition. Returns object {p: P, l: L, u: U} such that A = P*L*U, with P a permutation matrix, L lower triangular, U upper triangular
+// LUP decomposition. Returns object {p: P, l: L, u: U} such that A = P*L*U, with P a permutation matrix, L lower triangular with ones on diagonal, U upper triangular
 // Uses Doolittle algorithm with row pivoting
 // Returns if a is singular.
 Jmat.Matrix.lu = function(a) {
@@ -1200,7 +1302,7 @@ Jmat.Matrix.minor = function(a, row, col) {
 // cofactor: minor with sign depending on alternating position
 Jmat.Matrix.cofactor = function(a, row, col) {
   var m = Jmat.Matrix.minor(a, row, col);
-  var sign = (row + col) % 2 == 0 ? 1 : -1;
+  var sign = ((row + col) & 1) == 0 ? 1 : -1;
   return m.mulr(sign);
 };
 
@@ -1210,11 +1312,20 @@ Jmat.Matrix.determinant = function(a) {
   if(a.w == 1) return a.e[0][0];
   if(a.w == 2) return a.e[0][0].mul(a.e[1][1]).sub(a.e[0][1].mul(a.e[1][0]));
 
-  var result = Jmat.Complex(0);
-
+  // Laplace expansion, this is an O(n!) algorithm, so not used
+  /*var result = Jmat.Complex(0);
   for(var x = 0; x < a.w; x++) {
     result = result.add(a.e[0][x].mul(Jmat.Matrix.cofactor(a, 0, x)));
+  }*/
+
+  // Calculate with LU decomposition
+  var lu = Jmat.Matrix.doolittle_lup_(a);
+  var result = Jmat.Complex(1);
+  for(var i = 0; i < a.w; i++) {
+    result = result.mul(lu[0].e[i][i]);
   }
+  if(lu[2] & 1) result = result.neg();
+
 
   return result;
 };
@@ -1464,6 +1575,32 @@ Jmat.Matrix.insert = function(a, b, row, col) {
       if(rx >= 0 && rx < a.w && ry >= 0 && ry < a.h) {
         result.e[ry][rx] = b.e[y][x];
       }
+    }
+  }
+
+  return result;
+};
+
+// similar to insert, but will write outside the matrix if needed, increasing its size
+Jmat.Matrix.augment = function(a, b, row, col) {
+  var h = Math.max(row + b.h, a.h) - Math.min(0, row);
+  var w = Math.max(col + b.w, a.w) - Math.min(0, col);
+
+  var result = Jmat.Matrix.zero(h, w);
+
+  for(var y = 0; y < a.h; y++) {
+    for(var x = 0; x < a.w; x++) {
+      var rx = col < 0 ? x - col : x;
+      var ry = row < 0 ? y - row : y;
+      result.e[ry][rx] = a.e[y][x];
+    }
+  }
+
+  for(var y = 0; y < b.h; y++) {
+    for(var x = 0; x < b.w; x++) {
+      var rx = col < 0 ? x : x + col;
+      var ry = row < 0 ? y : y + row;
+      result.e[ry][rx] = b.e[y][x];
     }
   }
 
@@ -2344,7 +2481,46 @@ Jmat.Matrix.solve = function(a, b) {
   return x;
 };
 
+// generates a random matrix with some properties.
+// all parameters are optional.
+// h: number of rows. Default: random 2..12
+// w: number of columns. Default: random 2..12, or h if h is defined
+// r0: lowest random value. Default: 0
+// r1: highest random value. Default: 1
+// s: sparseness: give value in range 0-1. Default: 1
+// properties: properties object similar to what "getProperties" returns. Not all are implemented though. Currently only 'real', 'integer' and 'hermitian' are supported. Default is object {'real':true}.
+// e.g. Matrix.random(4, 4, 0, 10, 1, {'integer':true}).render_summary()
+//      Matrix.random(3, 3, -10, 10, 1, {'real':false,'hermitian':true}).render_summary()
+Jmat.Matrix.random = function(h, w, r0, r1, s, properties) {
+  var C = Jmat.Complex;
+  w = w || h || Math.floor(Math.random() * 10 + 2);
+  h = h || Math.floor(Math.random() * 10 + 2);
+  s = (s == undefined) ? 1 : s;
+  r0 = (r0 == undefined) ?  0 : r0;
+  r1 = (r1 == undefined) ?  1 : r1;
+  properties = properties || {'real':true};
+  var real = properties['real'] || properties['integer'];
+  var integer = properties['integer'];
+  var hermitian = properties['hermitian'];
+  var f = function(real) {
+    if(s >= 1 || Math.random() < s) {
+      var result = real ? C(Math.random() * (r1 - r0) + r0) : C.random(r0, r1);
+      return integer ? C(Math.floor(result.re)) : result;
+    }
+    return C(0);
+  };
 
+  var result = Jmat.Matrix(h, w);
+  for(var y = 0; y < h; y++) {
+    for(var x = 0; x < w; x++) {
+      if(hermitian && y > x) result.e[y][x] = result.e[x][y].conj();
+      else if(hermitian && x == y) result.e[y][x] = f(true);
+      else result.e[y][x] = f(real);
+    }
+  }
+
+  return result;
+};
 
 ////////////////////////////////////////////////////////////////////////////////
 /*
