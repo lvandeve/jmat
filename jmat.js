@@ -911,16 +911,16 @@ Jmat.bigIntIn_ = function(v) {
   // No test for array, that can already mean matrix
 };
 
-Jmat.toString_ = function(a, opt_render) {
+Jmat.toString_ = function(a, opt_render, opt_precision) {
   if(!a) return '' + a;
   var result = '';
   if(opt_render && a.render) {
-    return ('\n' + a.render());
+    return ('\n' + a.render(opt_precision));
   }
   // For arrays of known types
   if(typeof a == 'object' && Array.isArray(a)) {
     result += '[';
-    for(var i = 0; i < a.length; i++) result += (Jmat.toString_(a[i], opt_render) + (i + 1 == a.length ? '' : ', '));
+    for(var i = 0; i < a.length; i++) result += (Jmat.toString_(a[i], opt_render, opt_precision) + (i + 1 == a.length ? '' : ', '));
     result += ']';
     return result;
   }
@@ -932,14 +932,14 @@ Jmat.toString_ = function(a, opt_render) {
       if(!it || !a[it]) continue;
       if(comma) result += ', ';
       result += it + ': ';
-      result += Jmat.toString_(a[it], opt_render);
+      result += Jmat.toString_(a[it], opt_render, opt_precision);
       comma = true;
     }
     result += '}';
     return result;
   }
   // Prefer toString implementation if available (that is where this function is better than JSON.stringify! :))
-  result = (opt_render && a.render) ? ('\n' + a.render()) : (a.toString ? a.toString() : ('' + a));
+  result = (opt_render && a.render) ? ('\n' + a.render(opt_precision)) : (a.toString ? a.toString(opt_precision) : ('' + a));
   return result;
 };
 
@@ -949,8 +949,8 @@ Jmat.toString = function(a) {
 };
 
 // Nice string of any known object, with possibly some multiline rendered matrices
-Jmat.render = function(a) {
-  return Jmat.toString_(a, true);
+Jmat.render = function(a, opt_precision) {
+  return Jmat.toString_(a, true, opt_precision);
 };
 
 

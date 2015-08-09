@@ -954,6 +954,18 @@ Jmat.Matrix.isBinary = function(a, opt_epsilon) {
   return true;
 };
 
+// Involutory matrix: its own inverse, A*A = I
+Jmat.Matrix.isInvolutory = function(a, opt_epsilon) {
+  if (!Jmat.Matrix.isSquare(a)) return false;
+  return Jmat.Matrix.isIdentity(a.mul(a), opt_epsilon);
+};
+
+// Idempotent matrix: A*A = A
+Jmat.Matrix.isIdempotent = function(a, opt_epsilon) {
+  if (!Jmat.Matrix.isSquare(a)) return false;
+  return Jmat.Matrix.near(a, a.mul(a), opt_epsilon);
+};
+
 // Returns an object with various named boolean and scalar properties of the given matrix
 Jmat.Matrix.getProperties = function(a) {
   var M = Jmat.Matrix;
@@ -998,6 +1010,8 @@ Jmat.Matrix.getProperties = function(a) {
   result['frobenius'] = M.isFrobenius(a);
   result['integer'] = M.isInteger(a);
   result['binary'] = M.isBinary(a);
+  result['involutory'] = M.isInvolutory(a);
+  result['idempotent'] = M.isIdempotent(a);
   if(result['hermitian']) {
     var d = M.definiteness(a);
     if(d == M.INDEFINITE) result['indefinite'] = true;
@@ -1035,7 +1049,7 @@ Jmat.Matrix.summary = function(a) {
   var square = ['identity', 'symmetrical', 'hermitian', 'skewSymmetrical', 'skewHermitian', 'diagonal', 'tridiagonal',
                 'upperTriangular', 'lowerTriangular', 'strictlyUpperTriangular', 'strictlyLowerTriangular', 'upperHessenberg', 'lowerHessenberg',
                 'singular', 'invertible', 'determinant', 'trace', 'orthogonal', 'unitary', 'normal', 'permutation', 'toeplitz', 'hankel',
-                'indefinite', 'positiveDefinite', 'negativeDefinite', 'positiveSemidefinite', 'negativeSemidefinite', 'frobenius'];
+                'indefinite', 'positiveDefinite', 'negativeDefinite', 'positiveSemidefinite', 'negativeSemidefinite', 'frobenius', 'involutory', 'idempotent'];
 
   var opposite = { 'square' : 'non-square', 'real' : 'complex' };
   // these properties are added only to avoid some redundancy in summary output with the "sub" sytem
@@ -1055,7 +1069,7 @@ Jmat.Matrix.summary = function(a) {
     'permutation' : ['identity'], 'invertible' : ['identity'], 'singular' : ['zero'],
     'real' : ['integer'], 'toeplitz' : ['identity', 'zero'], 'hankel' : ['zero'], 'frobenius' : ['identity'],
     'positiveDefinite' : ['identity'], 'negativeSemidefinite' : ['zero', 'negativeDefinite'], 'positiveSemidefinite' : ['zero', 'positiveDefinite'],
-    'integer': ['binary'], 'binary': ['identity', 'zero']
+    'integer': ['binary'], 'binary': ['identity', 'zero'], 'involutory': ['identity'], 'idempotent': ['identity']
   };
 
   var summary = p['dimensions'] + ', ' + (p['square'] ? 'square' : opposite['square']);
@@ -1691,6 +1705,7 @@ Jmat.Matrix.eigval22 = function(m) {
   var d = Jmat.Complex.sqrt(b.mul(b).sub(a.mul(c).mulr(4)));
   var l1 = b.neg().add(d).div(a.mulr(2));
   var l2 = b.neg().sub(d).div(a.mulr(2));
+  if(l2.abssq() > l1.abssq()) return [l2, l1];
   return [l1, l2];
 };
 
@@ -1722,6 +1737,7 @@ Jmat.Matrix.eig22 = function(m) {
 // Returns the eigenvalues of m in an array, from largest to smallest
 Jmat.Matrix.eigval = function(m) {
   var M = Jmat.Matrix;
+  var C = Jmat.Complex;
   if(m.w != m.h || m.w < 1) return null;
   var n = m.w;
   if(n == 1) return [m.e[0][0]];
@@ -1737,10 +1753,10 @@ Jmat.Matrix.eigval = function(m) {
   // }
 
   // QR with double shifting. This because with single shift or no shift, it does not support complex eigenvalues of real matrix, e.g. [[1,-1],[5,-1]]
-  // TODO: this is slow, optimize like with Hessenberg form
+  // TODO: this is slow, optimize by bringing to Hessenberg form first, then each QR step will be O(n^2) instead of O(n^3) complexity
   var id = M.identity(n, n);
   var good = undefined; // good a (no NaNs)
-  for(var i = 0; i < 15; i++) {
+  for(var i = 0; i < 30; i++) {
     // var s = a.e[a.h - 1][a.w - 1]; //value that would be chosen for single shift
     // double shift: choose two sigma's, the eigenvalues of the bottom right 2x2 matrix (for which we have the explicit solution)
     var l = M.eigval22(M.submatrix(a, a.h - 2, a.h, a.w - 2, a.w));
@@ -1762,11 +1778,27 @@ Jmat.Matrix.eigval = function(m) {
       if(!good) good = a;
       break;
     }
+    // TODO: exit loop if converged
+  }
+  a = good;
+
+  // a is supposed to be triangular but may have some 2x2 blocks on the diagonal. Convert these to a pair of aigenvalues by taking the 2x2 eigenvalues of that diagonal.
+  for(var i = 0; i + 1 < m.w; i++) {
+    if(C.nearr(C.nearr(a.e[i + 1][i], 0, 1e-15))) continue;
+    var l = M.eigval22(M.submatrix(a, i, i + 2, i, i + 2));
+    a.e[i][i] = l[0];
+    a.e[i + 1][i + 1] = l[1];
   }
 
-  a = good;
   var result = [];
-  for(var i = 0; i < m.w; i++) result.push(a.e[i][i]);
+  for(var i = 0; i < m.w; i++) {
+    result.push(a.e[i][i]);
+  }
+
+  // The above algorithm almost always successfully produces the eigenvalues sorted from largest to smallest magnitude.
+  // Sometimes, however, that fails, so sort them here (e.g. for matrix [[0,1,2,3,4],[5,6,7,8,9],[0,1,3,5,7],[11,13,17,23,29],[1,2,4,8,16]])
+  // TODO: fix reason why they're not sorted in the first place, they should
+  result.sort(function(a, b) { return b.abssq() - a.abssq(); });
 
   return result;
 };
@@ -1784,8 +1816,7 @@ Jmat.Matrix.eig = function(m, opt_normalize) {
   if(n == 2) return M.eig22(m);
   /*
   Checks in console:
-  var result = Jmat.Matrix.eig(Jmat.Matrix(2,2,1,2,3,4))
-  Jmat.Matrix.toString(result.l) + ' \n ' + Jmat.Matrix.toString(result.v);
+  Jmat.render(Matrix.eig(Matrix(2,2,1,2,3,4)))
   */
 
   var val = M.eigval(m);
@@ -1793,17 +1824,15 @@ Jmat.Matrix.eig = function(m, opt_normalize) {
   for(var i = 0; i < m.w; i++) l.e[i][0] = val[i];
 
   // Find eigenvectors by solving system of linear equations.
-  // TODO: this is not very efficient...
-  // Normally, the product of all the qr.q's of the loop above should give the eigenvectors, but that applies only for symmetric matrices while this is supposed to support all
-  // So, instead, solve system equation (A - lambda * I) * x = 0, but with last element of 0 set to 1, and bottom row of (A - lambda * I) set to 0,0,...,0,1.
-  // That makes the system solvable (TODO: not really, what if a bottom row 0 makes a whole column 0?), and makes each vector have its last element be 1.
+  // TODO: use more efficient algorithm
+  // TODO: for symmetrical matrix, the product of Q's from the QR algorithm can be used, use those when applicable
   var v = new M(n, n);
   for(var j = 0; j < n; j++) {
     var lambda = val[j];
     var e = M.copy(m); //TODO: this makes it even slower, copy only the needed columns
     for(var i = 0; i < n; i++) e.e[i][i] = e.e[i][i].sub(lambda);
     var f = M.zero(n, 1);
-    var g = M.solve(e, f);
+    var g = M.solve(e, f, 0.01); // a very large epsilon is used... because the eigenvalues are numerically not precise enough to give the singular matrix they should
     if(g) {
       if(normalize_mode == 2) g = g.divc(M.norm(g));
       if(normalize_mode == 1) if(!g.e[n - 1][0].eqr(0)) g = g.divc(g.e[n - 1][0]);
@@ -2447,14 +2476,16 @@ Jmat.Matrix.relnear = function(a, b, precision) {
 //Uses the pseudoinverse if A is not invertible
 //a: input matrix, h*w size
 //b: input vector, h*1 size
-Jmat.Matrix.solve = function(a, b) {
+//opt_epsilon: optional parameter, in case of homogenous system, how near the smallest singular value of a should be to return a solution
+Jmat.Matrix.solve = function(a, b, opt_epsilon) {
   var M = Jmat.Matrix;
   if(a.h != b.h) return undefined; // input error
+  var epsilon = (opt_epsilon == undefined) ? 1e-12 : opt_epsilon;
 
   if (M.isZero(b)) {
     // Homogenous system.
     var svd = M.svd(a);
-    if (!Jmat.Complex.nearr(svd.s.e[svd.s.h - 1][svd.s.h - 1], 0, 1e-5)) return null; //allow large imprecision, so that it works if eigenvector calculation is a bit imprecise.
+    if (!Jmat.Complex.nearr(svd.s.e[svd.s.h - 1][svd.s.h - 1], 0, epsilon)) return null; //allow large imprecision, so that it works if eigenvector calculation is a bit imprecise.
     // A is assumed singular. Last column should correspond to singular value which is zero, corresponding to a solution.
     return M.col(svd.v, a.w - 1);
   }

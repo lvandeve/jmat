@@ -1134,3 +1134,19 @@ Jmat.Real.dayOfWeek = function(y, m, d) {
   return (R.idiv(23 * m, 9) + d + 4 + R.idiv(y, 4) - R.idiv(y, 100) + R.idiv(y, 400)) % 7;
 };
 
+////////////////////////////////////////////////////////////////////////////////
+
+//f is function taking integer index as parameter and returning a real
+//returns index belonging to max return value of f in index range [s, e)
+Jmat.Real.argmax = function(s, e, f) {
+  var m = f(s);
+  var b = s;
+  for(var i = s + 1; i < e; i++) {
+    var mi = f(i);
+    if(mi > m) {
+      m = mi;
+      b = i;
+    }
+  }
+  return b;
+};
