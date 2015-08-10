@@ -966,7 +966,25 @@ Jmat.Matrix.isIdempotent = function(a, opt_epsilon) {
   return Jmat.Matrix.near(a, a.mul(a), opt_epsilon);
 };
 
+// Nilpotent matrix: A^k = 0 for some positive integer k. May require up to log(n) multiplications, so N^3*log(N) worse complexity but usually much faster due to fast early checks.
+Jmat.Matrix.isNilpotent = function(a, opt_epsilon) {
+  var M = Jmat.Matrix;
+  var epsilon = (opt_epsilon == undefined) ? 1e-15 : opt_epsilon;
+  if (!M.isSquare(a)) return false;
+  var n = a.w;
+  var k = 1;
+  for(;;) {
+    if(!M.trace(a).eqr(0, epsilon)) return false; // the trace must always be zero, so this is a fast check to quit early
+    if(M.isZero(a, epsilon)) return true;
+    if(k >= n) break; // it is known that k is <= n, so we can stop checking once over that
+    a = a.mul(a);
+    k *= 2;
+  }
+  return false;
+};
+
 // Returns an object with various named boolean and scalar properties of the given matrix
+// TODO: add parameter to only return fast to calculate properties, max N^2 complexity (so no determinant, svd based condition number, rank, definiteness, ...)
 Jmat.Matrix.getProperties = function(a) {
   var M = Jmat.Matrix;
   var result = {};
@@ -2510,6 +2528,72 @@ Jmat.Matrix.solve = function(a, b, opt_epsilon) {
   }
 
   return x;
+};
+
+
+// Returns the matrix in reduced row echolon form. Supports non-square and singular matrices. Is always the identity matrix if the input is invertible.
+// Can also be used to solve a linear system, by giving the augmented matrix and using the right column, though Jmat.Matrix.solve should be numerically more stable.
+Jmat.Matrix.rref = function(a) {
+  /*
+  Check in console:
+  Matrix.rref(Matrix([[1,3,1,9],[1,1,-1,1],[3,11,5,35]])).render()
+  Matrix.solve(Matrix([[1,3,1],[1,1,-1],[3,11,5]]), Matrix([[9],[1],[35]])).render()
+  */
+  var C = Jmat.Complex;
+  var h = a.h;
+  var w = a.w;
+  var m = Math.min(h, w);
+  a = Jmat.Matrix.copy(a); // The rest all works in-place, so copy to not modify user input.
+
+  //swaps rows y0 and y1 in place
+  var swaprow = function(a, y0, y1) {
+    for (var i = 0; i < w; i++) {
+      var temp = a.e[y0][i]; a.e[y0][i] = a.e[y1][i]; a.e[y1][i] = temp;
+    }
+  };
+
+  // only starts at x rather than from the beginning
+  var mulrow = function(a, x, y, v) {
+    for (var i = x; i < w; i++) {
+      a.e[y][i] = a.e[y][i].mul(v);
+    }
+  };
+
+  // subtracts a multiple of row y0 from row y1, modifying y1. Only starts at x rather than from the beginning
+  var submul = function(a, x, y0, v, y1) {
+    var w = a.e[0].length;
+    for (var i = x; i < w; i++) {
+      a.e[y1][i] = a.e[y1][i].sub(a.e[y0][i].mul(v));
+    }
+  };
+
+  var pivots = []; // x coordinate of pivot in each row (except the zero rows at the end, so may have smaller length than h)
+
+  // gaussian elimination
+  var k2 = 0; //next row to fill in, equal to k unless there are zero-rows
+  for(var k = 0; k < m; k++) {
+    var n = Jmat.Real.argmax(k, h, function(i) { return a.e[i][k].abssq(); });
+    if (a.e[n][k].eqr(0)) continue; // singular, leave row as is
+    swaprow(a, k2, n);
+    mulrow(a, k, k2, a.e[k2][k].inv()); // pivot is now 1
+    for (var i = k2 + 1; i < h; i++) {
+      submul(a, k + 1, k2, a.e[i][k], i);
+      a.e[i][k] = C(0); // make extra-sure it's 0, avoid numerical imprecision
+    }
+    pivots.push(k);
+    k2++;
+  }
+
+  //now bring from row echolon form to reduced row echolon form
+  for(var k = 0; k < pivots.length; k++) {
+    var p = pivots[k];
+    for(var y = k - 1; y >= 0; y--) {
+      submul(a, p + 1, k, a.e[y][p], y);
+      a.e[y][p] = C(0); // make extra-sure it's 0, avoid numerical imprecision
+    }
+  }
+
+  return a;
 };
 
 // generates a random matrix with some properties.
