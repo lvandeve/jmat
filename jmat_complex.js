@@ -396,6 +396,32 @@ Jmat.Complex.csgn = function(z) {
   }
 };
 
+// Similar to sign, but returns 1 if the input is 0
+Jmat.Complex.sign1 = function(z) {
+  if (z.im == 0) {
+    if(z.re < 0) return Jmat.Complex(-1);
+    return Jmat.Complex(1);
+  }
+
+  return z.divr(z.abs());
+};
+
+// Similar to csgn, but returns 1 if the input is 0
+Jmat.Complex.csgn1 = function(z) {
+  if (Jmat.Real.near(z.re, 0, 1e-15)) { //avoid numeric imprecisions
+    if(z.im < 0) return Jmat.Complex(-1);
+    return Jmat.Complex(1);
+  } else {
+    if(z.re < 0) return Jmat.Complex(-1);
+    Jmat.Complex(1);
+  }
+};
+
+// applies sign of y to x, so the result has the magnitude of x but the argument of y
+Jmat.Complex.copysign = function(x, y) {
+  return Jmat.Complex.abs(x).mul(Jmat.Complex.sign(y));
+};
+
 Jmat.Complex.conj = function(x) {
   return Jmat.Complex(x.re, -x.im);
 };
@@ -463,14 +489,7 @@ Jmat.Complex.prototype.abs = function() {
   }
 
   // Numerically more stable version of "Math.sqrt(x.re * x.re + x.im * x.im);"
-  var sqr = function(x) {
-    return x * x;
-  };
-  var absre = Math.abs(this.re);
-  var absim = Math.abs(this.im);
-  if(absre > absim) return absre * Math.sqrt(1 + sqr(this.im / this.re));
-  else if(this.im == 0) return 0;
-  else return absim * Math.sqrt(1 + sqr(this.re / this.im));
+  return Jmat.Real.hypot(this.re, this.im);
 };
 
 // absolute value squared, returned as Jmat.Complex object. This is faster than abs due to not taking sqrt.
@@ -500,6 +519,25 @@ Jmat.Complex.arg1 = function(z) {
   if(result < 0) result = 0;
   if(result > 1) result = 1;
   return result;
+};
+
+//manhattan norm, returned as real
+Jmat.Complex.abs1r = function(x) {
+  return Math.abs(x.re) + Math.abs(x.im);
+};
+
+// returns sqrt(|x|^2 + |y|^2) with numerically more precise formula ; a companion to atan2
+// if more than 2 arguments are given, calculates norm of all arguments
+Jmat.Complex.hypot = function(x, y) {
+  var C = Jmat.Complex;
+  if(C.abs1r(y) > C.abs1r(x)) {
+    var temp = x;
+    x = y;
+    y = temp;
+  }
+  if(C.isInf(x)) return Infinity;
+  var t = y.div(x);
+  return x.mul(C.sqrt(C.abssq(t).addr(1)));
 };
 
 
@@ -673,14 +711,13 @@ Jmat.Complex.atan = function(z) {
 };
 
 Jmat.Complex.atan2 = function(x, y) {
-  if(!Jmat.Complex.isReal(x) || !Jmat.Complex.isReal(y)) {
-    if(y.eqr(0)) return Jmat.Complex(Math.PI / 2);
-
-    // For complex values, an alternate form of the definition can be used:
-    // 2 * atan(y / (sqrt(x^2+y^2)+x))
-    return Jmat.Complex.atan(Jmat.Complex.sqrt(x.mul(x).add(y.mul(y))).sub(x).div(y)).mulr(2);
+  var C = Jmat.Complex;
+  if(!C.isReal(x) || !C.isReal(y)) {
+    if(y.eqr(0)) return C(Math.PI / 2);
+    // As per the definition, return atan of (x / y)
+    return C.atan(x.div(y));
   } else {
-    var result = Jmat.Complex(0);
+    var result = C(0);
     result.re = Math.atan2(x.re, y.re);
     return result;
   }

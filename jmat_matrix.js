@@ -31,6 +31,8 @@ THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 /*
 Jmat.Matrix: matrix and vector math
 
+NOTE: Many routines assume an epsilon of 1e-15, considering values smaller than this to be zero
+
 Overview of some functionality:
 -decompositions: Matrix.lu, Matrix.qr, Matrix.svd, Matrix.evd
 -inverse: Matrix.inv, Matrix.pseudoinverse
@@ -223,6 +225,24 @@ Jmat.Matrix.prototype.toCurly = function(opt_precision) {
   return Jmat.Matrix.toCurly(this, opt_precision);
 };
 
+//similar to toString, but using matlab/octave notation with semicolons
+Jmat.Matrix.toSemi = function(m, opt_precision) {
+  if(!m) return '' + m;
+  var s = '[';
+  for(var y = 0; y < m.h; y++) {
+    for(var x = 0; x < m.w; x++) {
+      var e = m.e[y][x];
+      s += Jmat.Complex.toString(e, opt_precision);
+      if(x + 1 < m.w) s += ' ';
+    }
+    if(y + 1 < m.h) s += '; ';
+  }
+  return s + ']';
+};
+Jmat.Matrix.prototype.toSemi = function(opt_precision) {
+  return Jmat.Matrix.toSemi(this, opt_precision);
+};
+
 Jmat.Matrix.parse = function(text) {
   var e = [];
   var stack = [e];
@@ -255,7 +275,6 @@ Jmat.Matrix.parse = function(text) {
 // Makes ascii art rendering of the matrix (requires fixed width font)
 Jmat.Matrix.render = function(a, opt_precision) {
   if(!a) return '' + a; // e.g. 'null'
-  opt_precision = opt_precision == undefined ? (Jmat.Matrix.isInteger(a) ? 0 : 3) : opt_precision;
   //turn undefined into nan
   if (!Jmat.Matrix.isValid(a)) {
     a = Jmat.Matrix.copy(a);
@@ -265,6 +284,7 @@ Jmat.Matrix.render = function(a, opt_precision) {
       }
     }
   }
+  opt_precision = opt_precision == undefined ? (Jmat.Matrix.isInteger(a) ? 0 : 3) : opt_precision;
   var result = '';
   var real = Jmat.Matrix.isReal(a);
   var strings = [];
@@ -1168,7 +1188,7 @@ Jmat.Matrix.prototype.conj = function() {
   return Jmat.Matrix.conj(this);
 };
 
-//transjugate = transposed conjugate, denoted A* (also called hermitian transpose)
+//transjugate = transposed conjugate, denoted A^* or A^H (also called hermitian transpose or conjugate transpose)
 Jmat.Matrix.transjugate = function(a) {
   return Jmat.Matrix.conj(Jmat.Matrix.transpose(a));
 };
@@ -1552,18 +1572,30 @@ Jmat.Matrix.trace = function(m) {
   return result;
 };
 
-// Returns column as h*1 matrix
-Jmat.Matrix.col = function(m, col) {
+// Returns column as h*1 matrix. x is 0-indexed
+Jmat.Matrix.col = function(m, x) {
   var r = new Jmat.Matrix(m.h, 1);
-  for(var y = 0; y < m.h; y++) r.e[y][0] = m.e[y][col];
+  for(var y = 0; y < m.h; y++) r.e[y][0] = m.e[y][x];
   return r;
 };
 
-// Returns row as 1*w matrix
-Jmat.Matrix.row = function(m, row) {
+// Returns row as 1*w matrix. y is 0-indexed
+Jmat.Matrix.row = function(m, y) {
   var r = new Jmat.Matrix(1, m.w);
-  for(var x = 0; x < m.w; x++) r.e[0][x] = m.e[row][x];
+  for(var x = 0; x < m.w; x++) r.e[0][x] = m.e[y][x];
   return r;
+};
+
+// sets column x of matrix m to the values of c, in-place
+// x is 0-indexed, and c must be a h*1 matrix
+Jmat.Matrix.setCol = function(m, c, x) {
+  for(var y = 0; y < m.h; y++) m.e[y][x] = c.e[y][0];
+};
+
+// sets row y of matrix m to the values of r, in-place
+// y is 0-indexed, and r must be a 1*w matrix
+Jmat.Matrix.setRow = function(m, r, y) {
+  for(var x = 0; x < m.w; x++) m.e[y][x] = r.e[0][x];
 };
 
 // Add two non-equal sized matrices.
@@ -1639,12 +1671,159 @@ Jmat.Matrix.augment = function(a, b, row, col) {
   return result;
 };
 
+// given a partial column vector x of a matrix, returns [v, tau] with:
+// v a normalized householder reflection vector
+// tau the multiplication factor (0 if degenerate, 2 if real)
+// opt_real: set to true if you know the matrix is real
+Jmat.Matrix.getHouseholderVector_ = function(x, opt_real) {
+  var M = Jmat.Matrix;
+  var C = Jmat.Complex;
+
+  // Calculate the householder reflection vector
+  var s = x.e[0][0].eqr(0) ? C(-1) : C.sign(x.e[0][0]);
+  var v = M.identity(x.h, 1).mulc(s.mul(M.norm(x))).add(x);
+  var degenerate = M.isZero(v, 1e-30);
+  if(!degenerate) v = v.divc(M.norm(v)); // normalize
+
+  // Calculate the multiplication factor, taking complex matrices and degenerateness into account
+  var tau;
+  if(degenerate) {
+    tau = C(0); // In case of a degenerate column, do no reflection by setting tau to zero
+  } else if(opt_real) {
+    tau = C(2);
+  } else {
+    // complex
+    var xhv = M.mul(M.row(M.transjugate(x), 0), v);
+    var vhx = M.mul(M.transjugate(v), M.col(x, 0));
+    tau = xhv.e[0][0].div(vhx.e[0][0]).addr(1);
+  }
+
+  return [v, tau];
+};
+
+// Returns the c and s parameters for givens rotation as array [c, s].
+Jmat.Matrix.getGivensParams_ = function(a, b) {
+  if(b.eqr(0)) return [Jmat.Complex(1), Jmat.Complex(0), a];
+  // It is very important that the hypot function is implemented as "t=(|x|>|y|)?|y/x|:|x/y|;return sqrt(t*t+1)", and not as the numerically less stable "return sqrt(|x|^2+|y|^2)",
+  // or else numerical imprecisions will show up in some eigenvalues of some large matrices.
+  var r = Jmat.Complex.hypot(a, b);
+  var c = a.div(r);
+  var s = b.div(r).neg();
+  return [c, s, r];
+};
+
+// Pre-multiply for givens transformation G, in-place
+// returns G^H * M, calculating only the affected elements
+Jmat.Matrix.givensPre_ = function(m, i, j, c, s) {
+  for(var x = 0; x < m.w; x++) {
+    var a = m.e[i][x];
+    var b = m.e[j][x];
+    m.e[i][x] = a.mul(c.conj()).add(b.mul(s.neg().conj()));
+    m.e[j][x] = a.mul(s).add(b.mul(c));
+  }
+};
+
+// Post-multiply for givens transformation G, in-place
+// returns M * G, calculating only the affected elements
+Jmat.Matrix.givensPost_ = function(m, i, j, c, s) {
+  for(var y = 0; y < m.h; y++) {
+    var a = m.e[y][i];
+    var b = m.e[y][j];
+    m.e[y][i] = a.mul(c).add(b.mul(s.neg()));
+    m.e[y][j] = a.mul(s.conj()).add(b.mul(c.conj()));
+  }
+};
+
+// do householder reflections to bring a to similar a in upper hessenberg form
+Jmat.Matrix.toHessenberg = function(a) {
+  var M = Jmat.Matrix;
+  var T = M.transjugate;
+  if(a.h != a.w) return null;
+  var real = Jmat.Matrix.isReal(a);
+  var r = M.copy(a);
+  for(var k = 0; k + 2 < a.w; k++) {
+    var x = M.submatrix(r, k + 1, r.h, k, k + 1); // partial column vector
+    var vt = M.getHouseholderVector_(x, real);
+    var v = vt[0];
+    var tau = vt[1];
+
+    var rs = M.submatrix(r, k + 1, r.h, k, r.w);
+    rs = rs.sub(v.mul(T(v)).mul(rs).mulc(tau));
+    r = M.insert(r, rs, k + 1, k);
+
+    rs = M.submatrix(r, 0, r.h, k + 1, r.w);
+    rs = rs.sub(rs.mul(v).mul(T(v)).mulc(tau));
+    r = M.insert(r, rs, 0, k + 1);
+  }
+  //ensure the elements are really zero
+  for(var y = 0; y < r.h; y++) {
+    for(var x = 0; x < Math.max(y - 1, 0); x++) {
+      r.e[y][x] = Jmat.Complex(0);
+    }
+  }
+
+  return r;
+};
+
+// faster qr algorithm, a must be hessenberg
+Jmat.Matrix.qr_hessenberg_ = function(a) {
+  var M = Jmat.Matrix;
+  var C = Jmat.Complex;
+  var n = Math.min(a.h - 1, a.w);
+
+  var r = M.copy(a);
+  var q = M.identity(a.h, a.h);
+  for(var k = 0; k < n; k++) {
+    var g = M.getGivensParams_(r.e[k][k], r.e[k + 1][k]);
+    M.givensPre_(r, k, k + 1, g[0], g[1]);
+    r.e[k + 1][k] = C(0); // make extra sure it's zero
+    M.givensPost_(q, k, k + 1, g[0], g[1]);
+  }
+
+  return { q: q, r: r };
+};
+
+Jmat.Matrix.qr_general_ = function(a) {
+  var M = Jmat.Matrix;
+  var T = M.transjugate;
+  var real = Jmat.Matrix.isReal(a);
+  var h = a.h;
+  var w = a.w;
+  var v = []; // the householder reflection vectors
+  var taus = []; // the multiplication values
+
+  if(a.h < a.w) return null;
+
+  var r = M.copy(a);
+  for(var k = 0; k < w; k++) {
+    var x = M.submatrix(r, k, r.h, k, k + 1); // partial column vector
+    var vt = M.getHouseholderVector_(x, real);
+    v[k] = vt[0];
+    taus[k] = vt[1];
+
+    // Calculate R: it is A left-multiplied by all the householder matrices
+    var rs = M.submatrix(r, k, h, k, w);
+    rs = rs.sub(v[k].mul(T(v[k])).mul(rs).mulc(taus[k]));
+    r = M.insert(r, rs, k, k);
+  }
+
+  // Calculate Q: it is the product of all transjugated householder matrices
+  var q = M.identity(h, h);
+  for(var k = w - 1; k >= 0; k--) {
+    var qs = M.submatrix(q, k, h, 0, h);
+    qs = qs.sub(v[k].mul(T(v[k])).mul(qs).mulc(taus[k]));
+    q = M.insert(q, qs, k, 0);
+  }
+
+  return { q: q, r: r };
+};
+
 // QR factorization of complex matrix (with householder transformations)
 // requirement: m.h >= m.w
 // returns {q: Q, r: R}
 // q is h*h unitary matrix
 // r is h*w upper triangular matrix
-Jmat.Matrix.qr = function(m) {
+Jmat.Matrix.qr = function(a) {
   /*
   Tests in console:
   var qr = Jmat.qr([[1,2],[3,'4i']]); console.log(Matrix.render(qr.q)); console.log(Matrix.render(qr.r)); console.log(Matrix.render(qr.q.mul(qr.r)));
@@ -1654,53 +1833,10 @@ Jmat.Matrix.qr = function(m) {
   var qr = Jmat.qr([[1,0,0,0],[0,0,0,0],[0,0,0,0],[0,0,0,0]]); console.log(Matrix.render(qr.q)); console.log(Matrix.render(qr.r)); console.log(Matrix.render(qr.q.mul(qr.r)));
   */
 
-  if(m.h < m.w) return null;
-
-  var M = Jmat.Matrix;
-  var C = Jmat.Complex;
-  var T = M.transjugate;
-  var real = Jmat.Matrix.isReal(m);
-  var a = M.copy(m);
-  var h = a.h;
-  var w = a.w;
-  var v = []; // the reflection vectors
-  var taus = []; // the multiplication values
-  for(var k = 0; k < w; k++) {
-    var x = M.submatrix(a, k, h, k, k + 1);
-    var s = x.e[0][0].eqr(0) ? C(-1) : C.sign(x.e[0][0]);
-    v[k] = M.identity(h - k, 1).mulc(s.mul(M.norm(x))).add(x);
-    var normv = M.norm(v[k]);
-    var degenerate = normv.eqr(0);
-    var tau;
-    if(degenerate) {
-      // In case of a degenerate column, do no reflection by setting tau to zero
-      tau = C(0);
-    } else {
-      v[k] = v[k].divc(normv);
-      tau = C(2);
-      if(!real) {
-        var xhv = M.mul(M.transjugate(x), v[k]);
-        var vhx = M.mul(M.transjugate(v[k]), x);
-        tau = xhv.e[0][0].div(vhx.e[0][0]).addr(1);
-      }
-    }
-
-    taus[k] = tau;
-    var as = M.submatrix(a, k, h, k, w);
-    as = as.sub(v[k].mul(T(v[k])).mul(as).mulc(tau));
-    a = M.insert(a, as, k, k);
-  }
-  var r = a;
-
-  var q = M.identity(h, h);
-  for(var k = w - 1; k >= 0; k--) {
-    var z = M.submatrix(q, k, h, 0, h);
-    var z = M.submatrix(q, k, h, 0, h);
-    z = z.sub(v[k].mul(T(v[k])).mul(z).mulc(taus[k]));
-    q = M.insert(q, z, k, 0);
-  }
-
-  return { q: q, r: r };
+  // The algorithm for hessenberg form is faster when applicable.
+  return Jmat.Matrix.isUpperHessenberg(a, 1e-18) ?
+      Jmat.Matrix.qr_hessenberg_(a) :
+      Jmat.Matrix.qr_general_(a);
 };
 
 // eigenvalues and vectors of 1x1 matrix
@@ -1752,73 +1888,117 @@ Jmat.Matrix.eig22 = function(m) {
   return result;
 };
 
+// calculates eigenvalues of complex upper hessenberg matrix, using the shifted QR algorithm with givens rotations
+// h is nxn upper hessenberg matrix, and it gets destroyed during the process
+Jmat.Matrix.eigval_ = function(h) {
+  var C = Jmat.Complex;
+  var M = Jmat.Matrix;
+  var epsilon = 1.2e-16; // relative machine precision
+  var n = h.w; // initially size of the matrix, gets reduced with every eigenvalue found
+  var s = C(0); // shift
+  var t = C(0); // undo shifts
+  var x = C(0), y = C(0), z = C(0);
+
+  var result = [];
+  for(var i = 0; i < n; i++) result[i] = C(0);
+
+  while(n > 0) {
+    for(var num_it = 0; num_it <= 30; num_it++) {
+      if(num_it == 30) return null; // fail after 30 iterations
+      // find near-zero sub-diagonal element, at l
+      var l;
+      for (l = n - 1; l >= 1; l--) {
+        if(C.abs1r(h.e[l][l-1]) <= epsilon * (C.abs1r(h.e[l-1][l-1]) + C.abs1r(h.e[l][l]))) {
+          h.e[l][l-1] = C(0);  // fix possible numerical imprecisions
+          break;
+        }
+      }
+      if(l == n - 1) {
+        // root found
+        result[n-1] = h.e[n-1][n-1].add(t);
+        n--;
+        break;
+      }
+      // calculate shift for shifted QR step
+      if(num_it == 10 || num_it == 20) {
+        // use a special shift after 10 or 20 iterations
+        s.re = Math.abs(h.e[n-1][n-2].re) + Math.abs(h.e[n-2][n-3].re);
+        s.im = Math.abs(h.e[n-1][n-2].im) + Math.abs(h.e[n-2][n-3].im);
+      } else {
+        s = h.e[n-1][n-1];
+        x = h.e[n-2][n-1].mul(h.e[n-1][n-2]);
+        if(!x.eqr(0)) {
+          y = (h.e[n-2][n-2].sub(s)).divr(2);
+          z = C.sqrt(y.mul(y).add(x));
+          if(y.re * z.re + y.im * z.im < 0) z = z.neg();
+          x = x.div(y.add(z));
+          s = s.sub(x);
+        }
+      }
+      // apply shift
+      for(var i = 0; i < n; i++) {
+        h.e[i][i] = h.e[i][i].sub(s);
+      }
+      t = t.add(s);
+
+      // fast QR step with givens rotations. Implicitely decomposes h into Q*R, then sets h to R*Q (also, only uses nxn sub-matrix of original h).
+      var g = []; // remember each of the givens parameters
+      for (var k = 0; k + 1 < n; k++) {
+        g[k] = M.getGivensParams_(h.e[k][k], h.e[k + 1][k]);
+        M.givensPre_(h, k, k + 1, g[k][0], g[k][1]);
+        h.e[k + 1][k] = C(0); // make extra sure it's zero
+        h.e[k][k] = g[k][2]; // also, the r returned by getGivensParams_ is more precise here
+      }
+      for (var k = 0; k + 1 < n; k++) {
+        M.givensPost_(h, k, k + 1, g[k][0], g[k][1]);
+      }
+    }
+  }
+  return result;
+};
+
 // Returns the eigenvalues of m in an array, from largest to smallest
 Jmat.Matrix.eigval = function(m) {
   var M = Jmat.Matrix;
-  var C = Jmat.Complex;
   if(m.w != m.h || m.w < 1) return null;
   var n = m.w;
   if(n == 1) return [m.e[0][0]];
   if(n == 2) return M.eigval22(m);
 
-  // using the QR algorithm
-  var a = M.copy(m); //will contain the eigenvalues on the diagonal
+  // TODO: for hermitian or symmetric matrix, use faster algorithm for eigenvalues
 
-  // Naive implicit QR without shifts, does not work in many cases, left commented out for demo purpose only
-  // for(var i = 0; i < 30; i++) {
-  //  var qr = M.qr(a);
-  //  a = M.mul(qr.r, qr.q); // RQ instead of QR: A_k -> QR, A_(k+1) = RQ
-  // }
+  var a = M.toHessenberg(m);
+  var l = M.eigval_(a);
 
-  // QR with double shifting. This because with single shift or no shift, it does not support complex eigenvalues of real matrix, e.g. [[1,-1],[5,-1]]
-  // TODO: this is slow, optimize by bringing to Hessenberg form first, then each QR step will be O(n^2) instead of O(n^3) complexity
-  var id = M.identity(n, n);
-  var good = undefined; // good a (no NaNs)
-  for(var i = 0; i < 30; i++) {
-    // var s = a.e[a.h - 1][a.w - 1]; //value that would be chosen for single shift
-    // double shift: choose two sigma's, the eigenvalues of the bottom right 2x2 matrix (for which we have the explicit solution)
-    var l = M.eigval22(M.submatrix(a, a.h - 2, a.h, a.w - 2, a.w));
+  // Fullfill our promise of eigenvalues sorted from largest to smallest magnitude, the eigenvalue algorithm usually has them somewhat but not fully correctly sorted
+  l.sort(function(a, b) { return b.abssq() - a.abssq(); });
 
-    var si0 = id.mulc(l[0]);
-    a = a.sub(si0);
-    var qr = M.qr(a);
-    a = M.mul(qr.r, qr.q).add(si0);
+  return l;
+};
 
-    var si1 = id.mulc(l[1]);
-    a = a.sub(si1);
-    qr = M.qr(a);
-    a = M.mul(qr.r, qr.q).add(si1);
-    if(M.isValid(a)) {
-      good = a;
-    } else {
-      // Sometimes QR starts returning NaNs, e.g. if some values are too small. E.g. happens with [[1,2,3],[4,5,6],[7,8,9]] at input. Breaking out if i is large enough is still ok.
-      if(i < 3) return null; // Too bad.
-      if(!good) good = a;
-      break;
-    }
-    // TODO: exit loop if converged
+// Returns the eigenvector matching the given eigenvalue of m as a column vector
+// m must be a square matrix, and lambda a correct eigenvalue of it
+// opt_normalize is how to normalize the eigenvector: 0: don't (length unspecified), 1: last element equals 1, 2: length 1. The default is "1".
+Jmat.Matrix.eigenVectorFor = function(m, lambda, opt_normalize) {
+  var M = Jmat.Matrix;
+  if(m.w != m.h || m.w < 1) return null;
+  var n = m.w;
+  var normalize_mode = (opt_normalize == undefined) ? 1 : opt_normalize;
+
+  // Find eigenvectors by solving system of linear equations.
+  m = M.copy(m); //avoid changing user input
+  for(var i = 0; i < n; i++) m.e[i][i] = m.e[i][i].sub(lambda);
+  var f = M.zero(n, 1);
+  var g = M.solve(m, f, 0.01); // a very large epsilon is used... because the eigenvalues are numerically not precise enough to give the singular matrix they should
+  if(g) {
+    if(normalize_mode == 2) g = g.divc(M.norm(g));
+    if(normalize_mode == 1) if(!g.e[n - 1][0].eqr(0)) g = g.divc(g.e[n - 1][0]);
+  } else {
+    // failed to find the corresponding eigenvectors, avoid crash, set values to NaN
+    g = M.zero(n, 1);
+    for(var i = 0; i < n; i++) g.e[i][j] = Jmat.Complex(NaN, NaN); // The eigenvectors are stored as column vectors
   }
-  a = good;
-
-  // a is supposed to be triangular but may have some 2x2 blocks on the diagonal. Convert these to a pair of aigenvalues by taking the 2x2 eigenvalues of that diagonal.
-  for(var i = 0; i + 1 < m.w; i++) {
-    if(C.nearr(C.nearr(a.e[i + 1][i], 0, 1e-15))) continue;
-    var l = M.eigval22(M.submatrix(a, i, i + 2, i, i + 2));
-    a.e[i][i] = l[0];
-    a.e[i + 1][i + 1] = l[1];
-  }
-
-  var result = [];
-  for(var i = 0; i < m.w; i++) {
-    result.push(a.e[i][i]);
-  }
-
-  // The above algorithm almost always successfully produces the eigenvalues sorted from largest to smallest magnitude.
-  // Sometimes, however, that fails, so sort them here (e.g. for matrix [[0,1,2,3,4],[5,6,7,8,9],[0,1,3,5,7],[11,13,17,23,29],[1,2,4,8,16]])
-  // TODO: fix reason why they're not sorted in the first place, they should
-  result.sort(function(a, b) { return b.abssq() - a.abssq(); });
-
-  return result;
+  return g;
 };
 
 // Returns the eigenvectors and eigenvalues of m as { l: eigenvalues, v: eigenvectors }
@@ -1827,43 +2007,27 @@ Jmat.Matrix.eigval = function(m) {
 // opt_normalize is how to normalize the eigenvectors: 0: don't (length unspecified), 1: last element equals 1, 2: length 1. The default is "1".
 Jmat.Matrix.eig = function(m, opt_normalize) {
   var M = Jmat.Matrix;
-  var normalize_mode = (opt_normalize == undefined) ? 1 : opt_normalize;
   if(m.w != m.h || m.w < 1) return null;
   var n = m.w;
   if(n == 1) return M.eig11(m);
   if(n == 2) return M.eig22(m);
-  /*
-  Checks in console:
-  Jmat.render(Matrix.eig(Matrix(2,2,1,2,3,4)))
-  */
 
-  var val = M.eigval(m);
-  var l = new M(m.w, 1);
-  for(var i = 0; i < m.w; i++) l.e[i][0] = val[i];
+  var l = M.eigval(m);
 
-  // Find eigenvectors by solving system of linear equations.
-  // TODO: use more efficient algorithm
-  // TODO: for symmetrical matrix, the product of Q's from the QR algorithm can be used, use those when applicable
+  // Fullfill our promise of eigenvalues sorted from largest to smallest magnitude, the eigenvalue algorithm usually has them somewhat but not fully correctly sorted
+  l.sort(function(a, b) { return b.abssq() - a.abssq(); });
+
+  var v = null;
+  // TODO: use more efficient algorithm for eigenvectors, e.g. something that produces them as side-effect of the eigenvalue calculation
+  // TODO: for hermitian or symmetric matrix, use faster algorithm for eigenvectors
   var v = new M(n, n);
   for(var j = 0; j < n; j++) {
-    var lambda = val[j];
-    var e = M.copy(m); //TODO: this makes it even slower, copy only the needed columns
-    for(var i = 0; i < n; i++) e.e[i][i] = e.e[i][i].sub(lambda);
-    var f = M.zero(n, 1);
-    var g = M.solve(e, f, 0.01); // a very large epsilon is used... because the eigenvalues are numerically not precise enough to give the singular matrix they should
-    if(g) {
-      if(normalize_mode == 2) g = g.divc(M.norm(g));
-      if(normalize_mode == 1) if(!g.e[n - 1][0].eqr(0)) g = g.divc(g.e[n - 1][0]);
-      for(var i = 0; i < n; i++) v.e[i][j] = g.e[i][0]; // The eigenvectors are stored as column vectors
-    } else {
-      // failed to find the corresponding eigenvectors, avoid crash, set values to NaN
-      for(var i = 0; i < n; i++) v.e[i][j] = Jmat.Complex(NaN, NaN); // The eigenvectors are stored as column vectors
-    }
+    var g = M.eigenVectorFor(m, l[j], opt_normalize);
+    M.setCol(v, g, j);
   }
 
   return { l: l, v: v };
 };
-
 
 // Returns the eigen decomposition of m as { v: V, d: D }
 // If M is diagonizable, M = V * D * V^(-1)
@@ -1917,7 +2081,29 @@ Jmat.Matrix.definiteness = function(m, opt_epsilon) {
   return null; // unreachable
 };
 
-// Puts all the elements of d in a single diagonal matrix
+// converts an array of complex values or regular JS numbers, to a column vector matrix
+Jmat.Matrix.arrayToCol = function(a) {
+  var r = new Jmat.Matrix(a.length, 1);
+  for(var i = 0; i < a.length; i++) r.e[i][0] = Jmat.Complex.cast(a[i]);
+  return r;
+};
+
+// converts an array of complex values or regular JS numbers, to a row vector matrix
+Jmat.Matrix.arrayToRow = function(a) {
+  var r = new Jmat.Matrix(1, a.length);
+  for(var i = 0; i < a.length; i++) r.e[0][i] = Jmat.Complex.cast(a[i]);
+  return r;
+};
+
+// converts an array of complex values or regular JS numbers, to a diagonal matrix
+Jmat.Matrix.arrayToDiag = function(a) {
+  //var r = Jmat.Matrix.zero(a.length, a.length);
+  var r = new Jmat.Matrix(a.length, a.length);
+  for(var i = 0; i < a.length; i++) r.e[i][i] = Jmat.Complex.cast(a[i]);
+  return r;
+};
+
+// Puts all the elements of matrix d in a single diagonal matrix
 Jmat.Matrix.diag = function(d) {
   var n = d.w * d.h;
   var result = Jmat.Matrix.zero(n, n);

@@ -1052,6 +1052,18 @@ Jmat.Real.atanh = Math.atanh || function(x) {
   return Math.log((1 + x) / (1 - x)) / 2;
 };
 
+// returns sqrt(x^2 + y^2), avoiding numerical underflow or overflow ; a companion to atan2
+// Unlike Math.hypot from the JavaScript ES6 standard, this function does not support multiple arguments, only exactly two.
+Jmat.Real.hypot = function(x, y, opt_more) {
+  x = Math.abs(x);
+  y = Math.abs(y);
+  var t = Math.min(x, y);
+  x = Math.max(x, y);
+  if(x == Infinity) return Infinity;
+  t /= x;
+  return x * Math.sqrt(1 + t * t);
+};
+
 ////////////////////////////////////////////////////////////////////////////////
 
 // Replicate the rest of JS Math library.
