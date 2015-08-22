@@ -2728,7 +2728,6 @@ Jmat.Matrix.rref = function(a) {
   var C = Jmat.Complex;
   var h = a.h;
   var w = a.w;
-  var m = Math.min(h, w);
   a = Jmat.Matrix.copy(a); // The rest all works in-place, so copy to not modify user input.
 
   //swaps rows y0 and y1 in place
@@ -2757,22 +2756,27 @@ Jmat.Matrix.rref = function(a) {
 
   // gaussian elimination
   var k2 = 0; //next row to fill in, equal to k unless there are zero-rows
-  for(var k = 0; k < m; k++) {
-    var n = Jmat.Real.argmax(k, h, function(i) { return a.e[i][k].abssq(); });
-    if (a.e[n][k].eqr(0)) continue; // singular, leave row as is
-    swaprow(a, k2, n);
+  for(var k = 0; k < w; k++) {
+    var n = Jmat.Real.argmax(k2, h, function(i) { return a.e[i][k].abssq(); });
+    if (a.e[n][k].eqr(0)) continue; // singular, no pivot for this column
+    if(n != k2) swaprow(a, k2, n);
     mulrow(a, k, k2, a.e[k2][k].inv()); // pivot is now 1
+    // make corresponding elements of row below zero using row operations
     for (var i = k2 + 1; i < h; i++) {
-      submul(a, k + 1, k2, a.e[i][k], i);
-      a.e[i][k] = C(0); // make extra-sure it's 0, avoid numerical imprecision
+      if(!(a.e[i][k].eqr(0))) {
+        submul(a, k + 1, k2, a.e[i][k], i);
+        a.e[i][k] = C(0); // make extra-sure it's 0, avoid numerical imprecision
+      }
     }
     pivots.push(k);
     k2++;
+    if(k2 >= h) break;
   }
 
   //now bring from row echolon form to reduced row echolon form
   for(var k = 0; k < pivots.length; k++) {
     var p = pivots[k];
+    // make corresponding elements of row above zero using row operations
     for(var y = k - 1; y >= 0; y--) {
       submul(a, p + 1, k, a.e[y][p], y);
       a.e[y][p] = C(0); // make extra-sure it's 0, avoid numerical imprecision
@@ -2784,15 +2788,17 @@ Jmat.Matrix.rref = function(a) {
 
 // generates a random matrix with some properties.
 // all parameters are optional.
+// properties: properties object similar to what "getProperties" returns. Not all are implemented though.
+//             Currently only 'real', 'integer', 'binary' and 'hermitian' are supported.
+//             Default is object {'real':true}. Pass "undefined" to get the default, or '{}' to get complex matrices.
 // h: number of rows. Default: random 2..12
 // w: number of columns. Default: random 2..12, or h if h is defined
 // r0: lowest random value. Default: 0
 // r1: highest random value. Default: 1
 // s: sparseness: give value in range 0-1. Default: 1
-// properties: properties object similar to what "getProperties" returns. Not all are implemented though. Currently only 'real', 'integer' and 'hermitian' are supported. Default is object {'real':true}.
 // e.g. Matrix.random(4, 4, 0, 10, 1, {'integer':true}).render_summary()
 //      Matrix.random(3, 3, -10, 10, 1, {'real':false,'hermitian':true}).render_summary()
-Jmat.Matrix.random = function(h, w, r0, r1, s, properties) {
+Jmat.Matrix.random = function(properties, h, w, r0, r1, s) {
   var C = Jmat.Complex;
   w = w || h || Math.floor(Math.random() * 10 + 2);
   h = h || Math.floor(Math.random() * 10 + 2);
@@ -2802,9 +2808,11 @@ Jmat.Matrix.random = function(h, w, r0, r1, s, properties) {
   properties = properties || {'real':true};
   var real = properties['real'] || properties['integer'];
   var integer = properties['integer'];
+  var binary = properties['binary'];
   var hermitian = properties['hermitian'];
   var f = function(real) {
     if(s >= 1 || Math.random() < s) {
+      if (binary) return Math.random() > 0.5 ? C(1) : C(0);
       var result = real ? C(Math.random() * (r1 - r0) + r0) : C.random(r0, r1);
       return integer ? C(Math.floor(result.re)) : result;
     }

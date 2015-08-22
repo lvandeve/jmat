@@ -455,9 +455,10 @@ Jmat.Real.smallestPrimeFactor = function(x) {
   return x;
 };
 
-//factorize: returns prime factors as array of real integers, sorted from smallest to largest. x must be real positive integer.
+//factorize: returns prime factors as array of real integers, sorted from smallest to largest. x must be real non-negative integer.
 Jmat.Real.factorize = function(x) {
   if(x > Jmat.Real.BIGGESTJSINT) return undefined; //too large for the floating point's integer precision, will cause crash
+  if(x <= 2) return [x]; // return [0] if x is 0, [1] if x is 1
   var x = Math.round(x);
   var result = [];
   for(;;) {
