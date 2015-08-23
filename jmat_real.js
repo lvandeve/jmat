@@ -70,6 +70,7 @@ Jmat.Real.SQRTPI = Math.sqrt(Math.PI); // gamma(0.5)
 Jmat.Real.EM = 0.57721566490153286060; // Euler-Mascheroni constant
 Jmat.Real.APERY = 1.2020569; // Apery's constant, zeta(3)
 Jmat.Real.BIGGESTJSINT = 9007199254740992; // largest number that JS (float64) can represent as integer: 2^53, 0x20000000000000, 9007199254740992
+Jmat.Real.BIGGESTJSPRIME = 9007199254740881; // largest prime number that JS (float64) can represent as integer, that is, the biggest prime smaller than Jmat.Real.BIGGESTJSINT.
 
 ////////////////////////////////////////////////////////////////////////////////
 // Categories
@@ -455,12 +456,19 @@ Jmat.Real.smallestPrimeFactor = function(x) {
   return x;
 };
 
-//factorize: returns prime factors as array of real integers, sorted from smallest to largest. x must be real non-negative integer.
+//factorize: returns prime factors as array of real integers, sorted from smallest to largest. x must be integer.
 Jmat.Real.factorize = function(x) {
   if(x > Jmat.Real.BIGGESTJSINT) return undefined; //too large for the floating point's integer precision, will cause crash
-  if(x <= 2) return [x]; // return [0] if x is 0, [1] if x is 1
   var x = Math.round(x);
   var result = [];
+  if(x < 0) {
+    x = -x;
+    result.push(-1);
+  }
+  if(x <= 2) {
+    if(result.length == 0 || x != 1) result.push(x); // return [0] if x is 0, [1] if x is 1
+    return result;
+  }
   for(;;) {
     if(x < 1) break;
     var y = Jmat.Real.smallestPrimeFactor(x);
@@ -657,6 +665,7 @@ Jmat.Real.pascal_triangle = function(n, p) {
 //greatest common divisor
 Jmat.Real.gcd = function(x, y) {
   if(!Jmat.Real.isInt(x) || !Jmat.Real.isInt(y)) return NaN; //prevents infinite loop if both x and y are NaN. Also, reals are not supported here.
+  if(Math.abs(x) > Jmat.Real.BIGGESTJSINT || Math.abs(y) > Jmat.Real.BIGGESTJSINT) return NaN; // does not work above JS integer precision
  //Euclid's algorithm
  for(;;) {
    if(y == 0) return Math.abs(x); //if x or y are negative, the result is still positive by the definition

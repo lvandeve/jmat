@@ -2778,8 +2778,10 @@ Jmat.Matrix.rref = function(a) {
     var p = pivots[k];
     // make corresponding elements of row above zero using row operations
     for(var y = k - 1; y >= 0; y--) {
-      submul(a, p + 1, k, a.e[y][p], y);
-      a.e[y][p] = C(0); // make extra-sure it's 0, avoid numerical imprecision
+      if(!(a.e[y][p].eqr(0))) {
+        submul(a, p + 1, k, a.e[y][p], y);
+        a.e[y][p] = C(0); // make extra-sure it's 0, avoid numerical imprecision
+      }
     }
   }
 

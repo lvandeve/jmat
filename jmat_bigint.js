@@ -520,6 +520,7 @@ Jmat.BigInt.rshift = function(a, b) {
   }
 
   if(a.minus) result = result.neg();
+  B.stripInPlace_(result.a);
   return result;
 };
 Jmat.BigInt.prototype.rshift = function(b) {
@@ -895,9 +896,8 @@ Jmat.BigInt.prototype.comparer = function(b) {
   var sign = this.getSign();
   b = Math.abs(b);
 
-  var n = Jmat.BigInt.getNumDigits(this);
   var r = 0;
-  for(var i = 0; i < n && r <= b; i++) {
+  for(var i = 0; i < this.a.length && r <= b; i++) {
     r *= this.radix;
     r += this.a[i];
   }
@@ -1264,12 +1264,25 @@ Jmat.BigInt.primeCache_ = [];
 // Returns prime factors in array.
 // Will not factorize if the problem is too difficult (only uses simple checks), last element of result is 0 then to indicate the error.
 // Result may be probabilistic since a probabilistic prime test is used.
+// For inputs smaller than 2, includes the non-composite factors -1, 0 and 1 in the result
 Jmat.BigInt.factorize = function(a) {
   var B = Jmat.BigInt;
 
-  // avoid infinite loops
-  if(a.eqr(0)) return [B(0)];
-  if(a.eqr(1)) return [B(1)];
+  var result = [];
+  if(a.minus) {
+    a = B.neg(a);
+    result.push(B(-1));
+  }
+  if(a.lter(2)) {
+    if(result.length == 0 || !a.eqr(1)) result.push(a); // return [0] if x is 0, [1] if x is 1. Also avoids infinite loops.
+    return result;
+  }
+
+  if (a.ltr(Jmat.Real.BIGGESTJSINT)) {
+    var r = Jmat.Real.factorize(a);
+    for(var i = 0; i < r.length; i++) result.push(B(r[i]));
+    return result;
+  }
 
   // returns a factor, or a itself if end reached (a is prime), or 0 if undetermined because the problem is too hard
   var f = function(a) {
@@ -1303,7 +1316,6 @@ Jmat.BigInt.factorize = function(a) {
     return B(0); // Not found
   }
 
-  var result = [];
   for(;;) {
     var b = f(a);
     if(b.eqr(0)) {
@@ -1852,10 +1864,11 @@ Jmat.BigInt.isPrimeSimple = function(n) {
 };
 
 //do rounds of Miller-Rabin primality test
-//base = the potential witnesses to try as an array, e.g. [2, 3]. The members of the array may be either regular JS number or BigInt
+//opt_base = the potential witnesses to try as an array, e.g. [2, 3]. The members of the array may be either regular JS number or BigInt. Optional parameter, if not given, chosen automatically (random)
 //requires that n is big enough, at least 3. First use Jmat.BigInt.isPrimeSimple, and only use this function if that returns -1.
-Jmat.BigInt.isPrimeMillerRabin = function(n, base) {
+Jmat.BigInt.isPrimeMillerRabin = function(n, opt_base) {
   var B = Jmat.BigInt;
+  var base = opt_base || B.chooseMillerRabinBase_(n);
 
   // choose s and odd d such that n = 2^s * d
   var d = n.divr(2);
@@ -1914,11 +1927,11 @@ Jmat.BigInt.chooseMillerRabinBase_ = function(n) {
 //Is *probably* prime at least.
 //If you wish to control amount of miller rabin rounds and bases, use isPrimeMillerRabin directly with own bases (first use isPrimeSimple).
 Jmat.BigInt.isPrime = function(n) {
+  if(n.ltr(Jmat.Real.BIGGESTJSPRIME)) return Jmat.Real.isPrime(n.toInt());
   var init = Jmat.BigInt.isPrimeSimple(n);
   if(init != -1) return !!init;
 
-  var base = Jmat.BigInt.chooseMillerRabinBase_(n);
-  return Jmat.BigInt.isPrimeMillerRabin(n, base);
+  return Jmat.BigInt.isPrimeMillerRabin(n);
 };
 
 /*
@@ -1976,6 +1989,7 @@ Jmat.BigInt.getNumDigits = function(x) {
 };
 
 //strips array a (removing leading zeroes unless it is zero), modifying the object
+//NOTE: do not give a BigInt, a must be an array
 Jmat.BigInt.stripInPlace_ = function(a) {
   while(a[0] == 0 && a.length > 1) a.shift(); //JS array shift function (a is array, not BigInt)
 };
@@ -1994,7 +2008,7 @@ Jmat.BigInt.copystrip_ = function(a) {
 };
 
 //makes copy if needed object needs to be altered, or original if it doesn't have to be stripped
-//a is array
+//NOTE: do not give a BigInt, a must be an array
 Jmat.BigInt.maybecopystrip_ = function(a, allowmodify) {
   if(a.length <= 1 || a[0] != 0) return a;
   if(!allowmodify) a = Jmat.BigInt.copyarray_(a);
