@@ -1723,8 +1723,8 @@ Jmat.BigInt.egcd = function(x, y) {
   return [oldr, olds, oldt, t, s];
 };
 
-// calculates a^-1 mod m, integer modular multiplicative inverse
-// result only exists if gcd(a, m) == 1, they're coprime
+// calculates a^-1 mod m, integer modular multiplicative inverse, so that (a*result) mod m == 1
+// result only exists if gcd(a, m) == 1 (they're coprime), and m > 2
 Jmat.BigInt.invmod = function(a, m) {
   var B = Jmat.BigInt;
   var origm = m;
@@ -1751,13 +1751,18 @@ Jmat.BigInt.invmod = function(a, m) {
   return result;
 };
 
-//montgomery reduction: calculates a/r mod m (the division of course in modulo, so doesn't necessarily make a smaller)
+//montgomery reduction (aka REDC): calculates a/r mod m (the division of course in modulo, so doesn't necessarily make a smaller)
+//a must be smaller than m*r-1
 //r must be power of 2 and bits is its log2, mask is r-1 (all ones)
 //mi must be -(m^(-1)) mod r (there's a minus sign in front, but since it's mod r it's positive again)
 Jmat.BigInt.monred_ = function(a, bits, mask, m, mi) {
   var s = a.mul(mi).bitand(mask); // Could also apply mask to a and mi, but usually mask is bigger so not a speedup.
   var t = a.add(s.mul(m)).rshift(bits);
-  if(t.gte(m)) t = t.sub(m);
+  if(t.gte(m)) {
+    t = t.sub(m);
+    if(t.gte(m)) return null; // error, probably a was larger than m*r-1
+  }
+
   return t;
 };
 
@@ -1791,15 +1796,16 @@ Jmat.BigInt.modpow = function(a, b, m, opt_monred) {
   var ba = B.maybecopystrip_(b.a, b != origb);
   var a1 = B.ONE;
   var a2 = a;
+  if(a2.gt(m)) a2 = a2.mod(m); // otherwise the monred code doesn't work due to too large base
   var l = ba.length;
 
   if(m.modr(2).eqr(1) && l > 1) {
     // Odd m, so faster Montgomery reduction with power of two r possible
 
-    var monred = opt_monred || B.genmonred_(m);
+    var monredm = opt_monred || B.genmonred_(m);
 
-    a1 = monred(a1, true);
-    a2 = monred(a2, true);
+    a1 = monredm(a1, true);
+    a2 = monredm(a2, true);
 
     // Montgomery's ladder
     for(var i = 0; i < l; i++) {
@@ -1810,11 +1816,11 @@ Jmat.BigInt.modpow = function(a, b, m, opt_monred) {
         a1 = a1.mul(a2);
         a2 = a2.mul(a2);
       }
-      a1 = monred(a1);
-      a2 = monred(a2);
+      a1 = monredm(a1);
+      a2 = monredm(a2);
     }
 
-    a1 = monred(a1);
+    a1 = monredm(a1);
     return a1;
   } else {
     // Even m, slower
