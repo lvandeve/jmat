@@ -1519,7 +1519,7 @@ Jmat.BigInt.leemondiv_ = function(x, y, bpe) {
   var mask = x.radix - 1;
 
   var kx, ky;
-  var i,y1,y2,c,a,b;
+  var i, y1, y2, c, a, b;
   var r = B.copy(x);
 
   x = x.strip();
@@ -1537,7 +1537,6 @@ Jmat.BigInt.leemondiv_ = function(x, y, bpe) {
   y.a.splice(0, 0, 0);
 
   kx = Math.max(ky, r.a.length);
-  while(r.a.length < x.a.length + 1) r.a.splice(0, 0, 0);
 
   var q = B(0, radix);
   for(var i = 0; i < x.a.length; i++) q.a[i] = 0;
@@ -1548,17 +1547,19 @@ Jmat.BigInt.leemondiv_ = function(x, y, bpe) {
     r = r.sub(s);
     q.a[q.a.length - kx + ky - 1]++;
   }
+  // the algorithm requires that r has the same length as x, prepend zeroes if needed
+  while(r.a.length < x.a.length + 1) r.a.splice(0, 0, 0);
 
-  for (i=kx-1; i>=ky; i--) {
+  for (var i = kx - 1; i >= ky; i--) {
     var rl = r.a.length - 1;
     var ql = q.a.length - 1;
     var yl = y.a.length - 1;
 
-    if (r.a[rl - i]==y.a[yl - (ky-1)])
-      q.a[ql-(i-ky)]=mask;
-    else
-      q.a[ql-(i-ky)]=Math.floor((r.a[rl-i]*radix+r.a[rl-(i-1)])/y.a[yl-(ky-1)]);
-
+    if (r.a[rl - i] == y.a[yl - (ky - 1)]) {
+      q.a[ql - (i - ky)] = mask;
+    } else {
+      q.a[ql - (i - ky)] = Math.floor((r.a[rl - i] * radix + r.a[rl - (i - 1)]) / y.a[yl - (ky - 1)]);
+    }
 
     //The following for(;;) loop is equivalent to the commented while loop,
     //except that the uncommented version avoids overflow.
@@ -1566,21 +1567,22 @@ Jmat.BigInt.leemondiv_ = function(x, y, bpe) {
     //  while(q[ql-(i-ky)]*(y[yl-(ky-1)]*radix+y[yl-(ky-2)]) > r[rl-i]*radix*radix+r[rl-(i-1)]*radix+r[rl-(i-2)])
     //    q[ql-(i-ky)]--;
     for(;;) {
-      y2 = (ky > 1 ? y.a[yl-(ky-2)] : 0) * q.a[ql-(i-ky)];
+      y2 = (ky > 1 ? y.a[yl - (ky - 2)] : 0) * q.a[ql - (i - ky)];
       c = y2 >> bpe;
       y2 = y2 & mask;
-      y1 = c + q.a[ql-(i-ky)] * y.a[yl-(ky-1)];
+      y1 = c + q.a[ql - (i - ky)] * y.a[yl - (ky - 1)];
       c = y1 >> bpe;
       y1 = y1 & mask;
 
-      if(c == r.a[rl-i] ? y1 == r.a[rl-(i-1)] ? y2 > (i > 1 ? r.a[rl-(i-2)] : 0) : y1 > r.a[rl-(i-1)] : c > r.a[rl-i])
-        q.a[ql-(i-ky)]--;
-      else
+      if(c == r.a[rl - i] ? y1 == r.a[rl - (i - 1)] ? y2 > (i > 1 ? r.a[rl - (i - 2)] : 0) : y1 > r.a[rl - (i - 1)] : c > r.a[rl - i]) {
+        q.a[ql - (i - ky)]--;
+      } else {
         break;
+      }
     }
 
-    var ys = y.lshift_radix(i-ky);
-    var rs = ys.mulr(q.a[ql-(i-ky)]);
+    var ys = y.lshift_radix(i - ky);
+    var rs = ys.mulr(q.a[ql - (i - ky)]);
     if(r.lt(rs)) {
       r.a = Jmat.BigInt.baseloop_(r.a, 0, 1, ys.a, 0, 1, 0, radix, true);
       r.a = Jmat.BigInt.baseloop_(r.a, 0, 1, rs.a, 0, -1, 0, radix, true);
@@ -1620,8 +1622,8 @@ Jmat.BigInt.divmod_ = function(a, b, opt_bpe) {
 
   var result = ar[0];
   var m = ar[1];
-  result = result.strip();
-  m = m.strip();
+  B.stripInPlace_(result.a);
+  B.stripInPlace_(m.a);
 
   // To test correctness: m must be equal to a.sub(result.mul(b)), and in range [0, b)
   // if(m.neq(a.sub(result.mul(b))) || m.ltr(0) || m.gte(b)) console.log('alert1: ' + a + ' ' + b + ' ' + result + ' ' + m);

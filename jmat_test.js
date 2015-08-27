@@ -48,12 +48,18 @@ Jmat.Test.expectFalse = function(value, opt_message) {
 // Works both for Complex or Matrix objects.
 // Precision is number of decimal digits that should match
 Jmat.Test.expectNear = function(e, a, precision) {
-  if(Jmat.isNaN(e) && Jmat.isNaN(a)) return; //both NaN is ok for test
+  var errorText = 'fail: expected ' + Jmat.toString(e) + ' got ' + Jmat.toString(a) + '. Expected precision: ' + precision;
+
   if(Jmat.eq(e, 0) || Jmat.eq(a, 0) || Jmat.matrixIn_(e) || Jmat.matrixIn_(a)) {
     // for 0, allow the other to be absolute rather than relative near it. For matrices, always use absolute epsilon as well.
-    if(!Jmat.near(e, a, precision)) throw 'fail: expected ' + Jmat.toString(e) + ' got ' + Jmat.toString(a) + '. Expected precision: ' + precision;
+    if(!Jmat.near(e, a, precision)) throw errorText;
+  } else if (Jmat.bigIntIn_(e) || Jmat.bigIntIn_(a)) {
+    if(!Jmat.eq(e, a)) throw errorText;
+  } else if(typeof e == 'number') {
+    if(Jmat.isNaN(e) && Jmat.isNaN(a)) return; //both NaN is ok for test
+    if(!Jmat.relnear(e, a, precision)) throw errorText;
   } else {
-    if(!Jmat.relnear(e, a, precision)) throw 'fail: expected ' + Jmat.toString(e) + ' got ' + Jmat.toString(a) + '. Expected precision: ' + precision;
+    if(!Jmat.relnear(e, a, precision)) throw errorText;
   }
 };
 
@@ -202,6 +208,7 @@ Jmat.doUnitTest = function() {
 
   // bigints
   Jmat.Test.testFunction('40094690950920881030683735292761468389214899724061', 0, Jmat.div, '1522605027922533360535618378132637429718068114961380688657908494580122963258952897654000350692006139', '37975227936943673922808872755445627854565536638199');
+  Jmat.Test.testFunction(BigInt('32769'), 0, Jmat.div, BigInt('4653329978'), BigInt('142001'));
   Jmat.Test.testFunction('1250000000', 0, Jmat.div, '50000000000', '40');
   Jmat.Test.testFunction('20000000000', 0, BigInt.sqrt, '400000000000000000000');
   Jmat.Test.testFunction('5', 0, BigInt.log2, '63');
