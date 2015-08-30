@@ -3190,7 +3190,7 @@ Jmat.Complex.cdf_normal = function(x, mu, sigma) {
 };
 
 Jmat.Complex.qf_normal = function(x, mu, sigma) {
-  return Jmat.Complex.exp(mu.add(sigma.mul(Jmat.Complex.qf_standardnormal(x))));
+  return mu.add(sigma.mul(Jmat.Complex.qf_standardnormal(x)));
 };
 
 ////////////////////////////////////////////////////////////////////////////////

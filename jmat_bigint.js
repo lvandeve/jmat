@@ -772,6 +772,12 @@ Jmat.BigInt.prototype.subr = function(b) {
   // TODO: make more efficient by using baseloop directly
   return this.sub(Jmat.BigInt.fromInt(b));
 };
+Jmat.BigInt.rsub = function(a, b) {
+  return a.rsub(b);
+};
+Jmat.BigInt.prototype.rsub = function(b) {
+  return this.subr(b).neg();
+};
 
 Jmat.BigInt.mul = function(a, b) {
   return a.mul(b);
@@ -1490,6 +1496,7 @@ Jmat.BigInt.divsmall_ = function(a, b) {
 };
 
 // Modulo with regular (must be integer) js number
+// TODO: consider returning regular js number instead of BigInt as well, after all it fits in the range
 Jmat.BigInt.modr = function(a, b) {
   if(b == 0) return undefined;
   if(b == 1 || b == -1) return Jmat.BigInt(0);
@@ -1725,7 +1732,7 @@ Jmat.BigInt.egcd = function(x, y) {
   return [oldr, olds, oldt, t, s];
 };
 
-// calculates a^-1 mod m, integer modular multiplicative inverse, so that (a*result) mod m == 1
+// calculates a^-1 mod m, modular inverse, so that (a*result) mod m == 1
 // result only exists if gcd(a, m) == 1 (they're coprime), and m > 2
 Jmat.BigInt.invmod = function(a, m) {
   var B = Jmat.BigInt;
@@ -1855,6 +1862,12 @@ Jmat.BigInt.randomBits = function(bits) {
   }
   if(mask + 1 < Jmat.BigInt.ARRAYBASE_) result.a[0] &= mask;
   return result;
+};
+
+// Returns a random prime with roughly the given amount of bits.
+// E.g. BigInt.randomPrime(20) could return something like 156007 or 787477
+Jmat.BigInt.randomPrime = function(bits) {
+  return Jmat.BigInt.nextPrime(Jmat.BigInt.randomBits(bits));
 };
 
 Jmat.BigInt.firstPrimes_ = [2, 3, 5, 7, 11, 13, 17, 19, 23, 29, 31, 37, 41, 43, 47, 53, 59, 61, 67, 71, 73, 79, 83, 89, 97];
