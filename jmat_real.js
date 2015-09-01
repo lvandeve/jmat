@@ -448,7 +448,7 @@ Jmat.Real.smallestPrimeFactor = function(x) {
   var p = Jmat.Real.firstPrimes_[Jmat.Real.firstPrimes_.length - 1];
   var s = Math.ceil(Math.sqrt(x));
   p = Math.floor(p / 6) * 6;
-  while(p < s) {
+  while(p < s + 5) {
     if(x % (p - 1) == 0) return p - 1;
     if(x % (p + 1) == 0) return p + 1;
     p += 6;

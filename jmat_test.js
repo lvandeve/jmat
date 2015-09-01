@@ -123,6 +123,9 @@ Jmat.doUnitTest = function() {
   Jmat.Test.testFunction('-0.359814152183402722051986577', 1e-12, Jmat.bessely, '10', '10');
   Jmat.Test.testFunction('6.3618456410625559136428432181', 1e-12, Jmat.hypergeometric1F1, 1, 2, 3);
 
+  //other
+  Jmat.Test.testFunction(3581, 0, Real.smallestPrimeFactor, 12830723);
+
   // mod
   Jmat.Test.testFunction(0, 0, Jmat.mod, -6, 3);
   Jmat.Test.testFunction(1, 0, Jmat.mod, -5, 3);
