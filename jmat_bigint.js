@@ -1337,6 +1337,70 @@ Jmat.BigInt.factorize = function(a) {
 };
 
 
+
+// Returns legendre symbol for odd prime p. The legendre symbol is 0 if p
+// divides a, 1 if a is quadratic residue mod p, p - 1 if it's not a quadratic
+// residue (if p divides a it's technically also a quadratic residue).
+Jmat.BigInt.legendre = function(a, p) {
+  return Jmat.BigInt.modpow(a, p.subr(1).divr(2), p);
+};
+
+
+// Tonelli-Shanks algorithm aka "RESSOL": finds square root of n mod p, but p
+// must be odd prime and n should be quadratic residue mod p (if it isn't, then
+// it returns 0). That means it finds the x such that x*x = n (mod p).
+// Returns one result r, but there are two solutions, and the other solution is
+// always p - r (this all assumes legendre symbol is 1, when it's 0 then instead
+// there is exactly one solution which is 0).
+Jmat.BigInt.ressol = function(n, p) {
+  var B = Jmat.BigInt;
+  if(p.eqr(2)) return B(0);
+  // TODO: have something precomputed that can do all these mod p's faster, and
+  // similarly have opt_monred parameter for modpow.
+  if (p.ltr(2)) return null; // avoid infinite loops
+  n = n.mod(p);
+  var q = p.subr(1);
+  var s = 0;
+  while (B.bitandr(q, 1) == 0) {
+    q = q.divr(2);
+    s++;
+  }
+  if (s == 1) {
+    var r = B.legendre(n, p);
+    if (r.mul(r).mod(p).neq(n)) return B(0);
+    return r;
+  }
+
+  var nr = B(1); // find a non-residue
+  for(;;) {
+    nr = nr.addr(1);
+    if(B.legendre(nr, p).gtr(1)) break; // if legendre symbol is -1
+  }
+
+  var c = B.modpow(nr, q, p);
+  var r = B.modpow(n, q.addr(1).divr(2), p);
+  var t = B.modpow(n, q, p);
+  var m = s;
+  while (!t.eqr(1)) {
+    var tmp = t;
+    var i = 0;
+    while(!tmp.eqr(1)) {
+      tmp = tmp.mul(tmp).mod(p);
+      i++;
+      if(i == m) return 0;
+    }
+    var b = B.modpow(c, B.modpow(B(2), B(m - i - 1), p.subr(1)), p);
+    tmp = b.mul(b).mod(p);
+    r = r.mul(b).mod(p);
+    t = t.mul(tmp).mod(p);
+    c = tmp;
+    m = i;
+  }
+
+  if (r.mul(r).mod(p).neq(n)) return B(0);
+  return r;
+};
+
 // takes floor of base-y logarithm of x (y is also BigInt, but typically something like 2 or 10. logr is faster with immediately giving regular JS number.)
 Jmat.BigInt.logy = function(x, y) {
   return Jmat.BigInt.logr(x, y.toInt());
