@@ -1357,7 +1357,7 @@ Jmat.BigInt.ressol = function(n, p) {
   if(p.eqr(2)) return B(0);
   // TODO: have something precomputed that can do all these mod p's faster, and
   // similarly have opt_monred parameter for modpow.
-  if (p.ltr(2)) return null; // avoid infinite loops
+  if (p.lter(2)) return null; // avoid infinite loops
   n = n.mod(p);
   var q = p.subr(1);
   var s = 0;
@@ -1366,7 +1366,7 @@ Jmat.BigInt.ressol = function(n, p) {
     s++;
   }
   if (s == 1) {
-    var r = B.legendre(n, p);
+    var r = B.modpow(n, p.addr(1).divr(4), p);
     if (r.mul(r).mod(p).neq(n)) return B(0);
     return r;
   }
