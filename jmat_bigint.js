@@ -1169,7 +1169,7 @@ Jmat.BigInt.factorial = function(a) {
   var b = a.toInt(); //if a does not fit in regular JS number, the result is unreasonably huge anyway.
   if(b == Infinity) return undefined;
 
-  if(b < 20) return B(Jmat.Real.factorial(b));
+  if(b < 19) return B(Jmat.Real.factorial(b));
 
   var primes = Jmat.Real.eratosthenes(b);
   var f = [];
@@ -1267,9 +1267,241 @@ Jmat.BigInt.max = function(a, b) {
 
 Jmat.BigInt.primeCache_ = [];
 
+// Sieves in a given range to collect smooth numbers. res is the quadratic residues.
+// start and end are BigInt, primes and res are regular JS numbers, primes has "-1" as first element to handle negative numbers.
+// opt_maxnum is a limit for the amount of results you want, in case it would find too many results.
+// Returns 3 things: array of b's, array of a's, array of factors of b's, where each b = a*a-n
+Jmat.BigInt.qs_sieve_ = function(n, start, end, primes, res, opt_maxnum) {
+  var B = Jmat.BigInt;
+  var num = end.sub(start).toInt();
+  var array = []; // array of approximate logarithms
+  for (var i = 0; i < num; i++) array[i] = 0;
+
+  // returns null if invalid, the factorization array if valid, which is used to avoid having to calculate a large sqrt later
+  var trialdiv = function(b) {
+    var result = [];
+    if(b.minus) {
+      result.push(-1);
+      b = b.abs();
+    }
+    for(var i = 1; i < primes.length; i++) {
+      if(b.eqr(0)) break;
+      while(b.modr(primes[i]).eqr(0)) {
+        b = b.divr(primes[i]);
+        result.push(primes[i]);
+      }
+    }
+    return b.eqr(1) ? result : null;
+  };
+
+  for (var i = 1; i < primes.length; i++) {
+    var p = primes[i];
+    if(p < 4) continue; // skip small primes (and also -1), compensate for it in the approximate log later...
+    var lp = Math.log(p);
+    var pos = -start.modr(p).toInt();
+    while (pos < num) {
+      var index0 = pos + res[i];
+      var index1 = pos + (p - res[i]);
+      if(index0 >= 0 && index0 < num) array[index0] += lp;
+      if(res[i] != 0 && index1 >= 0 && index1 < num) array[index1] += lp;
+      pos += p;
+    }
+  }
+
+  var result = [[],[],[]];
+  for(var i = 0; i < array.length; i++) {
+    var a = start.addr(i);
+    var b = a.mul(a).sub(n);
+    var l = B.rlog(b.abs());
+    if(array[i] >= 0.95 * l - 10) {  // Tweak approximate log comparison. TODO: finetune this
+      var factors = trialdiv(b);
+      if(factors) {
+        result[0].push(b);
+        result[1].push(a);
+        result[2].push(factors);
+        if(result[0].length >= opt_maxnum) break;
+      }
+    }
+  }
+  return result;
+};
+
+
+// Binary matrix rref for quadratic sieve
+Jmat.BigInt.qs_rref_ = function(a) {
+  var h = a.length;
+  var w = a[0].length;
+
+  var swaprow = function(matrix, y0, y1) {
+    var temp = matrix[y0];
+    matrix[y0] = matrix[y1];
+    matrix[y1] = temp;
+  };
+
+  // xors row y1 with row y0 (modifying row y1), starting from x.
+  var xorrow = function(matrix, x, y0, y1) {
+    var w = matrix[0].length;
+    for (var i = x; i < w; i++) {
+      matrix[y1][i] ^= matrix[y0][i];
+    }
+  };
+
+  var pivots = []; // x coordinate of pivot in each row (except the zero rows at the end, so may have smaller length than h)
+
+  // gaussian elimination
+  var k2 = 0; //next row, equal to k unless there are zero-rows
+  for(var k = 0; k < w; k++) {
+    var n = Jmat.Real.argmax(k2, h, function(i) { return a[i][k]; });
+    if (a[n][k] == 0) continue; // singular, leave row as is
+    if(k2 != n) swaprow(a, k2, n);
+    for (var i = k2 + 1; i < h; i++) {
+      if(a[i][k] != 0) xorrow(a, k, k2, i);
+    }
+    pivots.push(k);
+    k2++;
+    if(k2 >= h) break;
+  }
+
+  //now bring from row echolon form to reduced row echolon form
+  for(var k = 0; k < pivots.length; k++) {
+    var p = pivots[k];
+    for(var y = k - 1; y >= 0; y--) {
+      if(a[y][p] != 0) xorrow(a, p, k, y);
+    }
+  }
+};
+
+//Solves homogenous equation, with matrix given in rref form.
+//Start with seed 1. For more solutions, increment seed. Once it returns null, no more new unseen solutions are available.
+Jmat.BigInt.qs_solve_ = function(matrix, seed) {
+  var h = matrix.length;
+  var w = matrix[0].length;
+  seed = seed || 1;
+
+  var sol = [];
+  for(var x = 0; x < w; x++) sol[x] = -1; //-1 means uninited
+
+  var k = w; //how we're progressing to the left in the echelon matrix
+  for(var y = h - 1; y >= 0; y--) {
+    var f = 0; //first non-zero element in horizontal direction
+    while(f < w && matrix[y][f] == 0) f++;
+    if(f == w) continue; //row with all zeroes
+    k = f;
+    var odd = 0;
+    for(var x = f + 1; x < w; x++) {
+      if(matrix[y][x]) {
+        if(sol[x] == -1) {
+          sol[x] = (seed & 1); // can choose between 0 and 1, but note that always choosing 0 makes it end up with the trivial solution
+          seed >>= 1;
+        }
+        if(sol[x] == 1) odd ^= 1;
+      }
+    }
+    sol[f] = odd;
+  }
+  if(seed != 0) return null; // indicates there are no more unseen solutions: not all seed bits were used up
+
+  var result = [];
+  for(var i = 0; i < sol.length; i++) if(sol[i] > 0) result.push(i); //values that are -1 also count as 0
+  return result;
+};
+
+// Quadratic sieve. Many TODO's, not best implementation yet, supports 30 digit numbers (two 15-digit prime factors).
+Jmat.BigInt.qsieve_ = function(n, opt_verbose) {
+  // Test in console: ''+Jmat.BigInt.qsieve_(BigInt.randomPrime(50).mul(BigInt.randomPrime(50)), true)
+  var B = Jmat.BigInt;
+
+  var pad = function(n, len) { len = len || 2; n = '' + n; while(n.length < len) n = '0' + n; return n; };
+  var formattime = function(d) { return pad(d.getHours()) + ':' + pad(d.getMinutes()) + ':' + pad(d.getSeconds()) + '.' + pad(d.getMilliseconds(), 3); };
+  var logwithtime = function(s) { if(opt_verbose) console.log('[' + formattime(new Date()) + ']: ' + s); };
+
+  var l = B.rlog10(n);
+  var sb = Math.floor(50 * l * l); // smoothness bound. TODO: tweak this better
+  var s = B.sqrt(n);
+
+  var primes = [-1].concat(Real.eratosthenes(sb));
+  if (primes.length > 6000) return null; // Limit the input size this way, to avoid JS hanging too long. Without this return, it can factor 38!+1 in 12 minutes.
+
+  var res = [0]; // residues
+  var filtered = [-1];
+  for(var i = 1; i < primes.length; i++) {
+    var l = B.legendre(n, B(primes[i]));
+    if(l == 0) return B(primes[i]); // found a small factor early
+    if(l == 1) {
+      filtered.push(primes[i]);
+      res.push(B.ressol(n, B(primes[i])).toInt());
+      if(filtered.length > 3000) break; // JS may crash when making 10k x 10k array. Limit to 3k x 3k.
+    }
+  }
+  var num = filtered.length + 1; // the matrix must have at least one more smooth value than the amount of primes to algebraically guarantee a solution
+  var step = num * 999; // TODO: tweak this amount
+  logwithtime('input: ' + n + ', smoothness bound: ' + sb + ', num primes: ' + primes.length + ', num filtered primes: ' + filtered.length + ', sieving for ' + num + ' smooth numbers in batches of ' + step);
+  primes = filtered;
+
+  var pos = s.subr(step); // begin with a few a's under the sqrt (gives negative b's, handled with "-1" as factor): slightly more chance of smooth numbers there.
+  var all_b = [], all_a = [], all_factored = [];
+  // TODO: support multiple polynomials
+  while (all_b.length < num) {
+    var r = B.qs_sieve_(n, pos, pos.addr(step), primes, res, num - all_b.length);
+    pos = pos.addr(step);
+    all_b = all_b.concat(r[0]);
+    all_a = all_a.concat(r[1]);
+    all_factored = all_factored.concat(r[2]);
+    logwithtime('found ' + r[0].length + ' for this batch, ' + all_b.length + ' total');
+  }
+  logwithtime('sieving done, found ' + all_b.length + ' smooth numbers');
+
+  var reverseprimes = {};
+  for(var i = 0; i < primes.length; i++) reverseprimes[primes[i]] = i;
+
+  var matrix = []; // each column represents a factorization
+  for(var j = 0; j < primes.length; j++) matrix.push([]);
+  for(var i = 0; i < all_b.length; i++) {
+    for(var j = 0; j < primes.length; j++) matrix[j][i] = 0;
+    var f = all_factored[i];
+    for(j = 0; j < f.length; j++) {
+      matrix[reverseprimes[f[j]]][i] ^= 1; // xor instead of increment: binary matrix to find squares (even amount of factors)
+    }
+  }
+  logwithtime('performing gaussian elemination...');
+  B.qs_rref_(matrix);
+  logwithtime('gaussian elemination done. Matrix size: ' + matrix.length + 'x' + matrix[0].length);
+
+  for(var seed = 0; seed < 20; seed++) {
+    logwithtime('solving...');
+    var sol = B.qs_solve_(matrix, seed);
+    if(!sol || !sol.length) break;
+
+    var as = [], bs = []; // The a's and the b's, with b = a*a-n
+    var factors = [];
+    for(var i = 0; i < sol.length; i++) {
+      bs.push(all_b[sol[i]]);
+      as.push(all_a[sol[i]]);
+      var f = all_factored[sol[i]];
+      var fcount = [];
+      for(var j = 0; j < primes.length; j++) fcount[j] = 0;
+      for(var j = 0; j < f.length; j++) fcount[reverseprimes[f[j]]]++;
+      for(var j = 0; j < fcount.length; j++) { factors[j] = (factors[j] || 0) + fcount[j]; } // sum fcount to factors
+    }
+
+    var mula = B.mulmany_(as);
+    for(var i = 0; i < factors.length; i++) factors[i] >>= 1;
+    var pfactors = [];
+    for(var i = 0; i < factors.length; i++) {
+      if(factors[i] != 0) pfactors.push(B.pow(B(primes[i]), B(factors[i])));
+    }
+    var s = B.mulmany_(pfactors); // s is now B.sqrt(mulb) with mulb = B.mulmany_(bs), but, that would be very slow, can be 100k bit number, so calculated from half of factors instead
+
+    var gcd = B.gcd(n, mula.sub(s));
+    logwithtime('gcd: ' + gcd);
+    if(!gcd.eqr(1) && !gcd.eq(n)) return gcd; // found one!
+  }
+  return null;
+};
+
 // Returns prime factors in array.
-// Will not factorize if the problem is too difficult (only uses simple checks), last element of result is 0 then to indicate the error.
-// Result may be probabilistic since a probabilistic prime test is used.
+// Will not factorize if the problem is too difficult, last element of result is 0 then to indicate the error.
+// Result may be probabilistic since a probabilistic prime test is used (but such error is very unlikely).
 // For inputs smaller than 2, includes the non-composite factors -1, 0 and 1 in the result
 Jmat.BigInt.factorize = function(a) {
   var B = Jmat.BigInt;
@@ -1297,9 +1529,8 @@ Jmat.BigInt.factorize = function(a) {
     if(B.isPrime(a)) {
       return a;
     }
-
     // Check 2: simple trial division with primes.
-    var num = Math.min(1000000, B.sqrt(a).toInt());
+    var num = Math.min(50000, B.sqrt(a).toInt());  // not too high, this is slow, the quadratic sieve will handle the rest
     var p = 1; //prime throughout the for loop
     var i = 0;
     for(;;) {
@@ -1319,17 +1550,26 @@ Jmat.BigInt.factorize = function(a) {
       return f(pw[1]); // the perfect power base itself is not necessarily prime, hence recursive call
     }
 
+    // Check 4: quadratic sieve
+    var qs = B.qsieve_(a);
+    if (qs) {
+      return f(qs); // it's a factor, but not necessarily a prime one, so recurse
+    }
     return B(0); // Not found
   }
 
   for(;;) {
     var b = f(a);
     if(b.eqr(0)) {
+      // the quadratic sieve doesn't guarantee getting the smallest factor so must sort
+      result.sort(function(a, b) { return B.compare(a, b); });
       result.push(B(0));
       return result;
     }
     result.push(b);
     if(b.eqr(a)) {
+      // the quadratic sieve doesn't guarantee getting the smallest factor so must sort
+      result.sort(function(a, b) { return B.compare(a, b); });
       return result;
     }
     a = a.div(b);
@@ -1928,7 +2168,7 @@ Jmat.BigInt.randomBits = function(bits) {
   return result;
 };
 
-// Returns a random prime with roughly the given amount of bits.
+// Returns a random probable prime with roughly the given amount of bits.
 // E.g. BigInt.randomPrime(20) could return something like 156007 or 787477
 Jmat.BigInt.randomPrime = function(bits) {
   return Jmat.BigInt.nextPrime(Jmat.BigInt.randomBits(bits));
@@ -2259,6 +2499,8 @@ Jmat.BigInt.enrichFunctions_ = function() {
   Jmat.BigInt.enrichFunction_(object, 'factorize', 1, 0);
   Jmat.BigInt.enrichFunction_(object, 'factorial', 1, 1);
   Jmat.BigInt.enrichFunction_(object, 'primorial', 1, 1);
+  Jmat.BigInt.enrichFunction_(object, 'legendre', 2, 0);
+  Jmat.BigInt.enrichFunction_(object, 'ressol', 2, 1);
 };
 
 Jmat.BigInt.enrichFunctions_();
