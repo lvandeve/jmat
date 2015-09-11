@@ -171,7 +171,7 @@ Jmat.Complex.loggamma = function(z) {
 //lx = log(x + c) / sqrt(2pi); result = lx / lambertw(lx / e) + 0.5
 //not very precise
 Jmat.Complex.gamma_inv = function(value) {
-  if(Jmat.Complex.isPositive(value) && x > 0.85) { //doesn't work for negative values, nor values smaller than somewhere around 0.85
+  if(Jmat.Complex.isPositive(value) && value.re > 0.85) { //doesn't work for negative values, nor values smaller than somewhere around 0.85
     // Approximation for positive real x.
     var x = value.re;
     //c = sqrt(2 * pi) / e - gamma(k), where k = the positive zero of the digamma function (1.4616321449683623412626...)
