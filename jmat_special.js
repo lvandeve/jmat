@@ -2537,7 +2537,6 @@ Jmat.Complex.tetration_loop_ = function(a, b, num, l) {
   var C = Jmat.Complex;
   var result = b;
   var last;
-  if(num > 1000) return C(NaN); //avoid infinite loop
   for(var i = 0; i < num; i++) {
     if(l) result = C.logy(result, a);
     else result = a.pow(result);
@@ -2545,6 +2544,7 @@ Jmat.Complex.tetration_loop_ = function(a, b, num, l) {
     // E.g. a=1.01 already converges to 1.0101015237405409 after just 7 iterations. 1.44 converges to 2.393811748202943 after 244 iterations, so numbers near that take a while to loop. 1.45 and higher converge to Infinity.
     if(result.eq(last)) return result;
     last = result;
+    if(i > 1000) return C(NaN); //avoid infinite loop (check is here, not before the loop with num, because the loop may converge)
   }
   return result;
 };
