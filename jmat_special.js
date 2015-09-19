@@ -37,7 +37,7 @@ jmat_special.js extends Jmat.Real and Jmat.Complex with more functions. Has thre
 IMPORTANT NOTE: Admittedly, this file contains the least numerically stable functions of Jmat.js.
                 Some only work well for a certain input range. So verify for your usecase before trusting these.
 
-Some more basic special functions are in jmat_complex.js and jmat_real.js
+Some more basic special functions are in jmat_complex.js and jmat_real.js, that includes erf, gamma and lambertw.
 
 Overview of some functionality:
 -Tetration: Complex.tetration
@@ -56,86 +56,6 @@ Overview of some functionality:
 -algorithms: Complex.rootfind, Complex.integrate, Complex.differentiate, Complex.doSummation, Complex.doProduct, Complex.powerSeries
 -statistical distributions: Complex.{pdf,pmf,cdf,qf}_{uniform,standardnormal,normal,lognormal,cauchy,studentt,chi_square,logistic,gamma,beta,fisher,weibull,exponential,laplace,bernoulli,binomial,poisson}
 */
-
-// Tetration
-// Returns experimental (not mathematically correct) results unless x is an integer or Infinity
-Jmat.Real.tetration = function(a, x) {
-  // if(a == 1) return 1; // Not true, e.g. 1^Infinity is not 1. Probably things are not like this for tetration either.
-  if(x == 0) return 1; //by definition
-  if(x == 1) return a;
-  if(x == 2) return Math.pow(a, a);
-  if(a >= 2 && x > 5) return Infinity; // too big for double
-  if(a == 0 && Jmat.Real.isPositiveInt(x)) {
-    // Chosen definition that considers 0^0 = 1, so 0^^n is 1 if n is even, 0 if n is odd.
-    return Jmat.Complex.isEven(x) ? 1 : 0;
-  }
-
-  // Power tower (infinitely iterated exponentiation)
-  if(x == Infinity && a > 0) {
-    // converges if a >= 0.066 && a <= 1.44
-    var l = Math.log(a);
-    return Jmat.Real.lambertw(-l) / (-l);
-  }
-
-  var runloop = function(a, b, num, l) {
-    var result = b;
-    var last;
-    for(var i = 0; i < num; i++) {
-      if(l) result = Jmat.Real.logy(result, a);
-      else result = Math.pow(a, result);
-      if(isNaN(result)) return result;
-      if(result == Infinity) return result; // Actually redundant, result == last already checks that too
-      if(result == last) return result; // E.g. a=1.01 already converges to 1.0101015237405409 after just 7 iterations. 1.44 converges to 2.393811748202943 after 244 iterations, so numbers near that take a while to loop. 1.45 and higher converge to Infinity.
-      last = result;
-      if(i > 1000) return NaN; //avoid infinite loop
-    }
-    return result;
-  };
-
-  // This supports power tower as well
-  // It supports it better than the lambertw formula above because the domain here is real numbers only, the lambertw formula fails on, for example, -1 and returns nan instead of -1
-  if(Jmat.Real.isPositiveInt(x)) {
-    return runloop(a, a, x - 1, false);
-  }
-
-  // Everything above is true tetration for those cases where possible. What follows below is intermediate tetration research, to return "something"
-
-  // Linear approximation for the extension to real heights
-  // a^^x = x+1 for x > -1 && x <= 0
-  // a^^x = log_a(a^^(x+1)) for x <= -1  ==> a^^-1.5 = log_a(x+2), a^^-2.5 = log_a(log_a(x+3)), etc...
-  // a^^x = a^(a^^(x-1)) for x > 0  ==> a^^0.5 = a^x, a^^1.5 = a^(a^(x-1)), a^^2.5 = a^(a^(a^(x-2))), etc...
-  // examples: e^^(0.5*pi) ~= 5.868
-  //           0.5^^(-4.3) ~= 4.033
-  if(x > -1 && x <= 0) return 1 + x;
-  if(x > 0) {
-    var b = x - Math.floor(x); //always in range 0-1
-    return runloop(a, b, Math.ceil(x), false);
-  }
-  if(x <= -1) {
-    var b = x - Math.floor(x); //always in range 0-1
-    return runloop(a, b, -Math.ceil(x), true);
-  }
-
-  return NaN;
-};
-
-//Minkowski's question mark function, from Wikipedia
-Jmat.Real.minkowski = function(x) {
-  if(x != x) return NaN;
-  var p = Math.floor(x);
-  var q = 1, r = p + 1, s = 1, m, n;
-  var d = 1.0, y = p;
-  if(x < p || (p < 0) != (r <= 0)) return x; //out of range ?(x) =~ x
-  for(;;) { //invariants: q*r-p*s==1 && p/q <= x && x < r/s
-    d /= 2; if(y + d == y) break; //reached max possible precision
-    m = p + r; if((m < 0) != (p < 0)) break; //sum overflowed
-    n = q + s; if(n < 0) break; //sum overflowed
-
-    if(x < m / n) r = m, s = n;
-    else y += d, p = m, q = n;
-  }
-  return y + d; //final round-off
-};
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -1727,9 +1647,8 @@ Jmat.Complex.hypergeometric0F1 = function(a, z) {
 
   // The series does not converge well for large negative z with smallish a, because then terms with opposite signs are supposed to cancel out.
   // Use this expansion into two 2F0 calls instead.
-  // TODO: expensive and also doesn't work that well. Find better solution to the problem where hypergeometric0F1(6, -400) is very imprecise.
-  // TODO: also both this and the main series give wrong value for Jmat.hypergeometric0F1(-23.5, -126.5625)
-  // TODO: the values -80 and z.abssq() / 3 have been chosen to make it work for BesselJ in the zone where it uses 0F1. This may be totally off for other applications. Improve this criterium for algorithm choice.
+  // Some difficult cases that this handles: hypergeometric0F1(-23.5, -126.5625) = 692.923, hypergeometric0F1(6, -400) = 4.59650497414 * 10^-6
+  // The values -80 and z.abssq() / 3 have been chosen to make it work for BesselJ in the zone where it uses 0F1. This may be need tweaking for other applications.
   if(z.re < -80 && a.abssq() < z.abssq() / 3) {
     var g = C.gamma(a).divr(2 * C.SQRTPI.re);
     var s = C.sqrt(z.neg());
@@ -2549,128 +2468,214 @@ Jmat.Complex.theta4 = function(z, q) {
 
 // TODO: exponential integral, sine integral, cosine integral, logarithmic integral, elliptic integrals, fresnel integrals
 
+// Loop for tetration: raises b to power a num times (typically a == b). if l is true, takes logarithm instead of power.
+Jmat.Real.tetration_loop_ = function(a, b, num, l) {
+  var result = b;
+  var last;
+  for(var i = 0; i < num; i++) {
+    if(l) result = Jmat.Real.logy(result, a);
+    else result = Math.pow(a, result);
+    if(isNaN(result)) return result;
+    if(result == Infinity) return result; // Actually redundant, result == last already checks that too
+    if(result == last) return result; // E.g. a=1.01 already converges to 1.0101015237405409 after just 7 iterations. 1.44 converges to 2.393811748202943 after 244 iterations, so numbers near that take a while to loop. 1.45 and higher converge to Infinity.
+    last = result;
+    if(i > 1000) return NaN; //avoid infinite loop
+  }
+  return result;
+}
+
+// Tetration
+// Returns experimental (not mathematically correct) results unless x is an integer or Infinity
+Jmat.Real.tetration = function(a, x) {
+  var R = Jmat.Real;
+  // if(a == 1) return 1; // Not true, e.g. 1^Infinity is not 1. Probably things are not like this for tetration either.
+  if(x == 0) return 1; //by definition
+  if(x == 1) return a;
+  if(x == 2) return Math.pow(a, a);
+  if(a >= 2 && x > 5) return Infinity; // too big for double
+  if(a == 0 && R.isPositiveInt(x)) {
+    // Chosen definition that considers 0^0 = 1, so 0^^n is 1 if n is even, 0 if n is odd.
+    return Jmat.Complex.isEven(x) ? 1 : 0;
+  }
+
+  // Power tower (infinitely iterated exponentiation)
+  if(x == Infinity && a > 0) {
+    // converges if a >= 0.066 && a <= 1.44
+    var l = Math.log(a);
+    return R.lambertw(-l) / (-l);
+  }
+
+  // This supports power tower as well
+  // It supports it better than the lambertw formula above because the domain here is real numbers only, the lambertw formula fails on, for example, -1 and returns nan instead of -1
+  if(R.isPositiveInt(x)) {
+    return R.tetration_loop_(a, a, x - 1, false);
+  }
+
+  // Everything above is true tetration for those cases where possible. What follows below is intermediate tetration research, to return "something"
+
+  // Linear approximation for the extension to real heights
+  // a^^x = x+1 for x > -1 && x <= 0
+  // a^^x = log_a(a^^(x+1)) for x <= -1  ==> a^^-1.5 = log_a(x+2), a^^-2.5 = log_a(log_a(x+3)), etc...
+  // a^^x = a^(a^^(x-1)) for x > 0  ==> a^^0.5 = a^x, a^^1.5 = a^(a^(x-1)), a^^2.5 = a^(a^(a^(x-2))), etc...
+  // examples: e^^(0.5*pi) ~= 5.868
+  //           0.5^^(-4.3) ~= 4.033
+  if(x > -1 && x <= 0) return 1 + x;
+  if(x > 0) {
+    var b = x - Math.floor(x); //always in range 0-1
+    return R.tetration_loop_(a, b, Math.ceil(x), false);
+  }
+  if(x <= -1) {
+    var b = x - Math.floor(x); //always in range 0-1
+    return R.tetration_loop_(a, b, -Math.ceil(x), true);
+  }
+
+  return NaN;
+};
+
+// Loop for tetration: raises b to power a num times (typically a == b). if l is true, takes logarithm instead of power.
+Jmat.Complex.tetration_loop_ = function(a, b, num, l) {
+  var C = Jmat.Complex;
+  var result = b;
+  var last;
+  if(num > 1000) return C(NaN); //avoid infinite loop
+  for(var i = 0; i < num; i++) {
+    if(l) result = C.logy(result, a);
+    else result = a.pow(result);
+    if(C.isNaN(result)) return result;
+    // E.g. a=1.01 already converges to 1.0101015237405409 after just 7 iterations. 1.44 converges to 2.393811748202943 after 244 iterations, so numbers near that take a while to loop. 1.45 and higher converge to Infinity.
+    if(result.eq(last)) return result;
+    last = result;
+  }
+  return result;
+};
+
+// complex tetration e^^z, aka "tet" or "fse" (fast superexponential)
+// This implementation, which only works for base e, is based on the paper: Tetrational as special function, E. Kouznetsov
+Jmat.Complex.tetrational = function(z) {
+  var C = Jmat.Complex;
+
+  // TODO: more coefficients
+  var s = [0.30685281944005, 0.59176735125832, 0.39648321290170, 0.17078658150959,
+           0.08516537613999, 0.03804195209047, 0.01734090876306, 0.00755271038865,
+           0.00328476064839, 0.00139361740170, 0.00058758348148, 0.00024379186661,
+           0.00010043966462, 0.00004090111776, 0.00001654344436, 0.00000663102846,
+           0.00000264145664, 0.00000104446533, 0.00000041068839, 0.00000016048059,
+           0.00000006239367, 0.00000002412797, 0.00000000928797, 0.00000000355850,
+           0.00000000135774, 0.00000000051587];
+  // TODO: does JavaScript always re-execute all these constructors? Make object constant outside of this function instead
+  var t = [C(0.37090658903229, 1.33682167078891), C(0.01830048268799, 0.06961107694975),
+           C(-0.04222107960160, 0.02429633404907), C(-0.01585164381085, -0.01478953595879),
+           C(0.00264738081895, -0.00657558130520), C(0.00182759574799, -0.00025319516391),
+           C(0.00036562994770, 0.00028246515810), C(0.00002689538943, 0.00014180498091),
+           C(-0.00003139436775, 0.00003583704949), C(-0.00001376358453, -0.00000183512708),
+           C(-0.00000180290980, -0.00000314787679), C(0.00000026398870, -0.00000092613311),
+           C(0.00000024961828, -0.00000013664223), C(0.00000000637479, 0.00000002270476),
+           C(-0.00000000341142, 0.00000000512289), C(-0.00000000162203, 0.00000000031619),
+           C(-0.00000000038743, -0.00000000027282), C(-0.00000000001201, -0.00000000013440),
+           C(0.00000000002570, -0.00000000002543), C(0.00000000000935, 0.00000000000045),
+           C(0.00000000000170, 0.00000000000186), C(-0.00000000000005, 0.00000000000071),
+           C(-0.00000000000016, 0.00000000000012), C(-0.00000000000005, -0.00000000000001),
+           C(-0.00000000000001, -0.00000000000001)];
+  var an = [C(0.3181315052047641353, 1.3372357014306894089), C(1), C(-0.1513148971556517359, -0.2967488367322413067),
+            C(-0.03697630940906762, 0.09873054431149697), C(0.0258115979731401398, -0.017386962126530755), C(-0.0079444196, 0.00057925018)];
+
+  // fima = Fast approximation at large IMaginary part of the Argument
+  var fima = function(z) {
+    var r = C(1.0779614375280, -0.94654096394782);
+    var beta = C(0.12233176, -0.02366108);
+    var l = an[0]; //fixed point of the logarithm
+    var e = C.exp(l.mul(z).add(r));
+    var c = beta.mul(e).mul(C.exp(z.mul(C.newi(Math.PI * 2))));
+    return C.powerSeries(an, an.length, C.ZERO, e).add(c);
+  };
+
+  // McLaurin expansion
+  var maclo = function(z) {
+    return C.log(z.addr(2)).add(C.powerSeries(s, s.length, C.ZERO, z));
+  };
+
+  // Taylor expansion
+  var tai = function(z) {
+    return C.powerSeries(t, t.length, C.newi(3), z);
+  };
+
+  var b;
+  var z2 = C(Jmat.Real.fracn(z.re), z.im);
+
+  if(z.im < -4.5) b = fima(z2.conj()).conj();
+  else if(z.im < -1.5) b = tai(z2.conj()).conj();
+  else if(z.im < 1.5) b = maclo(z2);
+  else if(z.im < 4.5) b = tai(z2);
+  else b = fima(z2);
+
+  if(z.re > 0) return C.tetration_loop_(C.E, b, Math.floor(z.re), false);
+  else return C.tetration_loop_(C.E, b, -Math.ceil(z.re), true);
+};
 
 // Tetration
 // Returns experimental (not mathematically correct) results unless z is a positive integer or Infinity
 Jmat.Complex.tetration = function(a, z) {
-  if(Jmat.Complex.isPositive(a) && Jmat.Complex.isPositiveInt(z) && z.re != Infinity) {
-    return Jmat.Complex(Jmat.Real.tetration(a.re, z.re));
+  var C = Jmat.Complex;
+
+  if(C.isPositive(a) && C.isPositiveInt(z) && z.re != Infinity) {
+    return C(Jmat.Real.tetration(a.re, z.re));
   }
 
-  //if(a.eqr(1)) return Jmat.Complex(1);  // Not true, e.g. 1^Infinity is not 1. Probably things are not like this for tetration either. Indeed it looks like e.g. 1^^0.5 is not 1.
-  if(z.eqr(0)) return Jmat.Complex(1); //by definition
+  //if(a.eqr(1)) return C(1);  // Not true, e.g. 1^Infinity is not 1. Probably things are not like this for tetration either. Indeed it looks like e.g. 1^^0.5 is not 1.
+  if(z.eqr(0)) return C(1); //by definition
   if(z.eqr(1)) return a;
   if(z.eqr(2)) return a.pow(a);
-  if(Jmat.Complex.isReal(a) && a.re >= 2 && z > 5) return Jmat.Complex(Infinity); // too big for double
-  if(a.eqr(0) && Jmat.Complex.isPositiveInt(z)) {
+  if(C.isReal(a) && a.re >= 2 && z > 5) return C(Infinity); // too big for double
+  if(a.eqr(0) && C.isPositiveInt(z)) {
     // Chosen definition that considers 0^0 = 1, so 0^^n is 1 if n is even, 0 if n is odd.
-    return Jmat.Complex.isEven(z) ? Jmat.Complex(1) : Jmat.Complex(0);
+    return C.isEven(z) ? C(1) : C(0);
   }
 
   // Power tower (infinitely iterated exponentiation)
-  if(z.eqr(Infinity) /*&& Jmat.Complex.isPositive(a)*/) {
-    if(a.eqr(1)) return Jmat.Complex(1); //0/0 ==> 1
+  if(z.eqr(Infinity) /*&& C.isPositive(a)*/) {
+    if(a.eqr(1)) return C(1); //0/0 ==> 1
     // converges if a >= 0.066 && a <= 1.44
-    // when using "runloop" with high iterations here, it it indeed only converges there. The lambertw formula below has values everywhere though.
-    var l = Jmat.Complex.log(a);
-    return Jmat.Complex.lambertw(l.neg()).div(l.neg());
+    // when using "C.tetration_loop_" with high iterations here, it it indeed only converges there. The lambertw formula below has values everywhere though.
+    var l = C.log(a);
+    return C.lambertw(l.neg()).div(l.neg());
   }
-
-  var runloop = function(a, b, num, l) {
-    var result = b;
-    var last;
-    for(var i = 0; i < num; i++) {
-      if(l) result = Jmat.Complex.logy(result, a);
-      else result = a.pow(result);
-      if(Jmat.Complex.isNaN(result)) return result;
-      if(result.eq(last)) return result; // E.g. a=1.01 already converges to 1.0101015237405409 after just 7 iterations. 1.44 converges to 2.393811748202943 after 244 iterations, so numbers near that take a while to loop. 1.45 and higher converge to Infinity.
-      last = result;
-      if(i > 1000) return Jmat.Complex(NaN); //avoid infinite loop
-    }
-    return result;
-  };
 
   // This supports power tower as well
   // It supports it better than the lambertw formula above because the domain here is real numbers only, the lambertw formula fails on, for example, -1 and returns nan instead of -1
-  if(Jmat.Complex.isPositiveInt(z)) {
-    return runloop(a, a, z.re - 1, false);
+  if(C.isPositiveInt(z)) {
+    return C.tetration_loop_(a, a, z.re - 1, false);
   }
 
   // Everything above is true tetration for those cases where possible. What follows below is intermediate tetration research, to return "something", because there is no more than that available.
-  if (Jmat.Complex.isReal(z)) {
+  if (C.isReal(z)) {
     // Linear approximation for the extension to real heights
     // a^^z = z+1 for z > -1 && z <= 0
     // a^^z = log_a(a^^(z+1)) for z <= -1  ==> a^^-1.5 = log_a(z+2), a^^-2.5 = log_a(log_a(z+3)), etc...
     // a^^z = a^(a^^(z-1)) for z > 0  ==> a^^0.5 = a^z, a^^1.5 = a^(a^(z-1)), a^^2.5 = a^(a^(a^(z-2))), etc...
     // examples: e^^(0.5*pi) ~= 5.868, 0.5^^(-4.3) ~= 4.033
     if(z.eqr(-1)) {
-      return Jmat.Complex(0); //the formulas below would give -Infinity
+      return C(0); //the formulas below would give -Infinity
     }
     if(z.re > -1 && z.re <= 0) {
       return z.inc();
     }
     if(z.re > 0) {
-      var b = z.sub(Jmat.Complex.floor(z)); //always in range 0-1
-      return runloop(a, b, Math.ceil(z.re), false);
+      var b = z.sub(C.floor(z)); //always in range 0-1
+      return C.tetration_loop_(a, b, Math.ceil(z.re), false);
     }
     if(z.re <= -1) {
-      var b = z.sub(Jmat.Complex.floor(z)); //always in range 0-1
-      return runloop(a, b, -Math.ceil(z.re), true);
+      var b = z.sub(C.floor(z)); //always in range 0-1
+      return C.tetration_loop_(a, b, -Math.ceil(z.re), true);
     }
   }
 
-  if (Jmat.Complex.near(a, Jmat.Complex.E, 1e-15)) {
-    // This implementation, which only works for base e, is based on the paper: Tetration as special function, E. Kouznetsov
-
-    // TODO: more coefficients
-    var s = [0.30685281944005, 0.59176735125832, 0.39648321290170, 0.17078658150959,
-             0.08516537613999, 0.03804195209047, 0.01734090876306, 0.00755271038865,
-             0.00328476064839, 0.00139361740170, 0.00058758348148, 0.00024379186661,
-             0.00024379186661, 0.00010043966462, 0.00001654344436, 0.00000663102846,
-             0.00000264145664, 0.00000104446533, 0.00000041068839, 0.00000016048059,
-             0.00000006239367, 0.00000002412797, 0.00000000928797, 0.00000000355850,
-             0.00000000135774, 0.00000000051587];
-    // TODO: does JavaScript always re-execute all these constructors? Make object constant outside of this function instead
-    var t = [Jmat.Complex(0.37090658903229, 1.33682167078891), Jmat.Complex(0.01830048268799, 0.06961107694975),
-             Jmat.Complex(-0.04222107960160, 0.02429633404907), Jmat.Complex(-0.01585164381085, -0.01478953595879),
-             Jmat.Complex(0.00264738081895, -0.00657558130520), Jmat.Complex(0.00182759574799, -0.00025319516391),
-             Jmat.Complex(0.00036562994770, 0.00028246515810), Jmat.Complex(0.00002689538943, 0.00014180498091),
-             Jmat.Complex(-0.00003139436775, 0.00003583704949), Jmat.Complex(-0.00001376358453, -0.00000183512708),
-             Jmat.Complex(-0.00000180290980, -0.00000314787679), Jmat.Complex(0.00000026398870, -0.00000092613311),
-             Jmat.Complex(0.00000024961828, -0.00000013664223), Jmat.Complex(0.00000000637479, 0.00000002270476),
-             Jmat.Complex(-0.00000000341142, 0.00000000512289), Jmat.Complex(-0.00000000162203, 0.00000000031619),
-             Jmat.Complex(-0.00000000038743, -0.00000000027282), Jmat.Complex(-0.00000000001201, -0.00000000013440),
-             Jmat.Complex(0.00000000002570, -0.00000000002543), Jmat.Complex(0.00000000000935, 0.00000000000045),
-             Jmat.Complex(0.00000000000170, 0.00000000000186), Jmat.Complex(-0.00000000000005, 0.00000000000071),
-             Jmat.Complex(-0.00000000000016, 0.00000000000012), Jmat.Complex(-0.00000000000005, -0.00000000000001),
-             Jmat.Complex(-0.00000000000001, -0.00000000000001)];
-    var an = [Jmat.Complex(0.3181315052047641353, 1.3372357014306894089), Jmat.Complex(1), Jmat.Complex(-0.1513148971556517359, -0.2967488367322413067),
-              Jmat.Complex(-0.03697630940906762, 0.09873054431149697), Jmat.Complex(0.0258115979731401398, -0.017386962126530755), Jmat.Complex(-0.0079444196, 0.00057925018)];
-    var fima = function(z) {
-      var r = Jmat.Complex(1.0779614375280, -0.94654096394782);
-      var beta = Jmat.Complex(0.12233176, -0.02366108);
-      var l = an[0]; //fixed point of the logarithm
-      var e = Jmat.Complex.exp(l.mul(z).add(r));
-      var c = beta.mul(e).mul(Jmat.Complex.exp(z.mul(Jmat.Complex.newi(Math.PI * 2))));
-      return Jmat.Complex.powerSeries(an, an.length, Jmat.Complex.ZERO, e).add(c);
-    };
-
-    var b;
-    var z2 = Jmat.Complex(Jmat.Real.fracn(z.re), z.im);
-
-    if(z.im < -4.5) b = fima(z2.conj()).conj();
-    else if(z.im < -1.5) b = Jmat.Complex.powerSeries(t, t.length, Jmat.Complex.newi(3), z2.conj()).conj();
-    else if(z.im < 1.5) b = Jmat.Complex.log(z2.addr(2)).add(Jmat.Complex.powerSeries(s, s.length, Jmat.Complex.ZERO, z2));
-    else if(z.im < 4.5) b = Jmat.Complex.powerSeries(t, t.length, Jmat.Complex.newi(3), z2);
-    else b = fima(z2);
-
-    if(z.re > 0) return runloop(a, b, Math.floor(z.re), false);
-    else return runloop(a, b, -Math.ceil(z.re), true);
+  if (C.near(a, C.E, 1e-15)) {
+    return C.tetrational(z);
   }
 
   // TODO: for complex z and arbitrary base: implement something like "kneser" function
 
-  return Jmat.Complex(NaN);
+  return C(NaN);
 
   // TODO: implement super logarithm (slog), and super root (sroot) as well. Though, so far the only formulas I have is slog of base e in the Kouznetsov paper, and the 2-super root, so no implementation using both parameters can be done so far.
 };
@@ -2733,6 +2738,24 @@ Jmat.Complex.erf_inv = function(z) {
 // inverse complementary error function.
 Jmat.Complex.erfc_inv = function(z) {
   return Jmat.Complex.erf_inv(Jmat.Complex.ONE.sub(z));
+};
+
+//Minkowski's question mark function, from Wikipedia
+Jmat.Real.minkowski = function(x) {
+  if(x != x) return NaN;
+  var p = Math.floor(x);
+  var q = 1, r = p + 1, s = 1, m, n;
+  var d = 1.0, y = p;
+  if(x < p || (p < 0) != (r <= 0)) return x; //out of range ?(x) =~ x
+  for(;;) { //invariants: q*r-p*s==1 && p/q <= x && x < r/s
+    d /= 2; if(y + d == y) break; //reached max possible precision
+    m = p + r; if((m < 0) != (p < 0)) break; //sum overflowed
+    n = q + s; if(n < 0) break; //sum overflowed
+
+    if(x < m / n) r = m, s = n;
+    else y += d, p = m, q = n;
+  }
+  return y + d; //final round-off
 };
 
 

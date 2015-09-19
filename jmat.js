@@ -432,6 +432,7 @@ Jmat.lambertwb = function(branch, z) {
 };
 /* Tetration (power tower). x,y:{number|Complex}. returns {Complex} */
 Jmat.tetration = function(x, y) { return Jmat.Complex.tetration(Jmat.Complex.cast(x), Jmat.Complex.cast(y)); };
+Jmat.tetrational = function(z) { return Jmat.Complex.tetrational(Jmat.Complex.cast(z)); };
 
 // Elementary functions
 

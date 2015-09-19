@@ -592,3 +592,5 @@ Jmat.Quaternion.lambertwm = function(z) {
   // TODO: wrong. Look at the real plot. Fix this! Jmat.plotReal(Jmat.Quaternion.lambertwm)
   return Jmat.Quaternion.lambertwb(-1, z);
 };
+
+// TODO: quaternion gamma function
