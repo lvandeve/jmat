@@ -39,22 +39,22 @@ IMPORTANT NOTE: Admittedly, this file contains the least numerically stable func
 
 Some more basic special functions are in jmat_complex.js and jmat_real.js, that includes erf, gamma and lambertw.
 
-Overview of some functionality:
--Tetration: Complex.tetration
--Minkowski: Complex.minkowski
--gamma function related: Complex.loggamma, Complex.gamma_inv, Complex.digamma, Complex.trigamma, Complex.polygamma
--incomplete gamma: Complex.incgamma_lower, Complex.incgamma_upper, Complex.gamma_p, Complex.gamma_q
--means: Complex.agm, Complex.ghm
--bessel: Complex.besselj, Complex.bessely, Complex.besseli, Complex.besselk, Complex.hankelh1, Complex.hankelh2
--airy: Complex.airy, Complex.bairy, Complex.airy_deriv, Complex.airy_deriv
--zeta: Complex.zeta, Complex.eta, Complex.lambda, Complex.hurwitzzeta
--beta: Complex.beta, Complex.incbeta, Complex.betai
--hypergeometric: Complex.hypergeometric0F1, Complex.hypergeometric1F1, Complex.hypergeometric2F1, Complex.hypergeometric
--polylog: Complex.dilog, Complex.trilog, Complex.polylog
--theta function: Complex.theta1, Complex.theta2, Complex.theta3, Complex.theta4
--error function related: Complex.erf_inv, Complex.erfc_inv
--algorithms: Complex.rootfind, Complex.integrate, Complex.differentiate, Complex.doSummation, Complex.doProduct, Complex.powerSeries
--statistical distributions: Complex.{pdf,pmf,cdf,qf}_{uniform,standardnormal,normal,lognormal,cauchy,studentt,chi_square,logistic,gamma,beta,fisher,weibull,exponential,laplace,bernoulli,binomial,poisson}
+Overview of some functionality, this lists function names in "Jmat.Complex.":
+-Tetration: tetration, tetrational
+-Minkowski question mark: minkowski
+-gamma function related: loggamma, gamma_inv, digamma, trigamma, polygamma
+-incomplete gamma: incgamma_lower, incgamma_upper, gamma_p, gamma_q
+-means: agm, ghm
+-bessel: besselj, bessely, besseli, besselk, hankelh1, hankelh2, struveh, struvek, struvel, struvem
+-airy: airy, bairy, airy_deriv, airy_deriv
+-zeta: zeta, eta, lambda, hurwitzzeta
+-beta: beta, incbeta, betai
+-hypergeometric: hypergeometric0F1, hypergeometric1F1, hypergeometric2F1, hypergeometric, regularized_hypergeometric
+-polylog: dilog, trilog, polylog
+-theta function: theta1, theta2, theta3, theta4
+-error function related: erf_inv, erfc_inv
+-algorithms: rootfind, integrate, differentiate, doSummation, doProduct, powerSeries
+-statistical distributions: {pdf,pmf,cdf,qf}_{uniform,standardnormal,normal,lognormal,cauchy,studentt,chi_square,logistic,gamma,beta,fisher,weibull,exponential,laplace,bernoulli,binomial,poisson}
 */
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -1056,6 +1056,34 @@ Jmat.Complex.besselk = function(nu, z) {
   return result;
 };
 
+Jmat.Complex.spherical_besselj = function(nu, z) {
+  var C = Jmat.Complex;
+  var factor = C.sqrt(C(Math.PI / 2).div(z));
+  var j = C.besselj(nu.addr(0.5), z);
+  return factor.mul(j);
+};
+
+Jmat.Complex.spherical_bessely = function(nu, z) {
+  var C = Jmat.Complex;
+  var factor = C.sqrt(C(Math.PI / 2).div(z));
+  var j = C.bessely(nu.addr(0.5), z);
+  return factor.mul(j);
+};
+
+Jmat.Complex.spherical_hankelh1 = function(nu, z) {
+  var C = Jmat.Complex;
+  var factor = C.sqrt(C(Math.PI / 2).div(z));
+  var j = C.hankelh1(nu.addr(0.5), z);
+  return factor.mul(j);
+};
+
+Jmat.Complex.spherical_hankelh2 = function(nu, z) {
+  var C = Jmat.Complex;
+  var factor = C.sqrt(C(Math.PI / 2).div(z));
+  var j = C.hankelh2(nu.addr(0.5), z);
+  return factor.mul(j);
+};
+
 //Struve function H_nu(z)
 //NOTE: has errors for large z (|z| > 20), at least there are regions where it's really bad
 Jmat.Complex.struveh = function(nu, z) {
@@ -1138,6 +1166,22 @@ Jmat.Complex.struvel = function(nu, z) {
 Jmat.Complex.struvem = function(nu, z) {
   var C = Jmat.Complex;
   return C.struvel(nu, z).sub(C.besseli(nu, z));
+};
+
+// Anger's J function
+Jmat.Complex.angerj = function(nu, z) {
+  var C = Jmat.Complex;
+  return C.integrate(C(0), C(Math.PI), function(theta) {
+    return C.cos(nu.mul(theta).sub(z.mul(C.sin(theta))));
+  }).divr(Math.PI);
+};
+
+// Weber's E function
+Jmat.Complex.webere = function(nu, z) {
+  var C = Jmat.Complex;
+  return C.integrate(C(0), C(Math.PI), function(theta) {
+    return C.sin(nu.mul(theta).sub(z.mul(C.sin(theta))));
+  }).divr(Math.PI);
 };
 
 ////////////////////////////////////////////////////////////////////////////////

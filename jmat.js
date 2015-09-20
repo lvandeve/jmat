@@ -610,6 +610,8 @@ Jmat.struveh = function(nu, z) { return Jmat.Complex.struveh(Jmat.Complex.cast(n
 Jmat.struvek = function(nu, z) { return Jmat.Complex.struvek(Jmat.Complex.cast(nu), Jmat.Complex.cast(z)); };
 Jmat.struvel = function(nu, z) { return Jmat.Complex.struvel(Jmat.Complex.cast(nu), Jmat.Complex.cast(z)); };
 Jmat.struvem = function(nu, z) { return Jmat.Complex.struvem(Jmat.Complex.cast(nu), Jmat.Complex.cast(z)); };
+Jmat.angerj = function(nu, z) { return Jmat.Complex.angerj(Jmat.Complex.cast(nu), Jmat.Complex.cast(z)); };
+Jmat.webere = function(nu, z) { return Jmat.Complex.webere(Jmat.Complex.cast(nu), Jmat.Complex.cast(z)); };
 
 // Theta functions
 

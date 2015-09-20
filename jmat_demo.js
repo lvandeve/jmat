@@ -106,7 +106,7 @@ var fun1d = [
 ];
 var fun2d = [
     '--',
-    'struveh', 'struvek', 'struvel', 'struvem',
+    'struveh', 'struvek', 'struvel', 'struvem', 'angerj', 'webere',
     'gamma_p', 'gamma_q', 'incgamma_lower', 'incgamma_upper', 'polygamma',
     'beta',
     'besselj', 'bessely', 'besseli', 'besselk', 'hankelh1', 'hankelh2',
