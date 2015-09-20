@@ -2576,14 +2576,266 @@ Jmat.Complex.theta4 = function(z, q) {
 ////////////////////////////////////////////////////////////////////////////////
 
 // Returns a particular non-principal complex branch of sqrt(a * b)
-// For AGM and GHM, a particular branch of the complex sqrt must be returned, otherwise it hops to other branches and gives wrong result
-Jmat.Complex.agmMulSqrt_ = function(a, b) {
+// For elliptic integrals, and AGM and GHM, a particular branch of the complex sqrt must be returned, otherwise it hops to other branches and gives wrong result
+Jmat.Complex.mulSqrtBranch_ = function(a, b) {
   // Note: if a and b are real but negative, with a*b being positive, still a different branch is used.
   if(Jmat.Complex.isPositive(a) && Jmat.Complex.isPositive(b)) {
     return Jmat.Complex.sqrt(a.mul(b));
   } else {
-    return Jmat.Complex(Math.sqrt(a.mul(b).abs())).mul(Jmat.Complex.exp(Jmat.Complex.I.mulr((a.arg() + b.arg()) / 2)));
+    // This gives a different result than Jmat.Complex.sqrt(a.mul(b))
+    return Jmat.Complex.sqrt(a).mul(Jmat.Complex.sqrt(b));
+    //the below gives the same result, but is slower
+    //return Jmat.Complex(Math.sqrt(a.mul(b).abs())).mul(Jmat.Complex.exp(Jmat.Complex.I.mulr((a.arg() + b.arg()) / 2)));
   }
+};
+
+//Elliptic integral: Carlson's form R_F
+Jmat.Complex.ellipticrf = function(x, y, z) {
+  // Homogeneity: R_F(kx, ky, kz) = k^(-0.5) * R_F(x, y, z)
+  // Duplication theorem: R_F(x, y, z) = R_F((x+l)/4, (y+l)/4, (z+l)/4) with l the lambda in the algorithm below.
+  // The algorithm is based on the duplication theorem.
+  var C = Jmat.Complex;
+  var count = 0;
+  var ex, ey, ez;
+  var a;
+  for(;;) {
+    a = x.add(y).add(z).divr(3);
+    if(C.nearr(a, 0, 1e-14)) return C(0); // avoid NaNs, result is 0 in this case
+    ex = x.div(a).rsub(1);
+    ey = y.div(a).rsub(1);
+    ez = z.div(a).rsub(1);
+    var error = Math.max(Math.max(ex.abs(), ey.abs()), ez.abs());
+    if(error < 0.0025) break; // converged
+    var sx = C.sqrt(x);
+    var sy = C.sqrt(y);
+    var sz = C.sqrt(z);
+    // The square roots must be calculated as sqrt(x)*sqrt(y), not as sqrt(x*y), to ensure correct branch (given that sqrt returns the solution with positive real part) (see mulSqrtBranch_)
+    var lambda = sx.mul(sy).add(sy.mul(sz)).add(sz.mul(sx));
+    x = x.add(lambda).divr(4);
+    y = y.add(lambda).divr(4);
+    z = z.add(lambda).divr(4);
+    count++;
+    if(count > 1000) break; // avoid infinite loop
+  }
+  var e2 = ex.mul(ey).sub(ez.mul(ez));
+  var e3 = ex.mul(ey).mul(ez);
+  // extra error term (should be near 1)
+  var extra = C(1).sub(e2.divr(10)).add(e3.divr(14)).add(e2.mul(e2).divr(24)).sub(e2.mul(e3).mulr(3.0 / 44));
+  return a.powr(-0.5).mul(extra);
+};
+
+//Elliptic integral: Carlson's form R_C
+Jmat.Complex.ellipticrc = function(x, y) {
+  // R_C(x, y) == R_F(x, y, y), but the implementation below is more efficient
+  var C = Jmat.Complex;
+  var w;
+  if(y.re > 0) {
+    w = C(1);
+  } else {
+    // Cauchy principal value
+    var xt = x.sub(y);
+    w = C.sqrt(x).div(C.sqrt(xt));
+    x = xt;
+    y = y.neg();
+  }
+  var count = 0;
+  var ey;
+  var a;
+  for(;;) {
+    a = x.add(y).add(y).divr(3);
+    ey = y.div(a).subr(1);
+    if(ey.abs() < 0.0012) break;
+    // The square roots must be calculated as sqrt(x)*sqrt(y), not as sqrt(x*y), to ensure correct branch (given that sqrt returns the solution with positive real part) (see mulSqrtBranch_)
+    var lambda = C.sqrt(x).mul(C.sqrt(y)).mulr(2).add(y);
+    x = x.add(lambda).divr(4);
+    y = y.add(lambda).divr(4);
+    count++;
+    if(count > 1000) break; // avoid infinite loop
+  }
+  // extra error term (should be near 1)
+  var ey2 = ey.mul(ey);
+  var ey4 = ey2.mul(ey2);
+  var ey6 = ey4.mul(ey2);
+  var extra = C(1).add(ey2.mulr(3.0/10)).add(ey2.mul(ey).divr(7)).add(ey4.mulr(3.0/8)).add(ey4.mul(ey).mulr(9.0/22)).add(ey6.mulr(159.0/208)).add(ey6.mul(ey).mulr(9.0/8));
+  return a.powr(-0.5).mul(w).mul(extra);
+};
+
+//Elliptic integral: Carlson's form R_J
+Jmat.Complex.ellipticrj = function(x, y, z, p) {
+  var C = Jmat.Complex;
+  // Homogeneity: R_F(kx, ky, kz) = k^(-0.5) * R_F(x, y, z)
+  // Duplication theorem: R_F(x, y, z) = R_F((x+l)/4, (y+l)/4, (z+l)/4) with l the lambda in the algorithm below.
+  // The algorithm is based on the duplication theorem.
+
+
+  var origp = p;
+  var ca, cb, rcx;
+  if(origp.re <= 0) {
+    // Cauchy principal value
+    if(x.re > y.re) { var t = x; x = y; y = t; }
+    if(y.re > z.re) { var t = y; y = z; z = t; }
+    if(x.re > y.re) { var t = x; x = y; y = t; }
+    ca = y.sub(origp).rdiv(1);
+    cb = ca.mul(z.sub(y)).mul(y.sub(x));
+    p = y.add(cb);
+    rcx = C.ellipticrc(x.mul(z).div(y), origp.mul(p).div(y));
+  }
+
+  var count = 0;
+  var ex, ey, ez, ep;
+
+  var sqr = function(x) { return x.mul(x); };
+
+  var sum = C(0);
+  var fac = C(1);
+  for(;;) {
+    var a = x.add(y).add(z).add(p).add(p).divr(5);
+    ex = x.div(a).rsub(1);
+    ey = y.div(a).rsub(1);
+    ez = z.div(a).rsub(1);
+    ep = p.div(a).rsub(1);
+    var error = Math.max(Math.max(ex.abs(), ey.abs()), Math.max(ez.abs(), ep.abs()));
+    if(error < 0.0015) break; // converged
+    var sx = C.sqrt(x);
+    var sy = C.sqrt(y);
+    var sz = C.sqrt(z);
+    var sp = C.sqrt(p);
+    // The square roots must be calculated as sqrt(x)*sqrt(y), not as sqrt(x*y), to ensure correct branch (given that sqrt returns the solution with positive real part) (see mulSqrtBranch_)
+    var lambda = sx.mul(sy).add(sy.mul(sz)).add(sz.mul(sx));
+    var alpha = sqr(p.mul(sx.add(sy).add(sz)).add(sx.mul(sy).mul(sz)));
+    var beta = p.mul(sqr(p.add(lambda)));
+    sum = sum.add(fac.mul(C.ellipticrc(alpha, beta)));
+    fac = fac.divr(4);
+    x = x.add(lambda).divr(4);
+    y = y.add(lambda).divr(4);
+    z = z.add(lambda).divr(4);
+    p = p.add(lambda).divr(4);
+    count++;
+    if(count > 1000) break; // avoid infinite loop
+  }
+
+  var xyz = ex.mul(ey).mul(ez);
+  var ppp = ep.mul(ep).mul(ep);
+  var e2 = ex.mul(ey).add(ex.mul(ez)).add(ey.mul(ez)).sub(ep.mul(ep).mulr(3));
+  var e3 = xyz.add(e2.mul(ep).mulr(2)).add(ppp.mulr(4));
+  var e4 = xyz.mulr(2).add(e2.mul(ep)).add(ppp.mulr(3)).mul(ep);
+  var e5 = xyz.mul(ep).mul(ep);
+  // extra error term (should be near 1)
+  var extra = C(1).sub(e2.mulr(3.0/14)).add(e3.divr(6.0)).add(e2.mul(e2).mulr(9.0/88)).sub(e4.mulr(3.0/22)).sub(e2.mul(e3).mulr(9.0/52)).add(e5.mulr(3.0/26));
+  var result = sum.mulr(3).add(fac.mul(extra).mul(a.powr(-1.5)));
+  if(origp.re <= 0) {
+    var rfx = C.ellipticrf(x, y, z);
+    result = ca.mul(cb.mul(result).add(rcx.sub(rfx).mulr(3)));
+  }
+  return result;
+};
+
+//Elliptic integral: Carlson's form R_D
+Jmat.Complex.ellipticrd = function(x, y, z) {
+  // R_D(x, y) == R_J(x, y, z, z), but the implementation below is more efficient
+  // Homogeneity: R_F(kx, ky, kz) = k^(-0.5) * R_F(x, y, z)
+  // Duplication theorem: R_F(x, y, z) = R_F((x+l)/4, (y+l)/4, (z+l)/4) with l the lambda in the algorithm below.
+  // The algorithm is based on the duplication theorem.
+  var C = Jmat.Complex;
+  var count = 0;
+  var ex, ey, ez;
+  var a;
+  var sum = C(0);
+  var fac = C(1);
+  for(;;) {
+    a = x.add(y).add(z.mulr(3)).divr(5);
+    if(C.nearr(a, 0, 1e-14)) return C(0); // avoid NaNs, result is 0 in this case
+    ex = x.div(a).rsub(1);
+    ey = y.div(a).rsub(1);
+    ez = z.div(a).rsub(1);
+    var error = Math.max(Math.max(ex.abs(), ey.abs()), ez.abs());
+    if(error < 0.0015) break; // converged
+    var sx = C.sqrt(x);
+    var sy = C.sqrt(y);
+    var sz = C.sqrt(z);
+    // The square roots must be calculated as sqrt(x)*sqrt(y), not as sqrt(x*y), to ensure correct branch (given that sqrt returns the solution with positive real part) (see mulSqrtBranch_)
+    var lambda = sx.mul(sy).add(sy.mul(sz)).add(sz.mul(sx));
+    sum = sum.add(fac.div(sz.mul(z.add(lambda))));
+    fac = fac.divr(4);
+    x = x.add(lambda).divr(4);
+    y = y.add(lambda).divr(4);
+    z = z.add(lambda).divr(4);
+    count++;
+    if(count > 1000) break; // avoid infinite loop
+  }
+  var e2 = ex.mul(ey).sub(ez.mul(ez).mulr(6));
+  var e3 = ex.mul(ey).mulr(3).sub(ez.mul(ez).mulr(8)).mul(ez);
+  var e4 = ex.mul(ey).sub(ez.mul(ez)).mulr(3).mul(ez).mul(ez);
+  var e5 = ez.mul(ey).mul(ez).mul(ez).mul(ez);
+  // extra error term (should be near 1)
+  var extra = C(1).sub(e2.mulr(3.0/14)).add(e3.divr(6)).add(e2.mul(e2).mulr(9.0/88)).sub(e4.mulr(3.0/22)).sub(e2.mul(e3).mulr(9.0 / 52)).add(e5.mulr(3.0/26));
+  return fac.mul(a.powr(-1.5)).mul(extra).add(sum.mulr(3));
+};
+
+// Elliptic integral K(k)
+// BE CAREFUL! There exists another convention where the argument is m = k*k. However, here we use the sqrt of m.
+Jmat.Complex.elliptick = function(k) {
+  var C = Jmat.Complex;
+  return C.ellipticrf(C(0), k.mul(k).rsub(1), C(1));
+};
+
+// Incomplete elliptic integral F(phi, k)
+// BE CAREFUL! There exists another convention where the argument is m = k*k. However, here we use the sqrt of m.
+Jmat.Complex.incellipticf = function(phi, k) {
+  var C = Jmat.Complex;
+  var s = C.sin(phi);
+  var c = C.cos(phi);
+  return s.mul(C.ellipticrf(c.mul(c), k.mul(k).mul(s).mul(s).rsub(1), C(1)));
+};
+
+// Elliptic integral E(k)
+// BE CAREFUL! There exists another convention where the argument is m = k*k. However, here we use the sqrt of m.
+Jmat.Complex.elliptice = function(k) {
+  var C = Jmat.Complex;
+  var m = k.mul(k);
+  var f = C.ellipticrf(C(0), m.rsub(1), C(1));
+  var d = C.ellipticrd(C(0), m.rsub(1), C(1));
+  return f.sub(d.mul(m).divr(3));
+};
+
+// Incomplete elliptic integral E(phi, k)
+// BE CAREFUL! There exists another convention where the argument is m = k*k. However, here we use the sqrt of m.
+Jmat.Complex.incelliptice = function(phi, n, k) {
+  var C = Jmat.Complex;
+  var s = C.sin(phi);
+  var c = C.cos(phi);
+  var ss = s.mul(s);
+  var sss = ss.mul(s);
+  var cc = c.mul(c);
+  var m = k.mul(k);
+  var f = C.ellipticrf(cc, m.mul(ss).rsub(1), C(1));
+  var d = C.ellipticrd(cc, m.mul(ss).rsub(1), C(1));
+  return s.mul(f).add(n.mul(sss).mul(d).mulr(3));
+};
+
+// Elliptic integral PI(n, k)
+// BE CAREFUL! There exists another convention where the argument is m = k*k. However, here we use the sqrt of m.
+Jmat.Complex.ellipticpi = function(n, k) {
+  var C = Jmat.Complex;
+  var m = k.mul(k);
+  var f = C.ellipticrf(C(0), m.rsub(1), C(1));
+  var j = C.ellipticrj(C(0), m.rsub(1), C(1), n.rsub(1));
+  return f.add(j.mul(n).divr(3));
+};
+
+// Incomplete elliptic integral PI(phi, n, k)
+// BE CAREFUL! There exists another convention where the argument is m = k*k. However, here we use the sqrt of m.
+Jmat.Complex.incellipticpi = function(phi, n, k) {
+  var C = Jmat.Complex;
+  var s = C.sin(phi);
+  var c = C.cos(phi);
+  var ss = s.mul(s);
+  var sss = ss.mul(s);
+  var cc = c.mul(c);
+  var m = k.mul(k);
+  var f = C.ellipticrf(cc, m.mul(ss).rsub(1), C(1));
+  var j = C.ellipticrj(cc, m.mul(ss).rsub(1), C(1), n.mul(ss).rsub(1));
+  return s.mul(f).add(n.mul(sss).mul(j).mulr(3));
 };
 
 //Arithmetic-Geometric mean (iteratively calculated)
@@ -2603,7 +2855,7 @@ Jmat.Complex.agm = function(a, b) {
   for(var i = 0; i < 60; i++) {
     if(a.eq(b)) break;
     a2 = a.add(b).divr(2);
-    b2 = Jmat.Complex.agmMulSqrt_(a, b);
+    b2 = Jmat.Complex.mulSqrtBranch_(a, b);
     a = a2;
     b = b2;
   }
@@ -2615,12 +2867,12 @@ Jmat.Complex.agm = function(a, b) {
 
 //Geometric-Harmonic mean (iteratively calculated)
 Jmat.Complex.ghm = function(a, b) {
-  // Not really defined for negative and complex numbers, but when using Jmat.Complex.agmMulSqrt_ it looks smooth in the 2D plot
+  // Not really defined for negative and complex numbers, but when using Jmat.Complex.mulSqrtBranch_ it looks smooth in the 2D plot
   // NOTE: An alternative, that returns different values for neg/complex (but same for positive reals) is: return Jmat.Complex.agm(a.inv(), b.inv()).inv();
   var a2, b2;
   for(var i = 0; i < 60; i++) {
     if(a.eq(b)) break;
-    a2 = Jmat.Complex.agmMulSqrt_(a, b);
+    a2 = Jmat.Complex.mulSqrtBranch_(a, b);
     b2 = Jmat.Complex.TWO.div(a.inv().add(b.inv()));
     a = a2;
     b = b2;

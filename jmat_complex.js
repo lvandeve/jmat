@@ -869,6 +869,7 @@ Jmat.Complex.log10 = function(x) {
   return Jmat.Complex.log(x).divr(Math.LN10);
 };
 
+// Complex square root. Sqrt has two solutions, this function always returns the solution with nonnegative real part.
 Jmat.Complex.sqrt = function(x) {
   if(Jmat.Complex.isReal(x)) {
     var result = Jmat.Complex(0);
