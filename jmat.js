@@ -605,6 +605,11 @@ Jmat.bairy = function(z) { return Jmat.Complex.bairy(Jmat.Complex.cast(z)); };
 Jmat.airy_deriv = function(z) { return Jmat.Complex.airy_deriv(Jmat.Complex.cast(z)); };
 /* Derivative of Bairy function Bi. z:{number|Complex}. returns {Complex} */
 Jmat.bairy_deriv = function(z) { return Jmat.Complex.bairy_deriv(Jmat.Complex.cast(z)); };
+/* Struve function H_nu. nu,z:{number|Complex}. returns {Complex} */
+Jmat.struveh = function(nu, z) { return Jmat.Complex.struveh(Jmat.Complex.cast(nu), Jmat.Complex.cast(z)); };
+Jmat.struvek = function(nu, z) { return Jmat.Complex.struvek(Jmat.Complex.cast(nu), Jmat.Complex.cast(z)); };
+Jmat.struvel = function(nu, z) { return Jmat.Complex.struvel(Jmat.Complex.cast(nu), Jmat.Complex.cast(z)); };
+Jmat.struvem = function(nu, z) { return Jmat.Complex.struvem(Jmat.Complex.cast(nu), Jmat.Complex.cast(z)); };
 
 // Theta functions
 

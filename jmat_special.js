@@ -1056,6 +1056,92 @@ Jmat.Complex.besselk = function(nu, z) {
   return result;
 };
 
+//Struve function H_nu(z)
+//NOTE: has errors for large z (|z| > 20), at least there are regions where it's really bad
+Jmat.Complex.struveh = function(nu, z) {
+  var C = Jmat.Complex;
+
+  if(C.abs(z) > 30 && C.abs(z) < 50) {
+    // Test if this works with struveh(10, 31) = 26245.845183638363381068944066845095005243622259212620
+    var factor = z.divr(2).pow(nu.addr(1));
+    var f = C.regularized_hypergeometric([C(1)], [C(1.5), nu.addr(1.5)], z.mul(z).divr(-4));
+    return factor.mul(f);
+  }
+
+  if(C.abs(z) > 30) {
+    var g1mul = C(0.5);
+    var g1 = C.gamma(g1mul); // gamma(k + 1/2)
+    var g2mul = nu.addr(0.5);
+    var g2 = C.gamma(g2mul); // gamma(nu + 1/2 - k)
+    var zn = C(1); // (z/2)^(2k)
+    var z2 = z.mul(z).divr(4);
+
+    var result = C(0);
+    var prev = result;
+    for(var n = 0; n < 30; n++) {
+      result = result.add(g1.div(g2).div(zn));
+      if(result.eq(prev)) break;
+      prev = result;
+      g1 = g1.mul(g1mul);
+      g1mul = g1mul.addr(1);
+      g2mul = g2mul.subr(1);
+      g2 = g2.div(g2mul);
+      zn = zn.mul(z2);
+    }
+
+    var factor = z.mulr(0.5).pow(nu.subr(1)).divr(Math.PI);
+
+    return factor.mul(result);
+  }
+
+  var g1mul = C(1.5);
+  var g1 = C.gamma(g1mul); // gamma(n + 3/2)
+  var g2mul = C(nu.addr(1.5));
+  var g2 = C.gamma(g2mul); // gamma(n + nu + 3/2)
+  var m = C(1); // (-1)^n
+  var zn = C(1); // (z/2)^(2*n)
+  var z2 = z.mul(z).divr(4);
+
+  var result = C(0);
+  var prev = result;
+  for(var n = 0; n < 100; n++) {
+    result = result.add(m.mul(zn).div(g1).div(g2));
+    if(result.eq(prev)) break;
+    prev = result;
+    g1 = g1.mul(g1mul);
+    g2 = g2.mul(g2mul);
+    g1mul = g1mul.addr(1);
+    g2mul = g2mul.addr(1);
+    m = m.neg();
+    zn = zn.mul(z2);
+  }
+
+  var factor = z.mulr(0.5).pow(nu.addr(1));
+
+  return factor.mul(result);
+};
+
+//Struve function K_nu(z)
+Jmat.Complex.struvek = function(nu, z) {
+  var C = Jmat.Complex;
+  return C.struveh(nu, z).sub(C.bessely(nu, z));
+};
+
+//Modified Struve function L_nu(z)
+Jmat.Complex.struvel = function(nu, z) {
+  var C = Jmat.Complex;
+  var factor = C.exp(nu.muli(-Math.PI * 0.5)).muli(-1);
+  return factor.mul(C.struveh(nu, z.muli(1)));
+};
+
+//Modified Struve function M_nu(z)
+Jmat.Complex.struvem = function(nu, z) {
+  var C = Jmat.Complex;
+  return C.struvel(nu, z).sub(C.besseli(nu, z));
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 //pl = 3^(-2/3) for airy, 3^(-4/3) for bairy
 //pr = 3^(-4/3) for airy, 3^(-5/6) for bairy
 //s = -1 for airy, +1 for bairy
@@ -1918,19 +2004,8 @@ Jmat.Complex.hypergeometric2F1 = function(a, b, c, z) {
   return g.mul(i);*/
 };
 
-
-// Ordinary generalized hypergeometric series
-// a an d b are arrays of complex values. E.g. Jmat.Complex.hypergeometric2F1([a, b, c], [d, e], z) would mean: hypergeometric3F2(a, b, c; d, e; z)
-// Unless specific implementation exists, this uses basic series of the definition of the hypergeometric
-// So if the series diverges (a.length > b.length), it will only be correct for very small |z| (near zero), if a.length == b.length, it will only converge for |z| < 1
-Jmat.Complex.hypergeometric = function(a, b, z) {
-  if(z.eqr(0)) return Jmat.Complex(1);
-  if(a.length == 0 && b.length == 0) return Jmat.Complex.exp(z);
-  if(a.length == 1 && b.length == 0) return Jmat.Complex.pow(z.rsub(1), a[0].neg());
-  if(a.length == 0 && b.length == 1) return Jmat.Complex.hypergeometric0F1(b[0], z);
-  if(a.length == 1 && b.length == 1) return Jmat.Complex.hypergeometric1F1(a[0], b[0], z);
-  if(a.length == 2 && b.length == 1) return Jmat.Complex.hypergeometric2F1(a[0], a[1], b[0], z);
-
+// The core loop for generalized hypergeometric.
+Jmat.Complex.generalized_hypergeometric_ = function(a, b, z) {
   // TODO: equal elements in a and b cancel out. Sort the arrays and check that. If the arrays are equal, it's the same as 0F0
   // TODO: if a contains more zeros than b, the result is always 1
   // TODO: return NaN or so ("unsupported") if diverging. Note that for a.length > b.length, even if in theory it only converges for 0, it returns practical values for tiny values like 1e-4, so give no NaN there.
@@ -1951,7 +2026,33 @@ Jmat.Complex.hypergeometric = function(a, b, z) {
   }
 
   return result;
-}
+};
+
+// Ordinary generalized hypergeometric series
+// a and b are arrays of complex values. E.g. Jmat.Complex.hypergeometric2F1([a, b, c], [d, e], z) would mean: hypergeometric3F2(a, b, c; d, e; z)
+// Unless specific implementation exists, this uses basic series of the definition of the hypergeometric
+// So if the series diverges (a.length > b.length), it will only be correct for very small |z| (near zero), if a.length == b.length, it will only converge for |z| < 1
+// NOTE: This is the generalized hypergeometric! For the namesake 2F1, use hypergeometric2F1 instead.
+Jmat.Complex.hypergeometric = function(a, b, z) {
+  if(z.eqr(0)) return Jmat.Complex(1);
+  if(a.length == 0 && b.length == 0) return Jmat.Complex.exp(z);
+  if(a.length == 1 && b.length == 0) return Jmat.Complex.pow(z.rsub(1), a[0].neg());
+  if(a.length == 0 && b.length == 1) return Jmat.Complex.hypergeometric0F1(b[0], z);
+  if(a.length == 1 && b.length == 1) return Jmat.Complex.hypergeometric1F1(a[0], b[0], z);
+  if(a.length == 2 && b.length == 1) return Jmat.Complex.hypergeometric2F1(a[0], a[1], b[0], z);
+
+  return Jmat.Complex.generalized_hypergeometric_(a, b, z);
+};
+
+// regularized hypergeometric is the hypergeometric divided through product of gammas of b's
+Jmat.Complex.regularized_hypergeometric = function(a, b, z) {
+  var C = Jmat.Complex;
+  var result = C.hypergeometric(a, b, z);
+  for (var i = 0; i < b.length; i++) {
+    result = result.div(C.gamma(b[i]));
+  }
+  return result;
+};
 
 Jmat.Complex.PIPI6_ = Jmat.Complex(Math.PI * Math.PI / 6);
 
@@ -2468,14 +2569,14 @@ Jmat.Complex.theta4 = function(z, q) {
 
 // TODO: exponential integral, sine integral, cosine integral, logarithmic integral, elliptic integrals, fresnel integrals
 
-// Loop for tetration: raises b to power a num times (typically a == b). if l is true, takes logarithm instead of power.
+// Loop for tetration: raises b to power a num times (typically a == b). if l is true, takes logarithm instead of power, to loop in the opposite direction.
 Jmat.Real.tetration_loop_ = function(a, b, num, l) {
   var result = b;
   var last;
   for(var i = 0; i < num; i++) {
     if(l) result = Jmat.Real.logy(result, a);
     else result = Math.pow(a, result);
-    if(isNaN(result)) return result;
+    if(R.isInfOrNaN(result)) return result;
     if(result == Infinity) return result; // Actually redundant, result == last already checks that too
     if(result == last) return result; // E.g. a=1.01 already converges to 1.0101015237405409 after just 7 iterations. 1.44 converges to 2.393811748202943 after 244 iterations, so numbers near that take a while to loop. 1.45 and higher converge to Infinity.
     last = result;
@@ -2532,7 +2633,7 @@ Jmat.Real.tetration = function(a, x) {
   return NaN;
 };
 
-// Loop for tetration: raises b to power a num times (typically a == b). if l is true, takes logarithm instead of power.
+// Loop for tetration: raises b to power a num times (typically a == b). if l is true, takes logarithm instead of power, to loop in the opposite direction.
 Jmat.Complex.tetration_loop_ = function(a, b, num, l) {
   var C = Jmat.Complex;
   var result = b;
@@ -2540,7 +2641,7 @@ Jmat.Complex.tetration_loop_ = function(a, b, num, l) {
   for(var i = 0; i < num; i++) {
     if(l) result = C.logy(result, a);
     else result = a.pow(result);
-    if(C.isNaN(result)) return result;
+    if(C.isInfOrNaN(result)) return result;
     // E.g. a=1.01 already converges to 1.0101015237405409 after just 7 iterations. 1.44 converges to 2.393811748202943 after 244 iterations, so numbers near that take a while to loop. 1.45 and higher converge to Infinity.
     if(result.eq(last)) return result;
     last = result;

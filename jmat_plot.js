@@ -52,6 +52,11 @@ Jmat.PlotParams = function(o) {
   this.xshift = o.xshift != undefined ? o.xshift : 0; // point which you want in the center of the plot
   this.yshift = o.yshift != undefined ? o.yshift : 0;
 
+  // these are only used for 2D plot
+  this.xshift_im = 0;
+  this.yshift_im = 0;
+  this.transpose = false;
+
   // The value at which the complex color wheel has highest saturation (pure red for positive real). Higher value gives more white color, lower gives darker color.
   // Not used by real plot.
   this.v = o.v != undefined ? o.v : 1;
@@ -513,7 +518,15 @@ Jmat.Plot.plot2DPixel_ = function(fun, size, steps, params, px, py, div) {
   var x = -size + (px / steps * size * 2);
   var y = size - (py / steps * size * 2);
 
-  var z = fun(Jmat.Complex(x + params.xshift), Jmat.Complex(y + params.yshift));
+  var sx = Jmat.Complex(x + params.xshift, params.xshift_im);
+  var sy = Jmat.Complex(y + params.yshift, params.yshift_im);
+
+  var z;
+  if(params.transpose) {
+    z = fun(sy, sx);
+  } else {
+    z = fun(sx, sy);
+  }
 
   var d = Jmat.Plot.plotColorPixel(z, params.v, params.p, px, py, div);
   if(d) d.title = x + ', ' + y + ': ' + Jmat.Complex.toString(z);
@@ -601,6 +614,27 @@ Jmat.Plot.plot2D_ = function(fun, params, parent, label, xlabel, ylabel) {
     d.style.color = '#ddd';
     d = Jmat.Plot.makeCenteredText(parent, '↓', 0, L + width + 8, L + 90);
     d.onclick = function() { params.yshift -= params.ysize / 5; Jmat.stopPlotting(); plotfun(); };
+    d.style.color = '#ddd';
+
+    d = Jmat.Plot.makeCenteredText(parent, 'x_im+', 0, L + width + 30, L + 110);
+    d.onclick = function() { params.xshift_im += 0.1; Jmat.stopPlotting(); plotfun(); };
+    d.title = params.xshift_im;
+    d.style.color = '#ddd';
+    d = Jmat.Plot.makeCenteredText(parent, 'x_im-', 0, L + width + 30, L + 125);
+    d.onclick = function() { params.xshift_im -= 0.1; Jmat.stopPlotting(); plotfun(); };
+    d.title = params.xshift_im;
+    d.style.color = '#ddd';
+    d = Jmat.Plot.makeCenteredText(parent, 'y_im+', 0, L + width + 30, L + 140);
+    d.onclick = function() { params.yshift_im += 0.1; Jmat.stopPlotting(); plotfun(); };
+    d.title = params.yshift_im;
+    d.style.color = '#ddd';
+    d = Jmat.Plot.makeCenteredText(parent, 'y_im-', 0, L + width + 30, L + 155);
+    d.onclick = function() { params.yshift_im -= 0.1; Jmat.stopPlotting(); plotfun(); };
+    d.title = params.yshift_im;
+    d.style.color = '#ddd';
+
+    d = Jmat.Plot.makeCenteredText(parent, 't', 0, L + width + 30, L + 170);
+    d.onclick = function() { params.transpose = !params.transpose; Jmat.stopPlotting(); plotfun(); };
     d.style.color = '#ddd';
 
     d = Jmat.Plot.makeCenteredText(parent, 'r', 0, L + width / 2 - 70, L - 10);
