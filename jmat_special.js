@@ -59,6 +59,340 @@ Overview of some functionality, this lists function names in "Jmat.Complex.":
 
 ////////////////////////////////////////////////////////////////////////////////
 
+// Confluent hypergeometric limit function 0F1(; a; z) --> no "upper" term
+Jmat.Complex.hypergeometric0F1 = function(a, z) {
+  var C = Jmat.Complex;
+
+  // It's infinity for negative integer a. However, the loop fails to encounter that term if rather large negative integer due to not enough steps.
+  // Even though it seems as if it should be a finite value because all non integers around it converge to the same apparently...
+  if(C.isNegativeInt(a)) return C(Infinity, Infinity); //undirected infinity
+
+  // The series does not converge well for large negative z with smallish a, because then terms with opposite signs are supposed to cancel out.
+  // Use this expansion into two 2F0 calls instead.
+  // Some difficult cases that this handles: hypergeometric0F1(-23.5, -126.5625) = 692.923, hypergeometric0F1(6, -400) = 4.59650497414 * 10^-6
+  // The values -80 and z.abssq() / 3 have been chosen to make it work for BesselJ in the zone where it uses 0F1. This may be need tweaking for other applications.
+  if(z.re < -80 && a.abssq() < z.abssq() / 3) {
+    var g = C.gamma(a).divr(2 * C.SQRTPI.re);
+    var s = C.sqrt(z.neg());
+    var c0 = C.exp(s.muli(-2)).mul(s.muli(-1).pow(a.rsub(0.5)));
+    var h0 = C.hypergeometric([a.subr(0.5), a.rsub(3/2)], [], s.muli(4).inv().neg());
+    var c1 = C.exp(s.muli(2)).mul(s.muli(1).pow(a.rsub(0.5)));
+    var h1 = C.hypergeometric([a.subr(0.5), a.rsub(3/2)], [], s.muli(4).inv());
+    return g.mul(c0.mul(h0).add(c1.mul(h1)));
+  }
+
+  // The summation is SUM_(n=0..inf) z^n / ((a)_n * n!)
+  // See for loop in hypergeometric function for explanation on above notation and how implementation works
+  // This loop converges very nicely and result is quite accurate for all complex input values (unlike for 2F1)
+  var r = C.ONE;
+  var result = C.ZERO;
+  for(var n = 0; n < 30; n++) {
+    if (n > 0) {
+      if(!r.eqr(0)) r = r.div(a.addr(n - 1)); // the Pochhammer. The if avoids 0/0
+      r = r.mul(z).divr(n); // the z^n / n!
+    }
+    if(r.eqr(0)) break;
+    result = result.add(r);
+  }
+
+  return result;
+};
+
+// The basic series for 1F1
+Jmat.Complex.hypergeometric1F1_series_ = function(a, b, z) {
+  var C = Jmat.Complex;
+
+  // The summation is SUM_(n=0..inf) ((a)_n / (b)_n) * z^n / n!
+  // See for loop in hypergeometric function for explanation on above notation and how implementation works
+  // This loop converges very nicely (unlike for 2F1)
+  var r = a.div(b).mul(z).divr(1);
+  var result = C(1);
+  // It should break out much sooner than that many loops, unless a is very big (1000) or b is tiny (0.1)
+  for(var n = 1; n < 200; n++) {
+    if (n > 1) {
+      r = r.mul(a.addr(n - 1));
+      if(!r.eqr(0)) r = r.div(b.addr(n - 1));
+      r = r.mul(z);
+      r = r.divr(n);
+    }
+    if(r.eqr(0) || r.abssq() / result.abssq() < 1e-28) break;
+    result = result.add(r);
+  }
+
+  return result;
+};
+
+// The asymptotic expansion for 1F1
+// Does NOT work for negative integer b. Even the gammaDiv_ cannot fix it if a and b are both negative integer.
+Jmat.Complex.hypergeometric1F1_asymp_ = function(a, b, z) {
+  var C = Jmat.Complex;
+
+  if(C.isNegativeInt(b)) return C(NaN); // not supported, even if a is compensating negative int
+
+  // asymptotic expansion, abramowitz&stegun 13.5.1
+  var sum0 = C.ONE;
+  var sum1 = C.ONE;
+  var s0 = C.ONE;
+  var s1 = C.ONE;
+  // The loop should end sooner than that many loops except for high values, in which case this diverged and gives bad result
+  for(var i = 1; i < 30; i++) {
+    s0 = s0.mul(a.addr(i - 1)).mul(a.sub(b).addr(i)).divr(i).div(z.neg());
+    s1 = s1.mul(b.sub(a).addr(i - 1)).mul(a.rsub(i)).divr(i).div(z);
+    sum0 = sum0.add(s0);
+    sum1 = sum1.add(s1);
+    if(s0.abssq() < 1e-28 && s1.abssq() < 1e-28) break;
+  }
+
+  if(s0.abssq() > 1e-10 || s1.abssq() > 1e-10) return C(NaN); // no convergence
+
+  //var sign = (z.arg() <= -Math.PI / 2) ? -1 : 1; // This is what it should be according to abramowitz&stegun ...
+  var sign = (z.arg() <= 0) ? -1 : 1; // ... but this is what gives the correct effect here instead for some reason
+
+  if(z.abs() < 100) {
+    var g0 = C.gammaDiv_(b, b.sub(a)).mul(C.exp(a.muli(sign * Math.PI))).div(z.pow(a));
+    var g1 = C.gammaDiv_(b, a).mul(C.exp(z)).mul(z.pow(a.sub(b)));
+    return g0.mul(sum0).add(g1.mul(sum1));
+  } else {
+    // Written in logarithmic form so that it works for very large z too
+    var g0 = C.loggammaDiv_(b, b.sub(a)).add(a.muli(sign * Math.PI)).sub(C.log(z).mul(a));
+    var g1 = C.loggammaDiv_(b, a).add(z).add(C.log(z).mul(a.sub(b)));
+    return C.exp(g0.add(C.log(sum0))).add(C.exp(g1.add(C.log(sum1))));
+  }
+};
+
+// Rational approximation of 1F1 (Luke Y.L. 1977 chapter XV)
+// For extreme values, requires too much iterations (over 300), but slightly better in some places
+Jmat.Complex.hypergeometric1F1_rational_ = function(a, b, z) {
+  var C = Jmat.Complex;
+
+  var e = function(a, c, z) {
+    //var z2 = C(2).pow(z.mul(z)); // 2^(z^2)
+    //var z2 = C(2).pow(z).powr(2); // (2^z)^2
+    var z2 = z.mul(z);
+    var z3 = z2.mul(z);
+    var c2 = c.mul(c.inc()); // (c)_2, rising pochhammer of c
+
+    var b0 = C(1);
+    var b1 = C(1).add(a.inc().mul(z).div(c).divr(2));
+    var b2 = C(1).add(a.addr(2).mul(z).div(c.inc()).divr(2)).
+                  add(a.inc().mul(a.addr(2)).mul(z2).div(c2).divr(12));
+
+    var azc = a.mul(z).div(c);
+    var a0 = C(1);
+    var a1 = b1.sub(azc);
+    var a2_a = a.addr(2).mul(z).div(c.inc()).divr(2).inc();
+    var a2_b = a.mul(a.inc()).mul(z2).div(c2).divr(2);
+    var a2 = b2.sub(azc.mul(a2_a)).add(a2_b);
+
+    //var b3 = C(1).add(a.addr(3).mul(z).div(c.addr(2)).divr(2))
+    //             .add(a.addr(2).mul(a.addr(3)).mul(z2).div(c.addr(1)).div(c.addr(2)).divr(10))
+    //             .add(a.addr(1).mul(a.addr(2)).mul(a.addr(3)).mul(z3).div(c).div(c.addr(1)).div(c.addr(2)).divr(120));
+
+    var an, bn;
+
+    for(var n = 3; n < 50; n++) {
+      var n2 = n * 2;
+      var f1 = a.rsub(n-2).div(
+               c.addr(n-1).mulr(2 * (n2-3)));
+      var f2 = a.addr(n).mul(a.addr(n-1)).div(
+               c.addr(n-1).mul(c.addr(n-2)).mulr(4 * (n2-3) * (n2-1)));
+      var f3 = a.addr(n-2).mul(a.addr(n-1)).mul(a.rsub(n-2)).div(
+               c.addr(n-3).mul(c.addr(n-2)).mul(c.addr(n-1)).mulr(8*(n2-3)*(n2-3)*(n2-5))).neg();
+      var f4 = a.addr(n-1).mul(c.rsub(n-1)).div(
+               c.addr(n-2).mul(c.addr(n-1)).mulr(2 * (n2-3))).neg();
+
+      var e1 = f1.mul(z).inc();
+      var e2 = f2.mul(z).add(f4).mul(z);
+      var e3 = f3.mul(z3);
+      an = a2.mul(e1).add(a1.mul(e2)).add(a0.mul(e3));
+      bn = b2.mul(e1).add(b1.mul(e2)).add(b0.mul(e3));
+
+      a0 = a1;
+      a1 = a2;
+      a2 = an;
+      b0 = b1;
+      b1 = b2;
+      b2 = bn;
+    }
+
+    var test = a1.div(b1);
+    var result = an.div(bn);
+
+    if(test.sub(result).abs() > 1e-10) return C(NaN); // no good convergence
+
+    return result;
+  };
+
+  return e(a, b, z.neg());
+};
+
+
+// Confluent hypergeometric function of the first kind 1F1(a; b; z), a.k.a. Kummer's function M (approximation)
+// Try similar online: http://keisan.casio.com/exec/system/1349143651
+Jmat.Complex.hypergeometric1F1 = function(a, b, z) {
+  var C = Jmat.Complex;
+
+  // Kummer's transformation to make |a| a bit smaller if possible
+  if(b.sub(a).abssq() < a.abssq()) return C.hypergeometric1F1(b.sub(a), b, z.neg()).mul(C.exp(z));
+
+  // Special values
+  if(a.eq(b)) return C.exp(z); // if a and b are equal, they cancel out and this becomes 0F0, which is the same as exp(z)
+  if(C.isNegativeInt(b) && !(C.isNegativeInt(a) && a.re >= b.re)) return C(Infinity);
+  if(a.eqr(0)) return C(1);
+  if(z.eqr(0)) return C(1);
+  if(z.eqr(Infinity)) return C(Infinity, Infinity); // not for neg or complex infinite z
+
+  var r1 = z.mul(a).div(b).abs(); // |z*a/b| dictates how difficult the calculation will be. The lower the easier. If low, the regular series works.
+
+  if(r1 < 8 /*|| C.isNegativeInt(b)*/) {
+    return C.hypergeometric1F1_series_(a, b, z);
+  }
+
+  var result = C.hypergeometric1F1_asymp_(a, b, z); // returns NaN if it didn't converge
+  if(C.isNaN(result)) result = C.hypergeometric1F1_rational_(a, b, z);
+
+  return result;
+};
+
+// Hypergeometric series 2F1(a, b; c; z), aka Gauss hypergeometric function or "The hypergeometric". Approximation.
+// Try similar online: http://keisan.casio.com/exec/system/1349143084, or wolframalpha, HyperGeometric2F1[1.5, -0.5, 2.5, 0.25+i]
+// I debugged this function to find all the areas in the complex or real input plane where it goes wrong, by 2D or complexdomain plotting this, and beta_i which uses this
+// If c is a non-positive integer, the function is undefined and usually returns NaN except for some cases where a is integer.
+// TODO: for some values the function is imprecise, e.g. Jmat.hypergeometric2F1(1.1, -0.9, 2.1, 3) gives -0.5769+0.1874i instead of -0.5155+0.2163i
+Jmat.Complex.hypergeometric2F1 = function(a, b, c, z) {
+  if(z.abs() > 1.0001 /*not 1 to avoid infinite loop if abs 1/z is also > 1 due to numeric problems, e.g. for 0.9726962457337884+i0.23208191126279865*/) {
+    // The series converges only for |z| < 1. But there are some linear transformations
+    // that can convert it to a different z. There are conditions though, and some are
+    // more complex than others (e.g. requiring gamma functions).
+    // TODO: with only those two supported transformations below, there is probably a lot wrong,
+    //       for example, the points at exp(pi*i/3) and exp(-pi*i/3) are known to be not covered by this
+    //       To fix, do as in the paper "Fast computation of the Gauss hypergeometric function with all its parameters complex with application to the Poschl-Teller-Ginocchio potential wave functions"
+
+    // Linear transformations to bring |z| in value < 1
+    var z2 = z.div(z.dec());
+    if(z2.abs() < 0.75) { // the if can in theory do "< 1", but then a value like z=0.3+4i makes z2 very close to 1, and it has bad numeric results for such values
+      // z / (z - 1)
+      return Jmat.Complex.ONE.sub(z).pow(a.neg()).mul(Jmat.Complex.hypergeometric2F1(a, c.sub(b), c, z2));
+    } else {
+      // 1 / z
+
+      var quirk = function(a) {
+        // For some cases where a, b, c - a or c - b are negative integers, the formula doesn't work and requires a rather complicated other formula for the solution.
+        // For now, I temporarily instead twiddle the parameters a bit. TODO: that is evil, do it properly (but it is surprisingly somewhat accurate though... well, not for everything)
+        if(Jmat.Complex.isNegativeIntOrZero(a)) return a.addr(1e-5);
+        return a;
+      };
+
+      var zi = z.inv();
+      var za = z.neg().pow(a.neg());
+      var zb = z.neg().pow(b.neg());
+      var ga = Jmat.Complex.gammaDiv22_(quirk(c), quirk(b.sub(a)), quirk(b), quirk(c.sub(a)));
+      var gb = Jmat.Complex.gammaDiv22_(quirk(c), quirk(a.sub(b)), quirk(a), quirk(c.sub(b)));
+      var fa = Jmat.Complex.hypergeometric2F1(a, Jmat.Complex.ONE.sub(c).add(a), quirk(Jmat.Complex.ONE.sub(b).add(a)), zi);
+      var fb = Jmat.Complex.hypergeometric2F1(b, Jmat.Complex.ONE.sub(c).add(b), quirk(Jmat.Complex.ONE.sub(a).add(b)), zi);
+      var va = ga.mul(za).mul(fa);
+      var vb = gb.mul(zb).mul(fb);
+      return va.add(vb);
+    }
+  }
+
+  var z2 = z.div(z.dec());
+  if(z2.abs() < z.abs()) {
+    // Same z / (z - 1) transform as above. Reason for doing this: the summation below converges faster for smaller absolute values of z.
+    // Without this, for e.g. z = -0.75 and c < -3, it converges only after hundreds of steps.
+    // TODO: in fact it's almost always possible to make |z| < 0.5 with the linear transformations. Use them better.
+    return Jmat.Complex.ONE.sub(z).pow(a.neg()).mul(Jmat.Complex.hypergeometric2F1(a, c.sub(b), c, z2));
+  }
+
+  // TODO: avoid needing more than 30 iterations by always getting |z| < 0.5 with more clever use of transformations
+  var num_iterations = 30;
+  if(z.abs() > 0.5) num_iterations = 60;
+  if(z.abs() > 0.75) num_iterations = 100;
+
+  // The summation definition of the series, converges because |z| < 1
+
+  // The summation is SUM_(n=0..inf) ((a)_n * (b)_n / (c)_n) * z^n / n!
+  // Where (q)_n is the rising Pochhammer symbol x(x+1)*...*(x+n-1)
+  // The variable r below gets updated every step with next factor of Pochhammer symbol, power and factorial values as the loop goes.
+  var r = a.mul(b).div(c).mul(z).divr(1);
+  var result = Jmat.Complex(1);
+  for(var n = 1; n < num_iterations; n++) {
+    if (n > 1) {
+      r = r.mul(a.addr(n - 1));
+      r = r.mul(b.addr(n - 1));
+      if(!r.eqr(0)) r = r.div(c.addr(n - 1)); // The if is there so that if a==c or b==c and c is neg integer, we don't get 0/0 here but just 0
+      r = r.mul(z);
+      r = r.divr(n);
+    }
+    if(r.eqr(0)) break; // If a or b are negative integer, the loop will terminate early
+    if(Jmat.Complex.near(r, Jmat.Complex.ZERO, 1e-15)) break; // In fact why not even break out if it's already converged very near zero
+    result = result.add(r);
+  }
+  return result;
+
+  // Alternative: integration formula (doesn't work well)
+  /*var g = Jmat.Complex.gammaDiv12_(c, b, c.sub(b));
+  var i = Jmat.Complex.integrate(Jmat.Complex(0), Jmat.Complex(1), function(t) {
+    var n = t.pow(b.dec()).mul(Jmat.Complex.ONE.sub(t).pow(c.sub(b).dec()));
+    var d = Jmat.Complex.ONE.sub(z.mul(t)).pow(a);
+    return n.mul(d);
+  }, 30);
+  return g.mul(i);*/
+};
+
+// The core loop for generalized hypergeometric.
+Jmat.Complex.generalized_hypergeometric_ = function(a, b, z) {
+  // TODO: equal elements in a and b cancel out. Sort the arrays and check that. If the arrays are equal, it's the same as 0F0
+  // TODO: if a contains more zeros than b, the result is always 1
+  // TODO: return NaN or so ("unsupported") if diverging. Note that for a.length > b.length, even if in theory it only converges for 0, it returns practical values for tiny values like 1e-4, so give no NaN there.
+
+  var r = z;
+  for(var i = 0; i < a.length; i++) r = r.mul(a[i]);
+  for(var i = 0; i < b.length; i++) r = r.div(b[i]);
+  var result = Jmat.Complex(1);
+  for(var n = 1; n < 40; n++) {
+    if (n > 1) {
+      for(var i = 0; i < a.length; i++) r = r.mul(a[i].addr(n - 1));
+      for(var i = 0; i < b.length; i++) r = (r.eqr(0) ? r : r.div(b[i].addr(n - 1)));
+      r = r.mul(z);
+      r = r.divr(n);
+    }
+    if(r.eqr(0)) break;
+    result = result.add(r);
+  }
+
+  return result;
+};
+
+// Ordinary generalized hypergeometric series
+// a and b are arrays of complex values. E.g. Jmat.Complex.hypergeometric2F1([a, b, c], [d, e], z) would mean: hypergeometric3F2(a, b, c; d, e; z)
+// Unless specific implementation exists, this uses basic series of the definition of the hypergeometric
+// So if the series diverges (a.length > b.length), it will only be correct for very small |z| (near zero), if a.length == b.length, it will only converge for |z| < 1
+// NOTE: This is the generalized hypergeometric! For the namesake 2F1, use hypergeometric2F1 instead.
+Jmat.Complex.hypergeometric = function(a, b, z) {
+  if(z.eqr(0)) return Jmat.Complex(1);
+  if(a.length == 0 && b.length == 0) return Jmat.Complex.exp(z);
+  if(a.length == 1 && b.length == 0) return Jmat.Complex.pow(z.rsub(1), a[0].neg());
+  if(a.length == 0 && b.length == 1) return Jmat.Complex.hypergeometric0F1(b[0], z);
+  if(a.length == 1 && b.length == 1) return Jmat.Complex.hypergeometric1F1(a[0], b[0], z);
+  if(a.length == 2 && b.length == 1) return Jmat.Complex.hypergeometric2F1(a[0], a[1], b[0], z);
+
+  return Jmat.Complex.generalized_hypergeometric_(a, b, z);
+};
+
+// regularized hypergeometric is the hypergeometric divided through product of gammas of b's
+Jmat.Complex.regularized_hypergeometric = function(a, b, z) {
+  var C = Jmat.Complex;
+  var result = C.hypergeometric(a, b, z);
+  for (var i = 0; i < b.length; i++) {
+    result = result.div(C.gamma(b[i]));
+  }
+  return result;
+};
+
+
+////////////////////////////////////////////////////////////////////////////////
+
 //using Stirling series
 //logarithm of the gamma function, and more specific branch of the log
 Jmat.Complex.loggamma = function(z) {
@@ -410,58 +744,101 @@ Jmat.Complex.loggammaDiv2_ = function(a, b, c, d) {
   }
 };
 
-// Returns a particular non-principal complex branch of sqrt(a * b)
-// For AGM and GHM, a particular branch of the complex sqrt must be returned, otherwise it hops to other branches and gives wrong result
-Jmat.Complex.agmMulSqrt_ = function(a, b) {
-  // Note: if a and b are real but negative, with a*b being positive, still a different branch is used.
-  if(Jmat.Complex.isPositive(a) && Jmat.Complex.isPositive(b)) {
-    return Jmat.Complex.sqrt(a.mul(b));
+////////////////////////////////////////////////////////////////////////////////
+
+Jmat.Complex.beta = function(x, y) {
+  // definition: beta(x, y) = gamma(x)*gamma(y) / gamma(x+y)
+  //return Jmat.Complex.gamma(x).mul(Jmat.Complex.gamma(y)).div(Jmat.Complex.gamma(x.add(y)));
+  //return Jmat.Complex.exp(Jmat.Complex.loggamma(x).add(Jmat.Complex.loggamma(y)).sub(Jmat.Complex.loggamma(x.add(y))));
+
+  // For the negative integers (which cause the gamma function to return indeterminate results) for which beta is still defined:
+  // beta(x, y), with x < 0 and y > 0, is, by the formula: gamma(y)*gamma(x) / gamma(x + y), rewritten to: gamma(y) / (gamma(x + y) / gamma(x)), for example:
+  // beta(x, 2) = 1 / x(x+1),  beta(x, 3) = 2 / x(x+1)(x+2),  beta(x, 4) = 6 / x(x+1)(x+2)(x+3),  beta(x, 5) = 24 / x(x+1)(x+2)(x+3)(x+4), etc...
+  // When x is negative integer, x(x+1)(x+2)...(x+y-1) can be rewritten as (-1^y) * |x|(|x|-1)(|x|-2)...(|x|-y-1), which is (-1^y) * gamma(|x|+1) / gamma(|x|-y+1)
+  // And those last gamma functions get positive argument, so it works without NaN again, so we get the right answers
+  // The Jmat.Complex.gammaDiv_ function is used to get similar effect. Use a negative input value as its numerator.
+
+  if(x.re < 50 && x.re > -50 && y.re < 50 && y.re > -50) {
+    // gamma rather than loggamma more precise here
+    return Jmat.Complex.gammaDiv21_(x, y, x.add(y));
   } else {
-    return Jmat.Complex(Math.sqrt(a.mul(b).abs())).mul(Jmat.Complex.exp(Jmat.Complex.I.mulr((a.arg() + b.arg()) / 2)));
+    return Jmat.Complex.exp(Jmat.Complex.loggammaDiv21_(x, y, x.add(y)));
   }
 };
 
-//Arithmetic-Geometric mean (iteratively calculated)
-Jmat.Complex.agm = function(a, b) {
-  // Wikipedia: We have the following inequality involving the Pythagorean means {H, G, A} and iterated Pythagorean means {HG, HA, GA}:
-  // min <= H <= HG <= (G == HA) <= GA <= A <= max
-  // For completeness, also (with L = logarithmic mean, R = RMS, C = contraharmonic mean):
-  // min <= H <= G <= L <= A <= R <= C <= max
+// Incomplete beta function
+// B_x(a, b)
+Jmat.Complex.incbeta = function(x, a, b) {
+  // for x = 1, incbeta(1, a, b) = beta(a, b)
+  // otherwise: integrate(0..x, t^(a-1) * (1-t)^(b-1) * dt)
 
-  // The AGM is normally only defined for positive real numbers, but it can be extended to whole complex plane, as is done here.
+  // TODO: gives incorrect result for incbeta(5, 100, 100). Should be -1.4e127. Gives +1.1e141. Such values are needed by fisher F distribution though.
 
-  //avoid imprecisions for special cases
-  if(a.eq(b.neg()) || a.eq(Jmat.Complex.ZERO) || b.eq(Jmat.Complex.ZERO)) return Jmat.Complex(0);
-  var real = Jmat.Complex.isReal(a) && Jmat.Complex.isReal(b) && (a.re < 0) == (b.re < 0);
+  if(x.eqr(1)) return Jmat.Complex.beta(a, b);
 
-  var a2, b2;
-  for(var i = 0; i < 60; i++) {
-    if(a.eq(b)) break;
-    a2 = a.add(b).divr(2);
-    b2 = Jmat.Complex.agmMulSqrt_(a, b);
-    a = a2;
-    b = b2;
+  // METHOD A: series representation (simpler case of hypergeometric series). Probably precise, but does not work for neg a/b, x out of range 0-1 (0.75 for better convergence), ...
+  // The summation is z^a * SUM_(n=0..inf) ((1-b)_n / (a + n) * x^n / n!
+  // See for loop in hypergeometric function for explanation on above notation and how implementation works
+  if(Jmat.Complex.isPositive(x) && x.re < 0.75 && Jmat.Complex.isPositive(a) && Jmat.Complex.isPositive(b)) {
+    var b1 = Jmat.Complex.ONE.sub(b);
+    var r;
+    var result;
+    for(var n = 0; n < 30; n++) {
+      if(n == 0) {
+        r = Jmat.Complex(1);
+        result = Jmat.Complex(0);
+      } else {
+        r = r.mul(b1.addr(n - 1));
+        r = r.mul(x);
+        r = r.divr(n);
+      }
+      if(r.eqr(0)) break;
+      result = result.add(r.div(a.addr(n)));
+    }
+    return x.pow(a).mul(result);
   }
 
-  if(real) a.im = 0; // it may be 1e-16 or so due to numerical error (only if both inputs are real and have same sign)
+  // METHOD B: in terms of hypergeometric2F1 (computationally more expensive, but precise)
+  return x.pow(a).div(a).mul(Jmat.Complex.hypergeometric2F1(a, Jmat.Complex.ONE.sub(b), a.inc(), x));
 
-  return a;
+  // METHOD C: with the integral definition. However this one is numerically very imprecise
+  // The integral is numerically too imprecise, due to the degenerate value at t=0
+  // the start should be 0, but it's degenerate there
+  /*if(Jmat.Complex.isPositive(x) && x.re < 1 && Jmat.Complex.isPositive(a) && Jmat.Complex.isPositive(b)) {
+    return Jmat.Complex.integrate(x.divr(3000), x, function(t) {
+      var r = t.pow(a.subr(1)).mul(Jmat.Complex.ONE.sub(t).pow(b.subr(1)));
+      return r;
+    }, 30);
+  }*/
 };
 
-//Geometric-Harmonic mean (iteratively calculated)
-Jmat.Complex.ghm = function(a, b) {
-  // Not really defined for negative and complex numbers, but when using Jmat.Complex.agmMulSqrt_ it looks smooth in the 2D plot
-  // NOTE: An alternative, that returns different values for neg/complex (but same for positive reals) is: return Jmat.Complex.agm(a.inv(), b.inv()).inv();
-  var a2, b2;
-  for(var i = 0; i < 60; i++) {
-    if(a.eq(b)) break;
-    a2 = Jmat.Complex.agmMulSqrt_(a, b);
-    b2 = Jmat.Complex.TWO.div(a.inv().add(b.inv()));
-    a = a2;
-    b = b2;
+// Regularized incomplete beta: (incomplete beta / beta)
+// I_x(a, b)
+Jmat.Complex.beta_i = function(x, a, b) {
+  if(Jmat.Complex.isNegativeIntOrZero(a) && !Jmat.Complex.isNegativeIntOrZero(b)) return Jmat.Complex(1);
+  if(Jmat.Complex.isNegativeIntOrZero(b) && !Jmat.Complex.isNegativeIntOrZero(a)) return Jmat.Complex(0);
+  if(Jmat.Complex.isNegativeIntOrZero(b.add(a)) && x.eqr(1)) return Jmat.Complex(1);
+  return Jmat.Complex.incbeta(x, a, b).div(Jmat.Complex.beta(a, b));
+};
+
+// Inverse of regularized incomplete beta: I_x^-1(a, b)
+Jmat.Complex.beta_i_inv = function(x, a, b) {
+  if(!(Jmat.Complex.isPositiveOrZero(x) && Jmat.Complex.isPositiveOrZero(a) && Jmat.Complex.isPositiveOrZero(b))) return Jmat.Complex(NaN);
+
+  var bab = Jmat.Complex.beta(a, b);
+  var x2 = Jmat.Complex.ZERO;
+  var a2 = Jmat.Complex.ZERO;
+  var b2 = Jmat.Complex.ONE;
+
+  while(!Jmat.Complex.near(a2, b2, 1e-6)) {
+    x2 = a2.add(b2).divr(2);
+    if(Jmat.Complex.incbeta(x2, a, b).div(bab).re > x.re) b2 = x2;
+    else a2 = x2;
   }
-  return a;
+  return x2;
 };
+
+////////////////////////////////////////////////////////////////////////////////
 
 // The bessel0 and bessel1 functions below are inspired by "Computation of Special Functions" by Shanjie Zhang and Jianming Jin.
 
@@ -1351,6 +1728,8 @@ Jmat.Complex.bairy_deriv = function(z) {
 };
 
 
+////////////////////////////////////////////////////////////////////////////////
+
 // This integral representation of riemann zeta works quite well and is valid for all s. This is quite slow though. And in practice it does not work for z.im < -42 or z.im > 42.
 // That because the integrand fluctuates heavily between negative and positive values I think.
 // Anyway, it is better than the eta series formula for the very particular values of x.re = 1 and x.im = a multiple of 9.0625, so used for that...
@@ -1676,427 +2055,8 @@ Jmat.Complex.hurwitzzeta = function(s, q) {
   return Jmat.Complex(NaN); // not supported in this region :( e.g.
 };
 
-Jmat.Complex.beta = function(x, y) {
-  // definition: beta(x, y) = gamma(x)*gamma(y) / gamma(x+y)
-  //return Jmat.Complex.gamma(x).mul(Jmat.Complex.gamma(y)).div(Jmat.Complex.gamma(x.add(y)));
-  //return Jmat.Complex.exp(Jmat.Complex.loggamma(x).add(Jmat.Complex.loggamma(y)).sub(Jmat.Complex.loggamma(x.add(y))));
 
-  // For the negative integers (which cause the gamma function to return indeterminate results) for which beta is still defined:
-  // beta(x, y), with x < 0 and y > 0, is, by the formula: gamma(y)*gamma(x) / gamma(x + y), rewritten to: gamma(y) / (gamma(x + y) / gamma(x)), for example:
-  // beta(x, 2) = 1 / x(x+1),  beta(x, 3) = 2 / x(x+1)(x+2),  beta(x, 4) = 6 / x(x+1)(x+2)(x+3),  beta(x, 5) = 24 / x(x+1)(x+2)(x+3)(x+4), etc...
-  // When x is negative integer, x(x+1)(x+2)...(x+y-1) can be rewritten as (-1^y) * |x|(|x|-1)(|x|-2)...(|x|-y-1), which is (-1^y) * gamma(|x|+1) / gamma(|x|-y+1)
-  // And those last gamma functions get positive argument, so it works without NaN again, so we get the right answers
-  // The Jmat.Complex.gammaDiv_ function is used to get similar effect. Use a negative input value as its numerator.
-
-  if(x.re < 50 && x.re > -50 && y.re < 50 && y.re > -50) {
-    // gamma rather than loggamma more precise here
-    return Jmat.Complex.gammaDiv21_(x, y, x.add(y));
-  } else {
-    return Jmat.Complex.exp(Jmat.Complex.loggammaDiv21_(x, y, x.add(y)));
-  }
-};
-
-// Incomplete beta function
-// B_x(a, b)
-Jmat.Complex.incbeta = function(x, a, b) {
-  // for x = 1, incbeta(1, a, b) = beta(a, b)
-  // otherwise: integrate(0..x, t^(a-1) * (1-t)^(b-1) * dt)
-
-  // TODO: gives incorrect result for incbeta(5, 100, 100). Should be -1.4e127. Gives +1.1e141. Such values are needed by fisher F distribution though.
-
-  if(x.eqr(1)) return Jmat.Complex.beta(a, b);
-
-  // METHOD A: series representation (simpler case of hypergeometric series). Probably precise, but does not work for neg a/b, x out of range 0-1 (0.75 for better convergence), ...
-  // The summation is z^a * SUM_(n=0..inf) ((1-b)_n / (a + n) * x^n / n!
-  // See for loop in hypergeometric function for explanation on above notation and how implementation works
-  if(Jmat.Complex.isPositive(x) && x.re < 0.75 && Jmat.Complex.isPositive(a) && Jmat.Complex.isPositive(b)) {
-    var b1 = Jmat.Complex.ONE.sub(b);
-    var r;
-    var result;
-    for(var n = 0; n < 30; n++) {
-      if(n == 0) {
-        r = Jmat.Complex(1);
-        result = Jmat.Complex(0);
-      } else {
-        r = r.mul(b1.addr(n - 1));
-        r = r.mul(x);
-        r = r.divr(n);
-      }
-      if(r.eqr(0)) break;
-      result = result.add(r.div(a.addr(n)));
-    }
-    return x.pow(a).mul(result);
-  }
-
-  // METHOD B: in terms of hypergeometric2F1 (computationally more expensive, but precise)
-  return x.pow(a).div(a).mul(Jmat.Complex.hypergeometric2F1(a, Jmat.Complex.ONE.sub(b), a.inc(), x));
-
-  // METHOD C: with the integral definition. However this one is numerically very imprecise
-  // The integral is numerically too imprecise, due to the degenerate value at t=0
-  // the start should be 0, but it's degenerate there
-  /*if(Jmat.Complex.isPositive(x) && x.re < 1 && Jmat.Complex.isPositive(a) && Jmat.Complex.isPositive(b)) {
-    return Jmat.Complex.integrate(x.divr(3000), x, function(t) {
-      var r = t.pow(a.subr(1)).mul(Jmat.Complex.ONE.sub(t).pow(b.subr(1)));
-      return r;
-    }, 30);
-  }*/
-};
-
-// Regularized incomplete beta: (incomplete beta / beta)
-// I_x(a, b)
-Jmat.Complex.beta_i = function(x, a, b) {
-  if(Jmat.Complex.isNegativeIntOrZero(a) && !Jmat.Complex.isNegativeIntOrZero(b)) return Jmat.Complex(1);
-  if(Jmat.Complex.isNegativeIntOrZero(b) && !Jmat.Complex.isNegativeIntOrZero(a)) return Jmat.Complex(0);
-  if(Jmat.Complex.isNegativeIntOrZero(b.add(a)) && x.eqr(1)) return Jmat.Complex(1);
-  return Jmat.Complex.incbeta(x, a, b).div(Jmat.Complex.beta(a, b));
-};
-
-// Inverse of regularized incomplete beta: I_x^-1(a, b)
-Jmat.Complex.beta_i_inv = function(x, a, b) {
-  if(!(Jmat.Complex.isPositiveOrZero(x) && Jmat.Complex.isPositiveOrZero(a) && Jmat.Complex.isPositiveOrZero(b))) return Jmat.Complex(NaN);
-
-  var bab = Jmat.Complex.beta(a, b);
-  var x2 = Jmat.Complex.ZERO;
-  var a2 = Jmat.Complex.ZERO;
-  var b2 = Jmat.Complex.ONE;
-
-  while(!Jmat.Complex.near(a2, b2, 1e-6)) {
-    x2 = a2.add(b2).divr(2);
-    if(Jmat.Complex.incbeta(x2, a, b).div(bab).re > x.re) b2 = x2;
-    else a2 = x2;
-  }
-  return x2;
-};
-// Confluent hypergeometric limit function 0F1(; a; z) --> no "upper" term
-Jmat.Complex.hypergeometric0F1 = function(a, z) {
-  var C = Jmat.Complex;
-
-  // It's infinity for negative integer a. However, the loop fails to encounter that term if rather large negative integer due to not enough steps.
-  // Even though it seems as if it should be a finite value because all non integers around it converge to the same apparently...
-  if(C.isNegativeInt(a)) return C(Infinity, Infinity); //undirected infinity
-
-  // The series does not converge well for large negative z with smallish a, because then terms with opposite signs are supposed to cancel out.
-  // Use this expansion into two 2F0 calls instead.
-  // Some difficult cases that this handles: hypergeometric0F1(-23.5, -126.5625) = 692.923, hypergeometric0F1(6, -400) = 4.59650497414 * 10^-6
-  // The values -80 and z.abssq() / 3 have been chosen to make it work for BesselJ in the zone where it uses 0F1. This may be need tweaking for other applications.
-  if(z.re < -80 && a.abssq() < z.abssq() / 3) {
-    var g = C.gamma(a).divr(2 * C.SQRTPI.re);
-    var s = C.sqrt(z.neg());
-    var c0 = C.exp(s.muli(-2)).mul(s.muli(-1).pow(a.rsub(0.5)));
-    var h0 = C.hypergeometric([a.subr(0.5), a.rsub(3/2)], [], s.muli(4).inv().neg());
-    var c1 = C.exp(s.muli(2)).mul(s.muli(1).pow(a.rsub(0.5)));
-    var h1 = C.hypergeometric([a.subr(0.5), a.rsub(3/2)], [], s.muli(4).inv());
-    return g.mul(c0.mul(h0).add(c1.mul(h1)));
-  }
-
-  // The summation is SUM_(n=0..inf) z^n / ((a)_n * n!)
-  // See for loop in hypergeometric function for explanation on above notation and how implementation works
-  // This loop converges very nicely and result is quite accurate for all complex input values (unlike for 2F1)
-  var r = C.ONE;
-  var result = C.ZERO;
-  for(var n = 0; n < 30; n++) {
-    if (n > 0) {
-      if(!r.eqr(0)) r = r.div(a.addr(n - 1)); // the Pochhammer. The if avoids 0/0
-      r = r.mul(z).divr(n); // the z^n / n!
-    }
-    if(r.eqr(0)) break;
-    result = result.add(r);
-  }
-
-  return result;
-};
-
-// The basic series for 1F1
-Jmat.Complex.hypergeometric1F1_series_ = function(a, b, z) {
-  var C = Jmat.Complex;
-
-  // The summation is SUM_(n=0..inf) ((a)_n / (b)_n) * z^n / n!
-  // See for loop in hypergeometric function for explanation on above notation and how implementation works
-  // This loop converges very nicely (unlike for 2F1)
-  var r = a.div(b).mul(z).divr(1);
-  var result = C(1);
-  // It should break out much sooner than that many loops, unless a is very big (1000) or b is tiny (0.1)
-  for(var n = 1; n < 200; n++) {
-    if (n > 1) {
-      r = r.mul(a.addr(n - 1));
-      if(!r.eqr(0)) r = r.div(b.addr(n - 1));
-      r = r.mul(z);
-      r = r.divr(n);
-    }
-    if(r.eqr(0) || r.abssq() / result.abssq() < 1e-28) break;
-    result = result.add(r);
-  }
-
-  return result;
-};
-
-// The asymptotic expansion for 1F1
-// Does NOT work for negative integer b. Even the gammaDiv_ cannot fix it if a and b are both negative integer.
-Jmat.Complex.hypergeometric1F1_asymp_ = function(a, b, z) {
-  var C = Jmat.Complex;
-
-  if(C.isNegativeInt(b)) return C(NaN); // not supported, even if a is compensating negative int
-
-  // asymptotic expansion, abramowitz&stegun 13.5.1
-  var sum0 = C.ONE;
-  var sum1 = C.ONE;
-  var s0 = C.ONE;
-  var s1 = C.ONE;
-  // The loop should end sooner than that many loops except for high values, in which case this diverged and gives bad result
-  for(var i = 1; i < 30; i++) {
-    s0 = s0.mul(a.addr(i - 1)).mul(a.sub(b).addr(i)).divr(i).div(z.neg());
-    s1 = s1.mul(b.sub(a).addr(i - 1)).mul(a.rsub(i)).divr(i).div(z);
-    sum0 = sum0.add(s0);
-    sum1 = sum1.add(s1);
-    if(s0.abssq() < 1e-28 && s1.abssq() < 1e-28) break;
-  }
-
-  if(s0.abssq() > 1e-10 || s1.abssq() > 1e-10) return C(NaN); // no convergence
-
-  //var sign = (z.arg() <= -Math.PI / 2) ? -1 : 1; // This is what it should be according to abramowitz&stegun ...
-  var sign = (z.arg() <= 0) ? -1 : 1; // ... but this is what gives the correct effect here instead for some reason
-
-  if(z.abs() < 100) {
-    var g0 = C.gammaDiv_(b, b.sub(a)).mul(C.exp(a.muli(sign * Math.PI))).div(z.pow(a));
-    var g1 = C.gammaDiv_(b, a).mul(C.exp(z)).mul(z.pow(a.sub(b)));
-    return g0.mul(sum0).add(g1.mul(sum1));
-  } else {
-    // Written in logarithmic form so that it works for very large z too
-    var g0 = C.loggammaDiv_(b, b.sub(a)).add(a.muli(sign * Math.PI)).sub(C.log(z).mul(a));
-    var g1 = C.loggammaDiv_(b, a).add(z).add(C.log(z).mul(a.sub(b)));
-    return C.exp(g0.add(C.log(sum0))).add(C.exp(g1.add(C.log(sum1))));
-  }
-};
-
-// Rational approximation of 1F1 (Luke Y.L. 1977 chapter XV)
-// For extreme values, requires too much iterations (over 300), but slightly better in some places
-Jmat.Complex.hypergeometric1F1_rational_ = function(a, b, z) {
-  var C = Jmat.Complex;
-
-  var e = function(a, c, z) {
-    //var z2 = C(2).pow(z.mul(z)); // 2^(z^2)
-    //var z2 = C(2).pow(z).powr(2); // (2^z)^2
-    var z2 = z.mul(z);
-    var z3 = z2.mul(z);
-    var c2 = c.mul(c.inc()); // (c)_2, rising pochhammer of c
-
-    var b0 = C(1);
-    var b1 = C(1).add(a.inc().mul(z).div(c).divr(2));
-    var b2 = C(1).add(a.addr(2).mul(z).div(c.inc()).divr(2)).
-                  add(a.inc().mul(a.addr(2)).mul(z2).div(c2).divr(12));
-
-    var azc = a.mul(z).div(c);
-    var a0 = C(1);
-    var a1 = b1.sub(azc);
-    var a2_a = a.addr(2).mul(z).div(c.inc()).divr(2).inc();
-    var a2_b = a.mul(a.inc()).mul(z2).div(c2).divr(2);
-    var a2 = b2.sub(azc.mul(a2_a)).add(a2_b);
-
-    //var b3 = C(1).add(a.addr(3).mul(z).div(c.addr(2)).divr(2))
-    //             .add(a.addr(2).mul(a.addr(3)).mul(z2).div(c.addr(1)).div(c.addr(2)).divr(10))
-    //             .add(a.addr(1).mul(a.addr(2)).mul(a.addr(3)).mul(z3).div(c).div(c.addr(1)).div(c.addr(2)).divr(120));
-
-    var an, bn;
-
-    for(var n = 3; n < 50; n++) {
-      var n2 = n * 2;
-      var f1 = a.rsub(n-2).div(
-               c.addr(n-1).mulr(2 * (n2-3)));
-      var f2 = a.addr(n).mul(a.addr(n-1)).div(
-               c.addr(n-1).mul(c.addr(n-2)).mulr(4 * (n2-3) * (n2-1)));
-      var f3 = a.addr(n-2).mul(a.addr(n-1)).mul(a.rsub(n-2)).div(
-               c.addr(n-3).mul(c.addr(n-2)).mul(c.addr(n-1)).mulr(8*(n2-3)*(n2-3)*(n2-5))).neg();
-      var f4 = a.addr(n-1).mul(c.rsub(n-1)).div(
-               c.addr(n-2).mul(c.addr(n-1)).mulr(2 * (n2-3))).neg();
-
-      var e1 = f1.mul(z).inc();
-      var e2 = f2.mul(z).add(f4).mul(z);
-      var e3 = f3.mul(z3);
-      an = a2.mul(e1).add(a1.mul(e2)).add(a0.mul(e3));
-      bn = b2.mul(e1).add(b1.mul(e2)).add(b0.mul(e3));
-
-      a0 = a1;
-      a1 = a2;
-      a2 = an;
-      b0 = b1;
-      b1 = b2;
-      b2 = bn;
-    }
-
-    var test = a1.div(b1);
-    var result = an.div(bn);
-
-    if(test.sub(result).abs() > 1e-10) return C(NaN); // no good convergence
-
-    return result;
-  };
-
-  return e(a, b, z.neg());
-};
-
-
-// Confluent hypergeometric function of the first kind 1F1(a; b; z), a.k.a. Kummer's function M (approximation)
-// Try similar online: http://keisan.casio.com/exec/system/1349143651
-Jmat.Complex.hypergeometric1F1 = function(a, b, z) {
-  var C = Jmat.Complex;
-
-  // Kummer's transformation to make |a| a bit smaller if possible
-  if(b.sub(a).abssq() < a.abssq()) return C.hypergeometric1F1(b.sub(a), b, z.neg()).mul(C.exp(z));
-
-  // Special values
-  if(a.eq(b)) return C.exp(z); // if a and b are equal, they cancel out and this becomes 0F0, which is the same as exp(z)
-  if(C.isNegativeInt(b) && !(C.isNegativeInt(a) && a.re >= b.re)) return C(Infinity);
-  if(a.eqr(0)) return C(1);
-  if(z.eqr(0)) return C(1);
-  if(z.eqr(Infinity)) return C(Infinity, Infinity); // not for neg or complex infinite z
-
-  var r1 = z.mul(a).div(b).abs(); // |z*a/b| dictates how difficult the calculation will be. The lower the easier. If low, the regular series works.
-
-  if(r1 < 8 /*|| C.isNegativeInt(b)*/) {
-    return C.hypergeometric1F1_series_(a, b, z);
-  }
-
-  var result = C.hypergeometric1F1_asymp_(a, b, z); // returns NaN if it didn't converge
-  if(C.isNaN(result)) result = C.hypergeometric1F1_rational_(a, b, z);
-
-  return result;
-};
-
-// Hypergeometric series 2F1(a, b; c; z), aka Gauss hypergeometric function or "The hypergeometric". Approximation.
-// Try similar online: http://keisan.casio.com/exec/system/1349143084, or wolframalpha, HyperGeometric2F1[1.5, -0.5, 2.5, 0.25+i]
-// I debugged this function to find all the areas in the complex or real input plane where it goes wrong, by 2D or complexdomain plotting this, and beta_i which uses this
-// If c is a non-positive integer, the function is undefined and usually returns NaN except for some cases where a is integer.
-// TODO: for some values the function is imprecise, e.g. Jmat.hypergeometric2F1(1.1, -0.9, 2.1, 3) gives -0.5769+0.1874i instead of -0.5155+0.2163i
-Jmat.Complex.hypergeometric2F1 = function(a, b, c, z) {
-  if(z.abs() > 1.0001 /*not 1 to avoid infinite loop if abs 1/z is also > 1 due to numeric problems, e.g. for 0.9726962457337884+i0.23208191126279865*/) {
-    // The series converges only for |z| < 1. But there are some linear transformations
-    // that can convert it to a different z. There are conditions though, and some are
-    // more complex than others (e.g. requiring gamma functions).
-    // TODO: with only those two supported transformations below, there is probably a lot wrong,
-    //       for example, the points at exp(pi*i/3) and exp(-pi*i/3) are known to be not covered by this
-    //       To fix, do as in the paper "Fast computation of the Gauss hypergeometric function with all its parameters complex with application to the Poschl-Teller-Ginocchio potential wave functions"
-
-    // Linear transformations to bring |z| in value < 1
-    var z2 = z.div(z.dec());
-    if(z2.abs() < 0.75) { // the if can in theory do "< 1", but then a value like z=0.3+4i makes z2 very close to 1, and it has bad numeric results for such values
-      // z / (z - 1)
-      return Jmat.Complex.ONE.sub(z).pow(a.neg()).mul(Jmat.Complex.hypergeometric2F1(a, c.sub(b), c, z2));
-    } else {
-      // 1 / z
-
-      var quirk = function(a) {
-        // For some cases where a, b, c - a or c - b are negative integers, the formula doesn't work and requires a rather complicated other formula for the solution.
-        // For now, I temporarily instead twiddle the parameters a bit. TODO: that is evil, do it properly (but it is surprisingly somewhat accurate though... well, not for everything)
-        if(Jmat.Complex.isNegativeIntOrZero(a)) return a.addr(1e-5);
-        return a;
-      };
-
-      var zi = z.inv();
-      var za = z.neg().pow(a.neg());
-      var zb = z.neg().pow(b.neg());
-      var ga = Jmat.Complex.gammaDiv22_(quirk(c), quirk(b.sub(a)), quirk(b), quirk(c.sub(a)));
-      var gb = Jmat.Complex.gammaDiv22_(quirk(c), quirk(a.sub(b)), quirk(a), quirk(c.sub(b)));
-      var fa = Jmat.Complex.hypergeometric2F1(a, Jmat.Complex.ONE.sub(c).add(a), quirk(Jmat.Complex.ONE.sub(b).add(a)), zi);
-      var fb = Jmat.Complex.hypergeometric2F1(b, Jmat.Complex.ONE.sub(c).add(b), quirk(Jmat.Complex.ONE.sub(a).add(b)), zi);
-      var va = ga.mul(za).mul(fa);
-      var vb = gb.mul(zb).mul(fb);
-      return va.add(vb);
-    }
-  }
-
-  var z2 = z.div(z.dec());
-  if(z2.abs() < z.abs()) {
-    // Same z / (z - 1) transform as above. Reason for doing this: the summation below converges faster for smaller absolute values of z.
-    // Without this, for e.g. z = -0.75 and c < -3, it converges only after hundreds of steps.
-    // TODO: in fact it's almost always possible to make |z| < 0.5 with the linear transformations. Use them better.
-    return Jmat.Complex.ONE.sub(z).pow(a.neg()).mul(Jmat.Complex.hypergeometric2F1(a, c.sub(b), c, z2));
-  }
-
-  // TODO: avoid needing more than 30 iterations by always getting |z| < 0.5 with more clever use of transformations
-  var num_iterations = 30;
-  if(z.abs() > 0.5) num_iterations = 60;
-  if(z.abs() > 0.75) num_iterations = 100;
-
-  // The summation definition of the series, converges because |z| < 1
-
-  // The summation is SUM_(n=0..inf) ((a)_n * (b)_n / (c)_n) * z^n / n!
-  // Where (q)_n is the rising Pochhammer symbol x(x+1)*...*(x+n-1)
-  // The variable r below gets updated every step with next factor of Pochhammer symbol, power and factorial values as the loop goes.
-  var r = a.mul(b).div(c).mul(z).divr(1);
-  var result = Jmat.Complex(1);
-  for(var n = 1; n < num_iterations; n++) {
-    if (n > 1) {
-      r = r.mul(a.addr(n - 1));
-      r = r.mul(b.addr(n - 1));
-      if(!r.eqr(0)) r = r.div(c.addr(n - 1)); // The if is there so that if a==c or b==c and c is neg integer, we don't get 0/0 here but just 0
-      r = r.mul(z);
-      r = r.divr(n);
-    }
-    if(r.eqr(0)) break; // If a or b are negative integer, the loop will terminate early
-    if(Jmat.Complex.near(r, Jmat.Complex.ZERO, 1e-15)) break; // In fact why not even break out if it's already converged very near zero
-    result = result.add(r);
-  }
-  return result;
-
-  // Alternative: integration formula (doesn't work well)
-  /*var g = Jmat.Complex.gammaDiv12_(c, b, c.sub(b));
-  var i = Jmat.Complex.integrate(Jmat.Complex(0), Jmat.Complex(1), function(t) {
-    var n = t.pow(b.dec()).mul(Jmat.Complex.ONE.sub(t).pow(c.sub(b).dec()));
-    var d = Jmat.Complex.ONE.sub(z.mul(t)).pow(a);
-    return n.mul(d);
-  }, 30);
-  return g.mul(i);*/
-};
-
-// The core loop for generalized hypergeometric.
-Jmat.Complex.generalized_hypergeometric_ = function(a, b, z) {
-  // TODO: equal elements in a and b cancel out. Sort the arrays and check that. If the arrays are equal, it's the same as 0F0
-  // TODO: if a contains more zeros than b, the result is always 1
-  // TODO: return NaN or so ("unsupported") if diverging. Note that for a.length > b.length, even if in theory it only converges for 0, it returns practical values for tiny values like 1e-4, so give no NaN there.
-
-  var r = z;
-  for(var i = 0; i < a.length; i++) r = r.mul(a[i]);
-  for(var i = 0; i < b.length; i++) r = r.div(b[i]);
-  var result = Jmat.Complex(1);
-  for(var n = 1; n < 40; n++) {
-    if (n > 1) {
-      for(var i = 0; i < a.length; i++) r = r.mul(a[i].addr(n - 1));
-      for(var i = 0; i < b.length; i++) r = (r.eqr(0) ? r : r.div(b[i].addr(n - 1)));
-      r = r.mul(z);
-      r = r.divr(n);
-    }
-    if(r.eqr(0)) break;
-    result = result.add(r);
-  }
-
-  return result;
-};
-
-// Ordinary generalized hypergeometric series
-// a and b are arrays of complex values. E.g. Jmat.Complex.hypergeometric2F1([a, b, c], [d, e], z) would mean: hypergeometric3F2(a, b, c; d, e; z)
-// Unless specific implementation exists, this uses basic series of the definition of the hypergeometric
-// So if the series diverges (a.length > b.length), it will only be correct for very small |z| (near zero), if a.length == b.length, it will only converge for |z| < 1
-// NOTE: This is the generalized hypergeometric! For the namesake 2F1, use hypergeometric2F1 instead.
-Jmat.Complex.hypergeometric = function(a, b, z) {
-  if(z.eqr(0)) return Jmat.Complex(1);
-  if(a.length == 0 && b.length == 0) return Jmat.Complex.exp(z);
-  if(a.length == 1 && b.length == 0) return Jmat.Complex.pow(z.rsub(1), a[0].neg());
-  if(a.length == 0 && b.length == 1) return Jmat.Complex.hypergeometric0F1(b[0], z);
-  if(a.length == 1 && b.length == 1) return Jmat.Complex.hypergeometric1F1(a[0], b[0], z);
-  if(a.length == 2 && b.length == 1) return Jmat.Complex.hypergeometric2F1(a[0], a[1], b[0], z);
-
-  return Jmat.Complex.generalized_hypergeometric_(a, b, z);
-};
-
-// regularized hypergeometric is the hypergeometric divided through product of gammas of b's
-Jmat.Complex.regularized_hypergeometric = function(a, b, z) {
-  var C = Jmat.Complex;
-  var result = C.hypergeometric(a, b, z);
-  for (var i = 0; i < b.length; i++) {
-    result = result.div(C.gamma(b[i]));
-  }
-  return result;
-};
+////////////////////////////////////////////////////////////////////////////////
 
 Jmat.Complex.PIPI6_ = Jmat.Complex(Math.PI * Math.PI / 6);
 
@@ -2535,6 +2495,8 @@ Jmat.Complex.polylog = function(s, z) {
   }
 };
 
+////////////////////////////////////////////////////////////////////////////////
+
 //Jacobi theta1 function
 //q = exp(pi * i * tau) ==> tau = ln(q) / (pi * i)
 //|q| must be < 1
@@ -2611,7 +2573,63 @@ Jmat.Complex.theta4 = function(z, q) {
   return result.mulr(2).addr(1);
 };
 
-// TODO: exponential integral, sine integral, cosine integral, logarithmic integral, elliptic integrals, fresnel integrals
+////////////////////////////////////////////////////////////////////////////////
+
+// Returns a particular non-principal complex branch of sqrt(a * b)
+// For AGM and GHM, a particular branch of the complex sqrt must be returned, otherwise it hops to other branches and gives wrong result
+Jmat.Complex.agmMulSqrt_ = function(a, b) {
+  // Note: if a and b are real but negative, with a*b being positive, still a different branch is used.
+  if(Jmat.Complex.isPositive(a) && Jmat.Complex.isPositive(b)) {
+    return Jmat.Complex.sqrt(a.mul(b));
+  } else {
+    return Jmat.Complex(Math.sqrt(a.mul(b).abs())).mul(Jmat.Complex.exp(Jmat.Complex.I.mulr((a.arg() + b.arg()) / 2)));
+  }
+};
+
+//Arithmetic-Geometric mean (iteratively calculated)
+Jmat.Complex.agm = function(a, b) {
+  // Wikipedia: We have the following inequality involving the Pythagorean means {H, G, A} and iterated Pythagorean means {HG, HA, GA}:
+  // min <= H <= HG <= (G == HA) <= GA <= A <= max
+  // For completeness, also (with L = logarithmic mean, R = RMS, C = contraharmonic mean):
+  // min <= H <= G <= L <= A <= R <= C <= max
+
+  // The AGM is normally only defined for positive real numbers, but it can be extended to whole complex plane, as is done here.
+
+  //avoid imprecisions for special cases
+  if(a.eq(b.neg()) || a.eq(Jmat.Complex.ZERO) || b.eq(Jmat.Complex.ZERO)) return Jmat.Complex(0);
+  var real = Jmat.Complex.isReal(a) && Jmat.Complex.isReal(b) && (a.re < 0) == (b.re < 0);
+
+  var a2, b2;
+  for(var i = 0; i < 60; i++) {
+    if(a.eq(b)) break;
+    a2 = a.add(b).divr(2);
+    b2 = Jmat.Complex.agmMulSqrt_(a, b);
+    a = a2;
+    b = b2;
+  }
+
+  if(real) a.im = 0; // it may be 1e-16 or so due to numerical error (only if both inputs are real and have same sign)
+
+  return a;
+};
+
+//Geometric-Harmonic mean (iteratively calculated)
+Jmat.Complex.ghm = function(a, b) {
+  // Not really defined for negative and complex numbers, but when using Jmat.Complex.agmMulSqrt_ it looks smooth in the 2D plot
+  // NOTE: An alternative, that returns different values for neg/complex (but same for positive reals) is: return Jmat.Complex.agm(a.inv(), b.inv()).inv();
+  var a2, b2;
+  for(var i = 0; i < 60; i++) {
+    if(a.eq(b)) break;
+    a2 = Jmat.Complex.agmMulSqrt_(a, b);
+    b2 = Jmat.Complex.TWO.div(a.inv().add(b.inv()));
+    a = a2;
+    b = b2;
+  }
+  return a;
+};
+
+
+////////////////////////////////////////////////////////////////////////////////
 
 // Loop for tetration: raises b to power a num times (typically a == b). if l is true, takes logarithm instead of power, to loop in the opposite direction.
 Jmat.Real.tetration_loop_ = function(a, b, num, l) {
@@ -2825,6 +2843,7 @@ Jmat.Complex.tetration = function(a, z) {
   // TODO: implement super logarithm (slog), and super root (sroot) as well. Though, so far the only formulas I have is slog of base e in the Kouznetsov paper, and the 2-super root, so no implementation using both parameters can be done so far.
 };
 
+////////////////////////////////////////////////////////////////////////////////
 
 Jmat.Complex.erf_inv = function(z) {
   if (z.im != 0 && Math.abs(z.re) > 1) {
@@ -2908,8 +2927,6 @@ Jmat.Real.minkowski = function(x) {
 Jmat.Complex.minkowski = function(z) {
   return Jmat.Complex(Jmat.Real.minkowski(z.re), Jmat.Real.minkowski(z.im));
 };
-
-
 
 ////////////////////////////////////////////////////////////////////////////////
 ////////////////////////////////////////////////////////////////////////////////
