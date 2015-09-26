@@ -88,6 +88,7 @@ function makeLabeledDropDown(x, y, label, options, parent) {
 
 var fun1d = [
     '--',
+    'ei', 'e1', 'li',
     'gamma', 'digamma', 'trigamma', 'loggamma', 'gamma_inv',
     'airy', 'bairy', 'airy_deriv', 'bairy_deriv',
     'erf', 'erfc', 'erf_inv', 'erfc_inv', 'erfi', 'dawson', 'faddeeva',
@@ -154,6 +155,8 @@ el0.onchange = function() {
   Jmat.stopPlotting();
   var f = fun1d[el0.selectedIndex];
   if(Jmat[f]) Jmat.plotReal(Jmat[f], plotContainerEl, {p:1}, f);
+  else if(Jmat.Complex[f]) Jmat.plotReal(function(z) { return Jmat.Complex[f](Jmat.Complex.cast(z)); }, plotContainerEl, {p:1}, f);
+  else console.log('function ' + f + ' not found');
 };
 
 var el1 = makeLabeledDropDown(130, 0, 'complex', fun1d, plotDropdowns);
@@ -161,6 +164,8 @@ el1.onchange = function() {
   Jmat.stopPlotting();
   var f = fun1d[el1.selectedIndex];
   if(Jmat[f]) Jmat.plotComplex(Jmat[f], plotContainerEl, {p:1}, f);
+  else if(Jmat.Complex[f]) Jmat.plotComplex(function(z) { return Jmat.Complex[f](Jmat.Complex.cast(z)); }, plotContainerEl, {p:1}, f);
+  else console.log('function ' + f + ' not found');
 };
 
 var el2 = makeLabeledDropDown(260, 0, '2d', fun2d, plotDropdowns);
@@ -168,6 +173,8 @@ el2.onchange = function() {
   Jmat.stopPlotting();
   var f = fun2d[el2.selectedIndex];
   if(Jmat[f]) Jmat.plot2D(Jmat[f], plotContainerEl, {p:1}, f);
+  else if(Jmat.Complex[f]) Jmat.plot2D(function(x, y) { return Jmat.Complex[f](Jmat.Complex.cast(x), Jmat.Complex.cast(y)); }, plotContainerEl, {p:1}, f);
+  else console.log('function ' + f + ' not found');
 };
 
 Jmat.plotComplex(Jmat['gamma'], plotContainerEl, {p:1}, 'gamma');

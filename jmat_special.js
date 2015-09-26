@@ -2699,7 +2699,6 @@ Jmat.Complex.ellipticrj = function(x, y, z, p) {
     var sx = C.sqrt(x);
     var sy = C.sqrt(y);
     var sz = C.sqrt(z);
-    var sp = C.sqrt(p);
     // The square roots must be calculated as sqrt(x)*sqrt(y), not as sqrt(x*y), to ensure correct branch (given that sqrt returns the solution with positive real part) (see mulSqrtBranch_)
     var lambda = sx.mul(sy).add(sy.mul(sz)).add(sz.mul(sx));
     var alpha = sqr(p.mul(sx.add(sy).add(sz)).add(sx.mul(sy).mul(sz)));
@@ -3097,6 +3096,110 @@ Jmat.Complex.tetration = function(a, z) {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+// Logarithmic integral: li
+Jmat.Complex.li = function(z) {
+  var C = Jmat.Complex;
+  return C.ei(C.log(z));
+};
+
+// Offset logarithmic integral: Li(z) = li(z) - li(2)
+Jmat.Complex.li2 = function(z) {
+  var li_2 = 1.045163780117492784844588889194613136522615578151201575832909;
+  return Jmat.Complex.li(z).subr(li_2);
+};
+
+// Exponential integral E1
+Jmat.Complex.e1 = function(z) {
+  var C = Jmat.Complex;
+  var result = C.ei(z.neg()).neg();
+  if(z.im < 0) result = result.add(C(0, Math.PI));
+  else if(z.im > 0 || z.re < 0) result = result.sub(C(0, Math.PI));
+  return result;
+};
+
+// Exponential integral Ei
+Jmat.Complex.ei = function(z) {
+  var C = Jmat.Complex;
+  var za = z.abs();
+
+  if(za == 0) return C(-Infinity);
+  if(za == Infinity) {
+    if(z.re > 0) return C(Infinity);
+    return C(0, Math.sign(z.im) * Math.PI);
+  }
+
+  if(za > 5) {
+    // asymptotic series
+    var result = C(0);
+    var term = C(1);
+    var stop = Math.min(30, Math.floor(z.abs()) + 1);
+    for(var i = 1; i <= stop; i++) {
+      var prev = term;
+      term = term.mul(z.rdiv(i));
+      if(C.nearr(term, 0, 1e-15)) {
+        //return C.exp(z).div(z).mul(result.addr(1)).add(C(0, Math.sign(z.im) * Math.PI));
+        var t = C(0, Math.sign(z.im) * Math.PI);
+        result = result.addr(1).div(z);
+        if(z.abs() > 100) {
+          // this avoids overflow in the exp call
+          return C.exp(z.add(C.log(result))).add(t);
+        }
+        return C.exp(z).mul(result).add(t);
+      }
+      if(term.abs() > prev.abs()) {
+        // diverging
+        result = result.sub(prev);
+        //return C.exp(z).div(z).mul(result.addr(1)).add(C(0, Math.sign(z.im) * Math.PI));
+        break;
+      }
+      result = result.add(term);
+    }
+    // no return
+
+  }
+
+  if(za > 1 && (z.re < 0 || Math.abs(z.im) > 1)) {
+    // continued fraction
+    var result = C(0, Math.sign(z.im) * Math.PI);
+    var c = C(0), d = C(0);
+    var e = C.exp(z);
+    if(z.im == 0) {
+      d = z.rsub(1).inv();
+      result = d.mul(e).neg();
+    } else {
+      c = z.rsub(1).sub(e.div(result)).inv();
+      d = z.rsub(1).inv();
+      result = result.mul(d.div(c));
+    }
+    for(var i = 1; i < 30; i++) {
+      c = z.rsub(i * 2 + 1).sub(c.mulr(i * i)).inv();
+      d = z.rsub(i * 2 + 1).sub(d.mulr(i * i)).inv();
+      var prev = result;
+      result = result.mul(d.div(c));
+      if(C.near(result, prev, 1e-15)) return result;
+    }
+    return result;
+  }
+
+  // power series
+  var a = 0;
+  if(z.im != 0) a = Math.sign(z.im) * Math.abs(C.arg(z).re);
+  var result = C.EM.add(C.log(C.abs(z))).add(C(0, a));
+  var zz = z;
+  var ii = 1;
+  for(var i = 1; i < 30; i++) {
+    var next = result.add(zz.divr(i * ii));
+    if(result.eq(next)) break; // converged
+    result = next;
+    zz = zz.mul(z);
+    ii = ii * (i + 1);
+  }
+  return result;
+
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 Jmat.Complex.erf_inv = function(z) {
   if (z.im != 0 && Math.abs(z.re) > 1) {
     //this branch is taken for large complex numbers because the implementation below doesn't work well on those. This one isn't much better btw, but slightly less bad for those cases.
@@ -3155,6 +3258,8 @@ Jmat.Complex.erf_inv = function(z) {
 Jmat.Complex.erfc_inv = function(z) {
   return Jmat.Complex.erf_inv(Jmat.Complex.ONE.sub(z));
 };
+
+////////////////////////////////////////////////////////////////////////////////
 
 //Minkowski's question mark function, from Wikipedia
 Jmat.Real.minkowski = function(x) {

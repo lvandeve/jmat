@@ -217,8 +217,16 @@ Jmat.Complex.div = function(x, y) {
       // the calculations below would give 0/0 = NaN even though result should be some infinity.
       return new Jmat.Complex(x.re == 0 ? 0 : (x.re < 0 ? -Infinity : Infinity), x.im == 0 ? 0 : (x.im < 0 ? -Infinity : Infinity));
     }
-    var re = (x.re * y.re + x.im * y.im) / d;
-    var im = (x.im * y.re - x.re * y.im) / d;
+    d = 1.0 / d; // optimization: avoid multiple times the same division
+    var re, im;
+    if(d > 1) {
+      re = (x.re * y.re + x.im * y.im) * d;
+      im = (x.im * y.re - x.re * y.im) * d;
+    } else {
+      // the multiplications with d are in the center, to avoid overflow in case e.g. x.re*y.re overflows floating point
+      re = x.re * d * y.re + x.im * d * y.im;
+      im = x.im * d * y.re - x.re * d * y.im;
+    }
     return new Jmat.Complex(re, im);
   }
 };
