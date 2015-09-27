@@ -3096,27 +3096,6 @@ Jmat.Complex.tetration = function(a, z) {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-// Logarithmic integral: li
-Jmat.Complex.li = function(z) {
-  var C = Jmat.Complex;
-  return C.ei(C.log(z));
-};
-
-// Offset logarithmic integral: Li(z) = li(z) - li(2)
-Jmat.Complex.li2 = function(z) {
-  var li_2 = 1.045163780117492784844588889194613136522615578151201575832909;
-  return Jmat.Complex.li(z).subr(li_2);
-};
-
-// Exponential integral E1
-Jmat.Complex.e1 = function(z) {
-  var C = Jmat.Complex;
-  var result = C.ei(z.neg()).neg();
-  if(z.im < 0) result = result.add(C(0, Math.PI));
-  else if(z.im > 0 || z.re < 0) result = result.sub(C(0, Math.PI));
-  return result;
-};
-
 // Exponential integral Ei
 Jmat.Complex.ei = function(z) {
   var C = Jmat.Complex;
@@ -3196,6 +3175,153 @@ Jmat.Complex.ei = function(z) {
   }
   return result;
 
+};
+
+// Exponential integral E1
+Jmat.Complex.e1 = function(z) {
+  var C = Jmat.Complex;
+  var result = C.ei(z.neg()).neg();
+  if(z.im < 0) result = result.add(C(0, Math.PI));
+  else if(z.im > 0 || z.re < 0) result = result.sub(C(0, Math.PI));
+  return result;
+};
+
+// Logarithmic integral: li
+Jmat.Complex.li = function(z) {
+  var C = Jmat.Complex;
+  return C.ei(C.log(z));
+};
+
+// Offset logarithmic integral: Li(z) = li(z) - li(2)
+Jmat.Complex.li2 = function(z) {
+  var li_2 = 1.045163780117492784844588889194613136522615578151201575832909;
+  return Jmat.Complex.li(z).subr(li_2);
+};
+
+// only a good approximation for |z| < 4
+Jmat.Complex.si_pade_ = function(z) {
+  var z2 = z.mul(z);
+  var a = z2.mulr(-6.05338212010422477e-16).addr(7.08240282274875911e-13).
+      mul(z2).addr(-3.53201978997168357e-10).mul(z2).addr(9.43280809438713025e-8).
+      mul(z2).addr(-1.41018536821330254e-5).mul(z2).addr(1.15457225751016682e-3).
+      mul(z2).addr(-4.54393409816329991e-2).mul(z2).addr(1);
+  var b = z2.mulr(3.21107051193712168e-16).addr(4.5049097575386581e-13).
+      mul(z2).addr(3.28067571055789734e-10).mul(z2).addr(1.55654986308745614e-7).
+      mul(z2).addr(4.99175116169755106e-5).mul(z2).addr(1.01162145739225565e-2).
+      mul(z2).addr(1);
+  return z.mul(a).div(b);
+};
+
+// only a good approximation for |z| < 4
+Jmat.Complex.ci_pade_ = function(z) {
+  var C = Jmat.Complex;
+  var z2 = z.mul(z);
+  var a = z2.mulr(-9.93728488857585407e-15).addr(1.06480802891189243e-11).
+      mul(z2).addr(-4.68889508144848019e-9).mul(z2).addr(1.05297363846239184e-6).
+      mul(z2).addr(-1.27528342240267686e-4).mul(z2).addr(7.51851524438898291e-3).
+      mul(z2).addr(-0.25).mul(z2);
+  var b = z2.mulr(1.39759616731376855e-18).addr(1.89106054713059759e-15).
+      mul(z2).addr(1.38536352772778619e-12).mul(z2).addr(6.97071295760958946e-10).
+      mul(z2).addr(2.55533277086129636e-7).mul(z2).addr(6.72126800814254432e-5).
+      mul(z2).addr(1.1592605689110735e-2).mul(z2).addr(1);
+  return C.log(z).addr(0.577215664901532861).add(a.div(b));
+};
+
+// only a good approximation for large |z| > 4, and |z.re| > 1 as there are some "warts" on the imaginary axis
+Jmat.Complex.f_pade_ = function(z) {
+  var y = z.mul(z).inv();
+  var a = y.mulr(-4.94701168645415959931e11).addr(4.94816688199951963482e12).
+      mul(y).addr(1.00795182980368574617e13).mul(y).addr(4.20968180571076940208e12).
+      mul(y).addr(6.40533830574022022911e11).mul(y).addr(4.33736238870432522765e10).
+      mul(y).addr(1.43073403821274636888e9).mul(y).addr(2.37750310125431834034e7).
+      mul(y).addr(1.96396372895146869801e5).mul(y).addr(7.44437068161936700618e2).
+      mul(y).addr(1);
+  var b = y.mulr(1.11535493509914254097e13).addr(1.43468549171581016479e13).
+      mul(y).addr(5.06084464593475076774e12).mul(y).addr(7.08501308149515401563e11).
+      mul(y).addr(4.58595115847765779830e10).mul(y).addr(1.47478952192985464958e9).
+      mul(y).addr(2.41535670165126845144e7).mul(y).addr(1.97865247031583951450e5).
+      mul(y).addr(7.46437068161927678031e2).mul(y).addr(1);
+  return a.div(b).div(z);
+};
+
+// only a good approximation for large |z| > 4, and |z.re| > 1 as there are some "warts" on the imaginary axis
+Jmat.Complex.g_pade_ = function(z) {
+  var y = z.mul(z).inv();
+  var a = y.mulr(-1.36517137670871689e12).addr(6.43291613143049485e12).
+      mul(y).addr(1.81004487464664575e13).mul(y).addr(7.57664583257834349e12).
+      mul(y).addr(1.09049528450362786e12).mul(y).addr(6.83052205423625007e10).
+      mul(y).addr(2.06297595146763354e9).mul(y).addr(3.12557570795778731e7).
+      mul(y).addr(2.35239181626478200e5).mul(y).addr(8.1359520115168615e2).mul(y).addr(1);
+  var b = y.mulr(3.99653257887490811e13).addr(4.01839087307656620e13).
+      mul(y).addr(1.17164723371736605e13).mul(y).addr(1.39866710696414565e12).
+      mul(y).addr(7.87465017341829930e10).mul(y).addr(2.23355543278099360e9).
+      mul(y).addr(3.26026661647090822e7).mul(y).addr(2.40036752835578777e5).
+      mul(y).addr(8.19595201151451564e2).mul(y).addr(1);
+  return y.mul(a).div(b);
+};
+
+// Sine integral: Si
+Jmat.Complex.si = function(z) {
+  var C = Jmat.Complex;
+
+  if(z.abs() < 4) {
+    return C.si_pade_(z);
+  }
+
+  if(Math.abs(z.re) > 1) {
+    var f = C.f_pade_(z);
+    var c = C.cos(z);
+    var g = C.g_pade_(z);
+    var s = C.sin(z);
+    // l is the same as log(-ix) - log(ix), which is equal to pi or -pi depending on complex quadrant
+    var l = C.I.mulr(z.re < 0 || (z.re == 0 && z.im < 0) ? Math.PI : -Math.PI);
+    return l.muli(0.5).sub(f.mul(c)).sub(g.mul(s));
+  }
+
+  // In terms of e1
+  var a = C.e1(z.mul(C.I).neg());
+  var b = C.e1(z.mul(C.I));
+  // l is the same as log(-ix) - log(ix), which is equal to pi or -pi depending on complex quadrant
+  var l = C.I.mulr(z.re < 0 || (z.re == 0 && z.im < 0) ? Math.PI : -Math.PI);
+  return a.sub(b).add(l).mul(C.I).mulr(0.5);
+};
+
+// Cosine integral: Ci
+Jmat.Complex.ci = function(z) {
+  var C = Jmat.Complex;
+
+  if(z.abs() < 4) return C.ci_pade_(z);
+
+  if(Math.abs(z.re) > 1) {
+    var f = C.f_pade_(z);
+    var c = C.cos(z);
+    var g = C.g_pade_(z);
+    var s = C.sin(z);
+    var lz = C.log(z);
+    var l = (z.re > 0 || (z.re == 0 && z.im > 0)) ? C(0) : C(0, (z.im < 0 ? -1 : 1) * Math.PI);
+    return f.mul(s).sub(g.mul(c)).add(l);
+  }
+
+  // In terms of e1
+  var a = C.e1(z.mul(C.I).neg());
+  var b = C.e1(z.mul(C.I));
+  var lz = C.log(z);
+  // l is the same as log(-ix) + log(ix), which is equal to log(z) or log(-z) depending on complex quadrant
+  var l = ((z.re > 0 || (z.re == 0 && z.im > 0)) ? lz : lz.subi((z.im < 0 ? -1 : 1) * Math.PI)).mulr(2);
+  return a.add(b).add(l).mulr(-0.5).add(lz);
+};
+
+// Hyperbolic sine integral: Shi
+Jmat.Complex.shi = function(z) {
+  return Jmat.Complex.si(z.muli(1)).muli(1).neg();
+};
+
+// Hyperbolic cosine integral: Chi
+Jmat.Complex.chi = function(z) {
+  var C = Jmat.Complex;
+  // l is same as log(z) - log(i*z)
+  var l = new C(0, (z.re < 0 && z.im >= 0 ? (3 * Math.PI / 2) : (-Math.PI / 2)));
+  return C.ci(z.muli(1)).add(l);
 };
 
 ////////////////////////////////////////////////////////////////////////////////

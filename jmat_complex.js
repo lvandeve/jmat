@@ -240,6 +240,12 @@ Jmat.Complex.addr = function(z, a) {
 Jmat.Complex.prototype.addr = function(a) {
   return new Jmat.Complex(this.re + a, this.im);
 };
+Jmat.Complex.addi = function(z, a) {
+  return new Jmat.Complex(z.re, z.im + a);
+};
+Jmat.Complex.prototype.addi = function(a) {
+  return new Jmat.Complex(this.re, this.im + a);
+};
 
 Jmat.Complex.subr = function(z, a) {
   return new Jmat.Complex(z.re - a, z.im);
@@ -254,6 +260,12 @@ Jmat.Complex.rsub = function(a, z) {
 // Subtract self from real. This operator exists because it's less awkward to write z.rsub(3) than Complex(3).sub(z) in long formulas
 Jmat.Complex.prototype.rsub = function(a) {
   return new Jmat.Complex(a - this.re, -this.im);
+};
+Jmat.Complex.subi = function(z, a) {
+  return new Jmat.Complex(z.re, z.im - a);
+};
+Jmat.Complex.prototype.subi = function(a) {
+  return new Jmat.Complex(this.re, this.im - a);
 };
 
 Jmat.Complex.mulr = function(z, a) {

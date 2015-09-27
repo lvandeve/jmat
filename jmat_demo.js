@@ -88,7 +88,7 @@ function makeLabeledDropDown(x, y, label, options, parent) {
 
 var fun1d = [
     '--',
-    'ei', 'e1', 'li',
+    'ei', 'e1', 'li', 'si', 'ci', 'shi', 'chi',
     'gamma', 'digamma', 'trigamma', 'loggamma', 'gamma_inv',
     'airy', 'bairy', 'airy_deriv', 'bairy_deriv',
     'erf', 'erfc', 'erf_inv', 'erfc_inv', 'erfi', 'dawson', 'faddeeva',

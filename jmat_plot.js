@@ -312,11 +312,12 @@ Jmat.Plot.useHTML5canvas_ = true;
 // Position: x, y
 // Size: w, h
 // Color: [r, g, b], each in range 0-255
-Jmat.Plot.rect = function(parent, x, y, w, h, rgb) {
+Jmat.Plot.rect = function(parent, x, y, w, h, rgb, label) {
   // NON-canvas version (slower)
   if(!Jmat.Plot.useHTML5canvas_) {
     var el =  Jmat.Plot.makeSizedDiv(parent, x, y, w, h);
     el.style.backgroundColor = Jmat.Plot.rgbToCss(rgb);
+    el.title = label;
     return el;
   }
 
@@ -324,6 +325,11 @@ Jmat.Plot.rect = function(parent, x, y, w, h, rgb) {
   var data = parent.data;
   var id = parent.idd;
   var ctx = parent.ctx;
+
+  if(!parent.labeldata) parent.labeldata = [];
+  if(!parent.labeldata[y]) parent.labeldata[y] = [];
+  parent.labeldata[y][x] = label;
+
   if(!data) {
     var canvas =  document.createElement('canvas');
     canvas.style.position = 'absolute';
@@ -338,6 +344,13 @@ Jmat.Plot.rect = function(parent, x, y, w, h, rgb) {
     parent.data = data;
     parent.ctx = ctx;
     parent.appendChild(canvas);
+
+    canvas.onclick = function(e) {
+      var x = e.offsetX;
+      var y = e.offsetY;
+      // TODO: somehow display this in a tooltip on the canvas instead
+      console.log(parent.labeldata[y][x]);
+    };
   }
 
   if(w == 1 && h == 1) {
@@ -386,7 +399,7 @@ Jmat.Plot.addPlotLabels_ = function(xlabel, ylabel, x0, x1, y0, y1, parent) {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-Jmat.Plot.makeRealPixel_ = function(div, width, height, params, px, y, prevy, rgb, title) {
+Jmat.Plot.makeRealPixel_ = function(div, width, height, params, px, y, prevy, rgb, label) {
   var p = params.p;
   var ysize = params.ysize;
 
@@ -397,14 +410,12 @@ Jmat.Plot.makeRealPixel_ = function(div, width, height, params, px, y, prevy, rg
   if(py > height && prevpy > height) return;
 
   if(isNaN(y)) {
-    var d = Jmat.Plot.rect(div, px, 0, p, height, [160,160,160]);
-    if(d) d.title = title;
+    var d = Jmat.Plot.rect(div, px, 0, p, height, [160,160,160], label);
     return;
   }
 
   if(py >= 0 && py < height) {
-    var d = Jmat.Plot.rect(div, px, py, p, p, rgb);
-    if(d) d.title = title;
+    var d = Jmat.Plot.rect(div, px, py, p, p, rgb, label);
   }
 
   if(py < 0) py = 0;
@@ -413,11 +424,9 @@ Jmat.Plot.makeRealPixel_ = function(div, width, height, params, px, y, prevy, rg
   if(prevpy > height) prevpy = height;
 
   if(prevpy + p < py) {
-    var d = Jmat.Plot.rect(div, px, prevpy + p, p, (py - prevpy), rgb);
-    if(d) d.title = title;
+    var d = Jmat.Plot.rect(div, px, prevpy + p, p, (py - prevpy), rgb, label);
   } else if(prevpy > py + p) {
-    var d = Jmat.Plot.rect(div, px, py, p, (prevpy - py), rgb);
-    if(d) d.title = title;
+    var d = Jmat.Plot.rect(div, px, py, p, (prevpy - py), rgb, label);
   }
 };
 
@@ -505,16 +514,16 @@ Jmat.Plot.plotReal_ = function(fun, params, parent, label) {
 
 //p = pixel cell size
 // For "Color wheel graphs of complex functions" (not for "Domain coloring" which has repeating pattern of lightness rather than black for 0, white for infinity)
-Jmat.Plot.plotColorPixel = function(y, maxval, p, px, py, div) {
+Jmat.Plot.plotColorPixel = function(y, maxval, p, px, py, div, label) {
   var rgb = Jmat.Plot.getComplexColor(y, maxval);
-  var d = Jmat.Plot.rect(div, px * p, py * p, p, p, rgb);
+  var d = Jmat.Plot.rect(div, px * p, py * p, p, p, rgb, label);
   return d;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
 
 //p = pixel cell size
-Jmat.Plot.plot2DPixel_ = function(fun, size, steps, params, px, py, div) {
+Jmat.Plot.plot2DPixel_ = function(fun, size, steps, params, px, py, div, label) {
   var x = -size + (px / steps * size * 2);
   var y = size - (py / steps * size * 2);
 
@@ -528,8 +537,8 @@ Jmat.Plot.plot2DPixel_ = function(fun, size, steps, params, px, py, div) {
     z = fun(sx, sy);
   }
 
-  var d = Jmat.Plot.plotColorPixel(z, params.v, params.p, px, py, div);
-  if(d) d.title = x + ', ' + y + ': ' + Jmat.Complex.toString(z);
+  var label = sx + ', ' + sy + ': ' + Jmat.Complex.toString(z);
+  var d = Jmat.Plot.plotColorPixel(z, params.v, params.p, px, py, div, label);
 };
 
 
