@@ -1160,70 +1160,16 @@ Jmat.Complex.lambertwm = function(z) {
   // TODO: wrong. Look at the real plot. Fix this! Jmat.plotReal(Jmat.Complex.lambertwm)
   return Jmat.Complex.lambertwb(-1, z);
 };
+
+////////////////////////////////////////////////////////////////////////////////
+
 // Faddeeva function, used as helper functions to calculate erf and related functions for certain locations in the complex plane
 // Faddeeva(z) = exp(-z^2)*erfc(-iz).
 // Also known as Faddeyeva, or as w(x), but that may be confusing with LambertW...
 Jmat.Complex.faddeeva = function(z) {
-  // METOD A: series 7.1.8 from Handbook of Mathematical Functions
-  // smaller area of convergence than METHOD A, so not used
-  /*var result = Jmat.Complex(0);
-  var zi = Jmat.Complex.I.mul(z);
-  var zz = Jmat.Complex.ONE;
-  for(var n = 0; n < 30; n++) {
-    result = result.add(zz.divr(Jmat.Real.gamma(n/2 + 1)));
-    zz = zz.mul(zi);
-  }
-  return result;*/
-
-  var invsqrtpi2   = 2 / Jmat.Real.SQRTPI;
-  var eye = (z.re * z.re) + (z.im * z.im * 2);
-
-  // METHOD B: series
-  // A small eye-shaped region in which the series works
-  if(eye < 3.5) {
-    // Based on sum 7.1.5 from Handbook of Mathematical Functions
-    // erf(z) = 2/sqrt(pi) * SUM_n=0..oo (-1)^n * z^(2n+1) / (n! * (2n+1))
-    // and then w(z) = e^(-z^2) * (1 - erf(iz))
-    var sum = Jmat.Complex.ZERO;
-    var sign = 1.0;
-    var nn = 1;
-    var iz = Jmat.Complex.I.mul(z).neg();
-    var izz = iz;
-    for(var n = 0; n < 20; n++) {
-      if(n > 0) {
-        nn = nn * n; // n!
-        sign = -sign; // (-1)^n
-        izz = izz.mul(iz).mul(iz); // iz^(2n+1)
-      }
-      sum = sum.add(izz.mulr(sign / (nn * (2*n + 1))));
-    }
-    var e = Jmat.Complex.exp(z.mul(z).neg());
-    return e.sub(e.mul(sum).mulr(invsqrtpi2));
-  }
-
-  // METHOD C: Laplace Continued Fraction
-  var za = Jmat.Complex(Math.abs(z.re), Math.abs(z.im)); // Operate on positive re, positive im quadrant
-  // requires quite a lot of iterations unfortunately
-  var num = eye < 40 ? 40 : eye < 80 ? 20 : 10;
-  var result = Jmat.Complex(0);
-  for(var n = 0; n < num; n++) {
-    var r = Jmat.Complex(za.im + result.re, za.re - result.im);
-    result = r.mulr(0.5 / r.abssq());
-  }
-  result = result.mulr(invsqrtpi2);
-  // Fix for pure imaginary values with large negative imaginary part
-  if(za.im == 0.0) result.re = Math.exp(-za.re * za.re);
-  // Put the solution back in the original quadrant, using the transformations w(-z) = 2 * exp(-z*z) - w(z) and w(conj(z)) = cons(w(-z))
-  if(z.im < 0.0) {
-    var e = Jmat.Complex.exp(za.mul(za).neg()).mulr(2);
-    result = e.sub(result);
-    if(z.re > 0.0) result.im = -result.im;
-  } else if(z.re < 0.0) {
-    result.im = -result.im;
-  }
-  return result;
+  var f = Jmat.Real.faddeeva(z.re, z.im);
+  return Jmat.Complex(f[0], f[1]);
 };
-
 
 // erfcx(z) = exp(z^2) * erfc(z): the scaled complementary error function
 Jmat.Complex.erfcx = function(z) {
@@ -1231,33 +1177,27 @@ Jmat.Complex.erfcx = function(z) {
 };
 
 Jmat.Complex.erf = function(z) {
-  if(z.im == 0) {
-    return Jmat.Complex(Jmat.Real.erf(z.re));
-  } else if(z.re == 0) {
-    return Jmat.Complex.I.mulr(Jmat.Real.erfi(z.im));
-  } else {
-    var a = Jmat.Complex.exp(z.mul(z).neg()); // If abs of z is very large, and |im| > |re|, then this becomes some NaN or Infinity. That is ok, erf is also some unrepresentable huge value there.
-    if (z.re >= 0) return Jmat.Complex.ONE.sub(a.mul(Jmat.Complex.faddeeva(z.mul(Jmat.Complex.I))));
-    else return a.mul(Jmat.Complex.faddeeva(z.mul(Jmat.Complex.I.neg()))).sub(Jmat.Complex.ONE);
+  var a = Jmat.Complex.exp(z.mul(z).neg()); // If abs of z is very large, and |im| > |re|, then this becomes some NaN or Infinity. That is ok, erf is also some unrepresentable huge value there.
+  var result;
+  if (z.re >= 0) result = Jmat.Complex.ONE.sub(a.mul(Jmat.Complex.faddeeva(z.mul(Jmat.Complex.I))));
+  else return result = a.mul(Jmat.Complex.faddeeva(z.mul(Jmat.Complex.I.neg()))).sub(Jmat.Complex.ONE);
+  // fix numerical imprecisions in case something is known to be exactly zero
+  if(z.re == 0) result.re = 0; // pure imaginary input must give pure imaginary output, but due to subtracting from 1 it may be near-zero
+  return result;
 
-    // With integration, don't use.
-    /*var ps2 = 2.0 / Jmat.Real.SQRTPI;
-    var result;
-    result = Jmat.Complex.integrate(Jmat.Complex(0), z, function(z){ return Jmat.Complex.exp(z.mul(z).neg()); }, 100);
-    result = result.mulr(ps2);
-    return result;*/
-  }
+  // With integration, don't use.
+  /*var ps2 = 2.0 / Jmat.Real.SQRTPI;
+  var result;
+  result = Jmat.Complex.integrate(Jmat.Complex(0), z, function(z){ return Jmat.Complex.exp(z.mul(z).neg()); }, 100);
+  result = result.mulr(ps2);
+  return result;*/
 };
 
 // erfc(x) = 1 - erf(x). This function gives numerically a better result if erf(x) is near 1.
 Jmat.Complex.erfc = function(z) {
-  if(z.im == 0) {
-    return Jmat.Complex(Jmat.Real.erfc(z.re));
-  } else {
-    var a = Jmat.Complex.exp(z.mul(z).neg());
-    if (z.re >= 0) return a.mul(Jmat.Complex.faddeeva(z.mul(Jmat.Complex.I)));
-    else return Jmat.Complex.TWO.sub(a.mul(Jmat.Complex.faddeeva(z.mul(Jmat.Complex.I.neg()))));
-  }
+  var a = Jmat.Complex.exp(z.mul(z)); // we divide through this, rather than taking exp(-x*x) amd multiplying, to match what faddeeva does better, to ensure getting '1' for the real part in case of pure imaginary input
+  if (z.re >= 0) return Jmat.Complex.faddeeva(z.mul(Jmat.Complex.I)).div(a);
+  else return Jmat.Complex.TWO.sub(Jmat.Complex.faddeeva(z.mul(Jmat.Complex.I.neg())).div(a));
 };
 
 
@@ -1268,20 +1208,17 @@ Jmat.Complex.erfc = function(z) {
 
 //erfi(z) = -i erf(iz)
 Jmat.Complex.erfi = function(z) {
-  if(Jmat.Complex.isReal(z)) return Jmat.Complex(Jmat.Real.erfi(z.re));
   return Jmat.Complex.erf(z.mul(Jmat.Complex.I)).mul(Jmat.Complex.I).neg();
 };
 
 // D+(x) aka F(x)
 Jmat.Complex.dawson = function(z) {
-  if(Jmat.Complex.isReal(z)) {
-    return Jmat.Complex(Jmat.Real.dawson(z.re));
-  } else {
-    var w = Jmat.Complex.faddeeva(z);
-    var a = Jmat.Complex.exp(z.mul(z).neg());
-    return a.sub(w).mul(Jmat.Complex.I.mulr(Jmat.Real.SQRTPI / 2));
-  }
+  var w = Jmat.Complex.faddeeva(z);
+  var a = Jmat.Complex.exp(z.mul(z).neg());
+  return a.sub(w).mul(Jmat.Complex.I.mulr(Jmat.Real.SQRTPI / 2));
 };
+
+////////////////////////////////////////////////////////////////////////////////
 
 // gives a random complex number by default inside the unit circle, or else with absolute value between r0 and r1
 Jmat.Complex.random = function(r0, r1) {

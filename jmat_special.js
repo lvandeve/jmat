@@ -3327,17 +3327,18 @@ Jmat.Complex.chi = function(z) {
 ////////////////////////////////////////////////////////////////////////////////
 
 Jmat.Complex.erf_inv = function(z) {
+  var C = Jmat.Complex;
   if (z.im != 0 && Math.abs(z.re) > 1) {
     //this branch is taken for large complex numbers because the implementation below doesn't work well on those. This one isn't much better btw, but slightly less bad for those cases.
     //TODO: is incorrect on many complex numbers!! e.g. erf_inv(erf(5 + 5i)) gives way wrong result
     //var zzpi = z.mul(z).mulr(Math.PI);
-    //return zzpi.mulr(34807/182476800.0).addr(4369/5806080.0).mul(zzpi).addr(127/40320.0).mul(zzpi).addr(7/480.0).mul(zzpi).addr(1/12.0).mul(zzpi).addr(1).mul(z).mul(Jmat.Complex.SQRTPI).mulr(0.5);
+    //return zzpi.mulr(34807/182476800.0).addr(4369/5806080.0).mul(zzpi).addr(127/40320.0).mul(zzpi).addr(7/480.0).mul(zzpi).addr(1/12.0).mul(zzpi).addr(1).mul(z).mul(C.SQRTPI).mulr(0.5);
 
     // With newton method
 
     // derivative of erf is: 2/sqrt(pi) * e^(-x^2)
     var derf = function(x) {
-      return Jmat.Complex.TWO.divr(Jmat.Real.SQRTPI).mul(Jmat.Complex.exp(x.mul(x).neg()));
+      return C.TWO.divr(Jmat.Real.SQRTPI).mul(C.exp(x.mul(x).neg()));
     };
 
     var neg = z.re < 0;
@@ -3345,18 +3346,18 @@ Jmat.Complex.erf_inv = function(z) {
 
     // For abs(z) > 1 and z.re > 0, the following starting value works well: sqrt(-log(x * sqrt(pi) * (1 - x)))
     // NOTE: for abs(z) < 1, instead z*sqrtpi/2 would work, but other code already handles such case
-    var start = Jmat.Complex.sqrt(Jmat.Complex.log(z.mulr(Jmat.Real.SQRTPI).mul(Jmat.Complex.ONE.sub(z))).neg());
+    var start = C.sqrt(C.log(z.mulr(Jmat.Real.SQRTPI).mul(C.ONE.sub(z))).neg());
     // NOTE: erf_inv has multiple solutions, with this starting value only one particular one is returned.
     // e.g. with the chosen starting value, erf_inv(2+2i) gives 0.386507600275 + 1.320769860731i. But with starting value 0, it gives the also correct 2.947736167125 + 3.401249486995i.
-    var result = Jmat.Complex.finvert_newton(z, Jmat.Complex.erf, derf, start);
+    var result = C.finvert_newton(z, C.erf, derf, start);
     if(neg) result = result.neg();
     return result;
   } else {
-    //if (a > 1) return Jmat.Complex(NaN); //only relevant for real numbers
+    //if (a > 1) return C(NaN); //only relevant for real numbers
     if (z.im == 0) {
-      if (z.re == 0) return Jmat.Complex(0);
-      if (z.re == 1) return Jmat.Complex(Infinity);
-      if (z.re == -1) return Jmat.Complex(-Infinity);
+      if (z.re == 0) return C(0);
+      if (z.re == 1) return C(Infinity);
+      if (z.re == -1) return C(-Infinity);
     }
 
     var erf_inv_a_ = [0.886226899, -1.645349621, 0.914624893, -0.140543331];
@@ -3371,7 +3372,7 @@ Jmat.Complex.erf_inv = function(z) {
       r = r.div(z2.mulr(erf_inv_b_[4]).addr(erf_inv_b_[3]).mul(z2).addr(erf_inv_b_[2]).mul(z2).addr(erf_inv_b_[1]).mul(z2).addr(erf_inv_b_[0]));
     }
     else {
-      var y = Jmat.Complex.sqrt(Jmat.Complex.log(Jmat.Complex.ONE.sub(z).divr(2)).neg());
+      var y = C.sqrt(C.log(C.ONE.sub(z).divr(2)).neg());
       var r = y.mulr(erf_inv_c_[3]).addr(erf_inv_c_[2]).mul(y).addr(erf_inv_c_[1]).mul(y).addr(erf_inv_c_[0]);
       r = r.div(y.mulr(erf_inv_d_[2]).addr(erf_inv_d_[1]).mul(y).addr(erf_inv_d_[0]));
     }
@@ -3383,6 +3384,24 @@ Jmat.Complex.erf_inv = function(z) {
 // inverse complementary error function.
 Jmat.Complex.erfc_inv = function(z) {
   return Jmat.Complex.erf_inv(Jmat.Complex.ONE.sub(z));
+};
+
+// Fresnel integral S(z)
+Jmat.Complex.fresnels = function(z) {
+  var C = Jmat.Complex;
+  var R = Jmat.Real;
+  var a = C.erf(C(1, 1).mulr(R.SQRTPI / 2).mul(z));
+  var b = C.erf(C(1, -1).mulr(R.SQRTPI / 2).mul(z));
+  return a.sub(b.muli(1)).mul(C(0.25, 0.25));
+};
+
+// Fresnel integral C(z)
+Jmat.Complex.fresnelc = function(z) {
+  var C = Jmat.Complex;
+  var R = Jmat.Real;
+  var a = C.erf(C(1, 1).mulr(R.SQRTPI / 2).mul(z));
+  var b = C.erf(C(1, -1).mulr(R.SQRTPI / 2).mul(z));
+  return a.add(b.muli(1)).mul(C(0.25, -0.25));
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -3804,7 +3823,6 @@ qf = quantile function, the inverse function of cdf
 */
 
 
-// TODO: add discrete distributions like binomial, bernoulli, poisson, ...
 // TODO: add characteristic functions cf_
 // TODO: Pareto distribution
 

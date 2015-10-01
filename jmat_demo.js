@@ -92,6 +92,7 @@ var fun1d = [
     'gamma', 'digamma', 'trigamma', 'loggamma', 'gamma_inv',
     'airy', 'bairy', 'airy_deriv', 'bairy_deriv',
     'erf', 'erfc', 'erf_inv', 'erfc_inv', 'erfi', 'dawson', 'faddeeva',
+    'fresnels', 'fresnelc',
     'zeta', 'eta', 'dilog', 'trilog',
     'exp', 'log', 'sqrt',
     'lambertw', 'lambertwm', 'tetrational',

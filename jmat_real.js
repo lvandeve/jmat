@@ -122,22 +122,32 @@ Jmat.Real.dist = function(a, b) {
   return Math.abs(a - b);
 };
 
-// works for non-integers too
+// Modulo operation. Different than JS's % operator in case of negative operands.
+// Result has the sign of the divisor b.
+// Works for non-integers too, similar to "fmod" in C (in case of positive arguments).
+// Compare with rem: Different programs and programming languages use different
+// names for this, there is no convention which one has which sign, though in
+// languages with both a "mod" and "rem", the convention adopted here is most
+// popular. See the table at https://en.wikipedia.org/wiki/Modulo_operation.
+//
+// mod in terms of rem (%). The table below compares the two operators.
+// x    :   -4 -3 -2 -1  0  1  2  3  4
+// x mod  3:    2  0  1  2  0  1  2  0  1
+// x mod -3:   -1  0 -2 -1  0 -2 -1  0 -2
+// x rem  3:   -1  0 -2 -1  0  1  2  0  1
+// x rem -3:   -1  0 -2 -1  0  1  2  0  1
+// The sign of mod is that of b, while that of rem is that of a.
+//
+// "mod" is the one that is mathematically more useful, while "rem" is the one
+// matching the "%" operator in most programming languages.
+// mod corresponds to floored division, while rem corresponds to truncated division.
 Jmat.Real.mod = function(a, b) {
-  /*
-  mod in terms of rem (%). The table below compares the two operators.
-     x    :   -4 -3 -2 -1  0  1  2  3  4
-  x mod  3:    2  0  1  2  0  1  2  0  1
-  x mod -3:   -1  0 -2 -1  0 -2 -1  0 -2
-  x rem  3:   -1  0 -2 -1  0  1  2  0  1
-  x rem -3:   -1  0 -2 -1  0  1  2  0  1
-  The sign of mod is that of b, while that of rem is that of a.
-  */
-
   return a - Math.floor(a / b) * b; // alternative: (b + (a % b)) % b
 };
 
-// Remainder. This is just the % operator. It is here only for reference. Compare with Jmat.Real.mod, which is different.
+// Remainder. This is the same as the % operator.
+// Result has the sign of the dividend a.
+// Compare with Jmat.Real.mod, which is different and contains more description about the difference between rem and mod.
 Jmat.Real.rem = function(a, b) {
   return a % b;
 };
@@ -157,7 +167,7 @@ Jmat.Real.clamp = function(x, from, to) {
   return Math.max(m0, Math.min(m1, x));
 };
 
-// integer division
+// floored integer division. Note that this is distinct from the truncated integer division used on many platforms.
 Jmat.Real.idiv = function(a, b) {
   return Math.floor(a / b);
 };
@@ -884,9 +894,225 @@ Jmat.Real.root = function(x, y) {
   return Math.pow(x, 1 / y);
 };
 
-// dawson function D+(x) aka F(x). erfi(x) = 2/sqrt(pi) * exp(x*x) * D(x)
-// so while erfi overflows for large args, this one doesn't due to no exp(x*x)
+////////////////////////////////////////////////////////////////////////////////
+
+// Faddeeva function: w(z) = exp(-z^2)*erfc(-iz). Also known as Faddeyeva or w(z) (not to be confused with LambertW)
+// Returns complex result as an array [re, im], for complex input z = i*x + y. The result is real for pure imaginary input (arbitrary complex otherwise)
+// Note that Jmat.Real does not depend on Jmat.Complex so does not use that datatype to represent the complex number.
+// This complex function is used in Jmat.Real because some real erf related functions use imaginary numbers, and, this function gives very good accuracy for everything erf related.
+// Based on paper "More Efficient Computation of the Complex Error Function, G. P. M. POPPE and C. M. J. WIJERS "
+Jmat.Real.faddeeva = function(x, y) {
+  var R = Jmat.Real;
+  var invsqrtpi2   = 2 / R.SQRTPI;
+
+  // complex exponentiation exp(x + yi)
+  var cexp = function(x, y) {
+    var e = Math.exp(x);
+    return [e * Math.cos(y), e * Math.sin(y)];
+  };
+
+  // complex multiplication (a + bi) * (c + di)
+  var cmul = function(a, b, c, d) {
+    return [a * c - b * d, a * d + b * c];
+  };
+
+  // reciproke of complex number (x + yi)
+  var cinv = function(x, y) {
+    var d = x * x + y * y;
+    return [x / d, -y / d];
+  };
+
+  // square of rho, used to determine which algorithm to use and what tweaking
+  // parameters inside the algorithm. All magic numbers related to rho are as
+  // suggested in the paper.
+  var rho2 = (x / 6.3 * x / 6.3) + (y / 4.4 * y / 4.4);
+
+  // Methods 2 and 3 below require positive imaginary part y, so transform
+  // using the transformation w(-x) = 2 * exp(-x*x) - w(x).
+  if(y < 0 && rho2 >= 0.292 * 0.292) {
+    // For large negative pure imaginary values starting at -26.64, the code
+    // starts returning NaN. Return Infinity instead (it is large positive overflow).
+    if(x == 0 && y < -26.64) return [Infinity, 0]
+
+    var e = cexp(y * y - x * x, -2 * x * y); // exp(-z*z)
+    var f = R.faddeeva(-x, -y);
+    return [2 * e[0] - f[0], 2 * e[1] - f[1]];
+  }
+
+  var result = [0, 0];
+
+  if(rho2 < 0.292 * 0.292) {
+    // Method 1: Power series
+    // Based on sum 7.1.5 from Handbook of Mathematical Functions
+    // erf(z) = 2/sqrt(pi) * SUM_n=0..oo (-1)^n * z^(2n+1) / (n! * (2n+1))
+    // and then w(z) = e^(-z^2) * (1 - erf(iz))
+    var s = (1 - 0.85 * y / 4.4) * Math.sqrt(rho2);
+    var n = Math.ceil(6 + 72 * s); // ideal number of iterations
+    var kk = 1;
+    var zz = [y * y - x * x, -2 * x * y]; // -z*z
+    var t = [y, -x]; // holds iz^(2k+1)
+    for(var k = 0; k < n; k++) {
+      if(k > 0) {
+        kk *= -k; // (-1)^k * k!
+        t = cmul(t[0], t[1], zz[0], zz[1]);
+      }
+      result[0] += t[0] / (kk * (2 * k + 1));
+      result[1] += t[1] / (kk * (2 * k + 1));
+    }
+    var e = cexp(zz[0], zz[1]); // exp(-z*z)
+    result = cmul(e[0], e[1], result[0], result[1]);
+    result[0] = e[0] - result[0] * invsqrtpi2;
+    result[1] = e[1] - result[1] * invsqrtpi2;
+  } else if(rho2 < 1.0) {
+    // Method 2: Taylor series
+    // The continued fraction is used for derivatives of faddeeva function. More
+    // info about the continued fraction is in Method 3.
+    // h is the heuristically chosen point at which the taylor series is considered.
+    // The derivative of w(z) is w'(z) = -2z*w(z)+2i/sqrt(pi)), but also
+    // with w_n(z) defined as exp(-z*z) * i^n * erfc(-iz), the nth derivative
+    // of w(z) is equal to (2i)^n * n! * w_n(z), and in the tayler expansion the
+    // factorial gets canceled out: w(z) = SUM_0..oo (2h)^n * w_n(z + ih).
+    var s = (1 - y / 4.4) * Math.sqrt(1 - rho2);
+    var nu = Math.ceil(16 + 26 * s) + 1; // ideal number of iterations for continued fraction
+    var n = Math.ceil(7  + 34 * s) + 1; // ideal number of iterations for taylor series
+    var h = 1.88 * s;
+
+    // The first iterations only warm up the w_n's with continued fraction
+    var w = [0, 0]; // w_n's
+    for (var k = nu; k > n; k--) {
+      w = cinv(2 * (y + k * w[0] + h), 2 * (k * w[1] - x)); // 0.5/(h - i*z + k*w)
+    }
+    // The next iterations run the taylor series, while keeping updating the continued fraction
+    var hh = Math.pow(h * 2, n - 1);
+    for (var k = n; k > 0; k--) {
+      w = cinv(2 * (y + k * w[0] + h), 2 * (k * w[1] - x)); // 0.5/(h - i*z + k*w)
+      result = cmul(result[0] + hh, result[1], w[0], w[1]); // (result + hh) * w
+      hh /= (h * 2);
+    }
+    result[0] *= invsqrtpi2;
+    result[1] *= invsqrtpi2;
+  } else {
+    // Method 3: Continued fraction
+    // The continued fraction is evaluated as r_nu = 0, r_(n-1) = 0.5 / (-iz + (n + 1)r_n), r_0 is the final approximate result
+    var nu = Math.ceil(3 + (1442 / (26 * Math.sqrt(rho2) + 77))) + 1; // ideal number of iterations
+    for (var k = nu; k > 0; k--) {
+      result = cinv(2 * (y + k * result[0]), 2 * (k * result[1] - x)); //  0.5/(-i*z + k*result)
+    }
+    result[0] *= invsqrtpi2;
+    result[1] *= invsqrtpi2;
+  }
+
+  if(x == 0) result[1] = 0; // for pure imaginary input, result is pure real. Fix potential numerical problems, and cases of "-0".
+  if(y == 0) result[0] = Math.exp(-x * x); // for pure real input, the real part of the output is exactly exp(-x * x). Fix numerical imprecisions when near zero.
+  return result;
+};
+
+// erfcx(x) = exp(x^2) * erfc(x): the scaled complementary error function
+Jmat.Real.erfcx = function(x) {
+  return Jmat.Real.faddeeva(0, x)[0]; //erfcx(x) = faddeeva(ix)
+};
+
+Jmat.Real.erf = function(x) {
+  /*
+  For verification, comparing with following 24 digit precision (our function gets about 14 digits correct):
+  erf(0.00001) = 0.000011283791670578999349
+  erf(0.1) = 0.112462916018284892203275
+  erf(0.5) = 0.520499877813046537682746
+  erf(1.5) = 0.966105146475310727066976
+  erf(2.5) = 0.999593047982555041060435
+  erf(3.5) = 0.999999256901627658587254
+  erf(4.5) = 0.999999999803383955845711
+  erf(5.5) = 0.999999999999992642152082
+  erf(6.5) = 0.999999999999999999961578
+  erf(3.5i) = 35282.287715171685310157997216i
+  erf(3.5+3.5i) = 0.887129271239584272207414 + 0.015026380322129921373706i
+  */
+  var a = Math.exp(-x * x);
+  if (x >= 0) return 1 - a * Jmat.Real.faddeeva(0, x)[0];
+  else return a * Jmat.Real.faddeeva(0, -x)[0] - 1;
+};
+
+// erfc(x) = 1 - erf(x). This function gives numerically a better result if erf(x) is near 1.
+Jmat.Real.erfc = function(x) {
+  /*
+  For verification, comparing with following 24 digit precision (our function gets about 14 digits correct):
+  erfc(0.00001) = 0.999988716208329421000650
+  erfc(0.1) = 0.887537083981715107796724
+  erfc(0.5) = 0.479500122186953462317253
+  erfc(1.5) = 0.033894853524689272933023
+  erfc(2.5) = 0.000406952017444958939564
+  erfc(3.5) = 7.430983723414127455236837 * 10^-7
+  erfc(4.5) = 1.966160441542887476279160 * 10^-10
+  erfc(5.5) = 7.357847917974398063068362 * 10^-15
+  erfc(6.5) = 3.842148327120647469875804 * 10^-20
+  erfc(3.5i) = 1 - 35282.287715171685310157997216i
+  erfc(3.5+3.5i) = 0.112870728760415727792585 - 0.015026380322129921373706i
+  */
+  var a = Math.exp(-x * x);
+  if (x >= 0) return a * Jmat.Real.faddeeva(0, x)[0];
+  else return 2 - a * Jmat.Real.faddeeva(0, -x)[0];
+};
+
+//erfi(x) = -i erf(iz)
+Jmat.Real.erfi = function(x) {
+  var a = Math.exp(x * x);
+  return a * Jmat.Real.faddeeva(x, 0)[1];
+};
+
+// D+(x) aka F(x)
 Jmat.Real.dawson = function(x) {
+  var a = Math.exp(-x * x);
+  var w = Jmat.Real.faddeeva(x, 0)[1];
+  return -(a - w) * (Jmat.Real.SQRTPI / 2);
+};
+
+// fast but inaccurate
+Jmat.Real.erf_fast_ = function(x) {
+  var neg = x < 0;
+  if(neg) x = -x;
+
+  if (x == 0) return 0;
+  var t = 1 / (1 + 0.3275911 * x);
+  var p = t * (0.254829592 + t * (-0.284496736 + t * (1.421413741 +
+          t * (-1.453152027 + t * 1.061405429))));
+  var result = 1.0 - p * Math.exp(-(x*x));
+
+  if(neg) result = -result;
+  return result;
+};
+
+// fast but inaccurate
+Jmat.Real.erfc_fast_ = function(x) {
+  var neg = x < 0;
+  if(neg) x = -x;
+  var result;
+
+  if(x <= 0.5) {
+    var x2 = x * x;
+    var x3 = x * x2;
+    var x5 = x3 * x2;
+    var x7 = x5 * x2;
+    result = 1 - 2 / Jmat.Real.SQRTPI * (x - x3 / 3 + x5 / 10 + x7 / 42);
+    //result = Math.exp(-x*x) / 6 + Math.exp(-0.75 * x * x) / 2;
+  } else if (x >= 5) {
+    // asymptotic expansion for large real x
+    var x2 = x * x;
+    var x4 = x2 * x2;
+    var x6 = x4 * x2;
+    var x8 = x6 * x2;
+    result = Math.exp(-(x*x)) / (x * Jmat.Real.SQRTPI) * (1 - 1/2.0/x2 + 3/4.0/x4 - 15/8.0/x6 + 105/16.0/x8);
+  } else {
+    var t = 1 / (1 + 0.3275911 * x);
+    var p = t * (0.254829592 + t * (-0.284496736 + t * (1.421413741 + t * (-1.453152027 + t * 1.061405429))));
+    result = p * Math.exp(-(x*x));
+  }
+
+  if(neg) result = 2 - result;
+  return result;
+};
+
+// fast but inaccurate
+Jmat.Real.dawson_fast_ = function(x) {
   var x2 = x * x;
   var x4 = x2 * x2;
   var x6 = x4 * x2;
@@ -903,8 +1129,8 @@ Jmat.Real.dawson = function(x) {
   return p / q * x;
 };
 
-//erfi, the imaginary error function, on real argument: erfi(z) = -i erf(iz)
-Jmat.Real.erfi = function(x) {
+// fast but inaccurate
+Jmat.Real.erfi_fast_ = function(x) {
   var neg = false;
   if(x < 0) {
     x = -x;
@@ -937,47 +1163,7 @@ Jmat.Real.erfi = function(x) {
   return result;
 };
 
-Jmat.Real.erf = function(x) {
-  var neg = x < 0;
-  if(neg) x = -x;
-
-  if (x == 0) return 0;
-  var t = 1 / (1 + 0.3275911 * x);
-  var p = t * (0.254829592 + t * (-0.284496736 + t * (1.421413741 + t * (-1.453152027 + t * 1.061405429))));
-  var result = 1.0 - p * Math.exp(-(x*x));
-
-  if(neg) result = -result;
-  return result;
-};
-
-Jmat.Real.erfc = function(x) {
-  var neg = x < 0;
-  if(neg) x = -x;
-  var result;
-
-  if(x <= 0.5) {
-    var x2 = x * x;
-    var x3 = x * x2;
-    var x5 = x3 * x2;
-    var x7 = x5 * x2;
-    result = 1 - 2 / Jmat.Real.SQRTPI * (x - x3 / 3 + x5 / 10 + x7 / 42);
-    //result = Math.exp(-x*x) / 6 + Math.exp(-0.75 * x * x) / 2;
-  } else if (x >= 5) {
-    // asymptotic expansion for large real x
-    var x2 = x * x;
-    var x4 = x2 * x2;
-    var x6 = x4 * x2;
-    var x8 = x6 * x2;
-    result = Math.exp(-(x*x)) / (x * Jmat.Real.SQRTPI) * (1 - 1/2.0/x2 + 3/4.0/x4 - 15/8.0/x6 + 105/16.0/x8);
-  } else {
-    var t = 1 / (1 + 0.3275911 * x);
-    var p = t * (0.254829592 + t * (-0.284496736 + t * (1.421413741 + t * (-1.453152027 + t * 1.061405429))));
-    result = p * Math.exp(-(x*x));
-  }
-
-  if(neg) result = 2 - result;
-  return result;
-};
+////////////////////////////////////////////////////////////////////////////////
 
 // decimal to degrees/minutes/second (e.g. 1.5 degrees becomes 1.30 (1 degree and 30 minutes))
 Jmat.Real.dms = function(a) {
