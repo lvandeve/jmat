@@ -236,6 +236,12 @@ examples.innerHTML = 'Examples:<br/>' +
     'stat ops: pdf_, cdf_ or qf_ + , normal, cauchy, studentt, chi_square, gamma, ... <br/>';
 
 
+B = Jmat.BigInt;
+C = Jmat.Complex;
+Q = Jmat.Quaternion;
+M = Jmat.Matrix;
+R = Jmat.Real;
+
 info = makeBlockDivAt(0, 10, bodyEl);
 info.innerHTML = 'This software is provided \'as-is\', without any express or implied warranty. In no event will the authors be held liable for any damages arising from the use of this software.<p/>' +
     'Copyright (c) 2011-2015 by Lode Vandevenne.';

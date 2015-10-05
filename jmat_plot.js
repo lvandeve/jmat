@@ -327,8 +327,12 @@ Jmat.Plot.rect = function(parent, x, y, w, h, rgb, label) {
   var ctx = parent.ctx;
 
   if(!parent.labeldata) parent.labeldata = [];
-  if(!parent.labeldata[y]) parent.labeldata[y] = [];
-  parent.labeldata[y][x] = label;
+  for(var y2 = y; y2 < y + h; y2++) {
+    if(!parent.labeldata[y2]) parent.labeldata[y2] = [];
+    for(var x2 = x; x2 < x + w; x2++) {
+      parent.labeldata[y2][x2] = label;
+    }
+  }
 
   if(!data) {
     var canvas =  document.createElement('canvas');

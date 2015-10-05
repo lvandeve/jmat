@@ -258,8 +258,14 @@ Jmat.Complex.hypergeometric1F1 = function(a, b, z) {
 // Try similar online: http://keisan.casio.com/exec/system/1349143084, or wolframalpha, HyperGeometric2F1[1.5, -0.5, 2.5, 0.25+i]
 // I debugged this function to find all the areas in the complex or real input plane where it goes wrong, by 2D or complexdomain plotting this, and beta_i which uses this
 // If c is a non-positive integer, the function is undefined and usually returns NaN except for some cases where a is integer.
-// TODO: for some values the function is imprecise, e.g. Jmat.hypergeometric2F1(1.1, -0.9, 2.1, 3) gives -0.5769+0.1874i instead of -0.5155+0.2163i
+// NOTE: For some inputs this function is very imprecise. For example for |z| near 1 due to slow convergence, and,
+//   in case of combinations of a,b,c giving integers causing singularities that should cancel out where our
+//   non-arbitrary precision makes it hard to calculate precise limits. Many functions defined in terms of 2F1 happen to
+//   hit exactly those cases.
+// TODO: make more precise, e.g. hypergeometric2F1(1.1, -0.9, 2.1, 3) and hypergeometric2f1(6,6.5,7,0.4444444444444444)
 Jmat.Complex.hypergeometric2F1 = function(a, b, c, z) {
+  var C = Jmat.Complex;
+
   if(z.abs() > 1.0001 /*not 1 to avoid infinite loop if abs 1/z is also > 1 due to numeric problems, e.g. for 0.9726962457337884+i0.23208191126279865*/) {
     // The series converges only for |z| < 1. But there are some linear transformations
     // that can convert it to a different z. There are conditions though, and some are
@@ -272,24 +278,24 @@ Jmat.Complex.hypergeometric2F1 = function(a, b, c, z) {
     var z2 = z.div(z.dec());
     if(z2.abs() < 0.75) { // the if can in theory do "< 1", but then a value like z=0.3+4i makes z2 very close to 1, and it has bad numeric results for such values
       // z / (z - 1)
-      return Jmat.Complex.ONE.sub(z).pow(a.neg()).mul(Jmat.Complex.hypergeometric2F1(a, c.sub(b), c, z2));
+      return C.ONE.sub(z).pow(a.neg()).mul(C.hypergeometric2F1(a, c.sub(b), c, z2));
     } else {
       // 1 / z
-
-      var quirk = function(a) {
-        // For some cases where a, b, c - a or c - b are negative integers, the formula doesn't work and requires a rather complicated other formula for the solution.
-        // For now, I temporarily instead twiddle the parameters a bit. TODO: that is evil, do it properly (but it is surprisingly somewhat accurate though... well, not for everything)
-        if(Jmat.Complex.isNegativeIntOrZero(a)) return a.addr(1e-5);
-        return a;
-      };
-
+      var t = C.isNegativeIntOrZero;
+      if((t(c) + t(b.sub(a)) != t(b) + t(c.sub(a))) || (t(c) + t(a.sub(b)) != t(a) + t(c.sub(b)))) {
+        // Twiddle to take the limit to avoid singularities (they cancel it out, but, finding exact formula here is too hard)
+        // TODO: improve this since this is very imprecise
+        a = a.addr(1.0e-6);
+        b = b.subr(1.1e-6);
+        c = c.addr(1.2e-6);
+      }
       var zi = z.inv();
       var za = z.neg().pow(a.neg());
       var zb = z.neg().pow(b.neg());
-      var ga = Jmat.Complex.gammaDiv22_(quirk(c), quirk(b.sub(a)), quirk(b), quirk(c.sub(a)));
-      var gb = Jmat.Complex.gammaDiv22_(quirk(c), quirk(a.sub(b)), quirk(a), quirk(c.sub(b)));
-      var fa = Jmat.Complex.hypergeometric2F1(a, Jmat.Complex.ONE.sub(c).add(a), quirk(Jmat.Complex.ONE.sub(b).add(a)), zi);
-      var fb = Jmat.Complex.hypergeometric2F1(b, Jmat.Complex.ONE.sub(c).add(b), quirk(Jmat.Complex.ONE.sub(a).add(b)), zi);
+      var ga = C.gammaDiv22_(c, b.sub(a), b, c.sub(a));
+      var gb = C.gammaDiv22_(c, a.sub(b), a, c.sub(b));
+      var fa = C.hypergeometric2F1(a, C.ONE.sub(c).add(a), C.ONE.sub(b).add(a), zi);
+      var fb = C.hypergeometric2F1(b, C.ONE.sub(c).add(b), C.ONE.sub(a).add(b), zi);
       var va = ga.mul(za).mul(fa);
       var vb = gb.mul(zb).mul(fb);
       return va.add(vb);
@@ -301,7 +307,7 @@ Jmat.Complex.hypergeometric2F1 = function(a, b, c, z) {
     // Same z / (z - 1) transform as above. Reason for doing this: the summation below converges faster for smaller absolute values of z.
     // Without this, for e.g. z = -0.75 and c < -3, it converges only after hundreds of steps.
     // TODO: in fact it's almost always possible to make |z| < 0.5 with the linear transformations. Use them better.
-    return Jmat.Complex.ONE.sub(z).pow(a.neg()).mul(Jmat.Complex.hypergeometric2F1(a, c.sub(b), c, z2));
+    return C.ONE.sub(z).pow(a.neg()).mul(C.hypergeometric2F1(a, c.sub(b), c, z2));
   }
 
   // TODO: avoid needing more than 30 iterations by always getting |z| < 0.5 with more clever use of transformations
@@ -314,27 +320,28 @@ Jmat.Complex.hypergeometric2F1 = function(a, b, c, z) {
   // The summation is SUM_(n=0..inf) ((a)_n * (b)_n / (c)_n) * z^n / n!
   // Where (q)_n is the rising Pochhammer symbol x(x+1)*...*(x+n-1)
   // The variable r below gets updated every step with next factor of Pochhammer symbol, power and factorial values as the loop goes.
-  var r = a.mul(b).div(c).mul(z).divr(1);
-  var result = Jmat.Complex(1);
+  var r = a.mul(b).div(c).mul(z);
+  var result = C(1);
   for(var n = 1; n < num_iterations; n++) {
     if (n > 1) {
       r = r.mul(a.addr(n - 1));
       r = r.mul(b.addr(n - 1));
-      if(!r.eqr(0)) r = r.div(c.addr(n - 1)); // The if is there so that if a==c or b==c and c is neg integer, we don't get 0/0 here but just 0
+      // The if(!r.eqr(0)) is there so that if a==c or b==c and c is neg integer, we don't get 0/0 here but just 0
+      if(!r.eqr(0)) r = r.div(c.addr(n - 1));
       r = r.mul(z);
       r = r.divr(n);
     }
     if(r.eqr(0)) break; // If a or b are negative integer, the loop will terminate early
-    if(Jmat.Complex.near(r, Jmat.Complex.ZERO, 1e-15)) break; // In fact why not even break out if it's already converged very near zero
+    if(C.near(r, C.ZERO, 1e-15)) break; // In fact why not even break out if it's already converged very near zero
     result = result.add(r);
   }
   return result;
 
   // Alternative: integration formula (doesn't work well)
-  /*var g = Jmat.Complex.gammaDiv12_(c, b, c.sub(b));
-  var i = Jmat.Complex.integrate(Jmat.Complex(0), Jmat.Complex(1), function(t) {
-    var n = t.pow(b.dec()).mul(Jmat.Complex.ONE.sub(t).pow(c.sub(b).dec()));
-    var d = Jmat.Complex.ONE.sub(z.mul(t)).pow(a);
+  /*var g = C.gammaDiv12_(c, b, c.sub(b));
+  var i = C.integrate(C(0), C(1), function(t) {
+    var n = t.pow(b.dec()).mul(C.ONE.sub(t).pow(c.sub(b).dec()));
+    var d = C.ONE.sub(z.mul(t)).pow(a);
     return n.mul(d);
   }, 30);
   return g.mul(i);*/
@@ -383,11 +390,98 @@ Jmat.Complex.hypergeometric = function(a, b, z) {
 // regularized hypergeometric is the hypergeometric divided through product of gammas of b's
 Jmat.Complex.regularized_hypergeometric = function(a, b, z) {
   var C = Jmat.Complex;
-  var result = C.hypergeometric(a, b, z);
+  var g = C(1);
+  var twiddle = false; // twiddle negative integers a bit. TODO: handle this here and in other twiddle parts of the code more precise
   for (var i = 0; i < b.length; i++) {
-    result = result.div(C.gamma(b[i]));
+    if(!twiddle && C.isInt(b[i]) && b[i].re <= 0) {
+      var a2 = [];
+      var b2 = [];
+      for(var j = 0; j < a.length; j++) a2[j] = C.isInt(a[j]) ? a[j].addr(1e-7) : a[j];
+      for(var j = 0; j < b.length; j++) b2[j] = C.isInt(b[j]) ? b[j].addr(1e-7) : b[j];
+      a = a2;
+      b = b2;
+      twiddle = true;
+    }
+    g = g.mul(C.gamma(b[i]));
   }
-  return result;
+  h = C.hypergeometric(a, b, z);
+  return h.div(g);
+};
+
+
+////////////////////////////////////////////////////////////////////////////////
+
+// Associated legendre function P^mu_nu(z). Set mu to zero for Legendre function. Have nu integer for Legendre polynomial.
+// opt_type is 1, 2 or 3, and gives a slightly different formula, see comment in function (1 and 2 are identical).
+// NOTE: precision of this function is not high, could be less than 4 digits in some cases. TODO: improve
+Jmat.Complex.legendrep = function(nu, mu, z, opt_type) {
+  var C = Jmat.Complex;
+  if(mu.eqr(0) && C.isInt(nu) && nu.re >= 0) {
+    if(nu.re == 0) return C(1);
+    if(nu.re == 1) return z;
+    if(nu.re == 2) return z.mul(z).mulr(3).subr(1).divr(2);
+  }
+  // Type 1: same as type 2, but only defined in unit circle (just returns same as type 2 here)
+  // Type 2: (1+z)^(mu/2) / (1-z)^(mu/2) * 2F1reg(-nu, nu+1, 1-mu, (1-z)/2)
+  // Type 3: (1+z)^(mu/2) / (z-1)^(mu/2) * 2F1reg(-nu, nu+1, 1-mu, (1-z)/2)
+  opt_type = opt_type || 2;
+  if(opt_type < 1 || opt_type > 3) return undefined;
+  var a = z.addr(1).pow(mu.divr(2));
+  var b = opt_type == 3 ? z.subr(1).pow(mu.divr(2)) : z.rsub(1).pow(mu.divr(2));
+  var h = C.regularized_hypergeometric([nu.neg(), nu.addr(1)], [mu.rsub(1)], z.rsub(1).divr(2));
+  return a.div(b).mul(h);
+};
+
+// Associated legendre function Q^mu_nu(z). Set mu to zero for Legendre function. Have nu integer for Legendre polynomial.
+// opt_type is 1, 2 or 3, and gives a slightly different formula (1 and 2 are identical).
+// NOTE: precision of this function is not high, could be less than 4 digits in some cases. TODO: improve
+Jmat.Complex.legendreq = function(nu, mu, z, opt_type) {
+  var C = Jmat.Complex;
+
+  opt_type = opt_type || 2;
+  if(opt_type < 1 || opt_type > 3) return undefined;
+
+  // returns exp(z*pi*i), adjusted for numerical precision problems (if z is a multiple of 0.5)
+  var exppii = function(z) {
+    if(z.im == 0 && Jmat.Real.isInt(z.re * 2)) {
+      var n = Jmat.Real.mod(Math.round(z.re * 2), 4);
+      if(n == 0) return C(1, 0);
+      if(n == 1) return C(0, 1);
+      if(n == 2) return C(-1, 0);
+      if(n == 3) return C(0, -1);
+    }
+    return C.exp(z.muli(Math.PI));
+  };
+
+  if(opt_type == 3) {
+    var s = nu.add(mu).addr(1);
+    var a = C(Jmat.Real.SQRTPI).mul(C.gamma(s));
+    var b = C(2).pow(nu.addr(1));
+    var c = exppii(mu);
+    var d = z.pow(s);
+    var e = z.addr(1).pow(mu.divr(2)).mul(z.subr(1).pow(mu.divr(2)));
+    var f = C.regularized_hypergeometric([s.divr(2), s.addr(1).divr(2)], [nu.addr(1.5)], z.mul(z).inv());
+    return a.div(b).mul(c).div(d).mul(e).mul(f);
+  } else {
+    // In terms of legendrep. More expensive as two 2F1 calls, and, problems with mu equal to integer...
+    if(C.isInt(mu)) mu = mu.addr(1e-8);
+    var a = C(Math.PI).div(C.sin(mu.mulr(Math.PI)).mulr(2));
+    var b = C.cos(mu.mulr(Math.PI));
+    var p1 = C.legendrep(nu, mu, z, opt_type);
+    var g = C.gammaDiv_(mu.add(nu).addr(1), C(1).sub(mu).add(nu));
+    var p2 = C.legendrep(nu, mu.neg(), z, opt_type);
+    return a.mul(b.mul(p1).sub(g.mul(p2)));
+  }
+
+  // The definition from Abramowitz and Stegun, and Wikipedia. Does not match implementations of various software, so not used.
+  /*var s = nu.add(mu).addr(1);
+  var a = C(Jmat.Real.SQRTPI).mul(C.gamma(s));
+  var b = C(2).pow(nu.addr(1));
+  var c = exppii(mu); // this exp is left out in some formulas. For integer mu, this is always -1 or +1, even that is sometimes left out.
+  var d = z.pow(s);
+  var e = z.mul(z).subr(1).pow(mu.divr(2));
+  var f = C.regularized_hypergeometric([s.divr(2), s.addr(1).divr(2)], [nu.addr(1.5)], z.mul(z).inv());
+  return a.div(b).mul(c).div(d).mul(e).mul(f);*/
 };
 
 
@@ -395,6 +489,7 @@ Jmat.Complex.regularized_hypergeometric = function(a, b, z) {
 
 //using Stirling series
 //logarithm of the gamma function, and more specific branch of the log
+// TODO: check if this small series is precise enough everywhere
 Jmat.Complex.loggamma = function(z) {
   //the result is way too imprecise if the real part of z is < 0, use the log of the reflection formula
   // loggamma(z) = log(pi/sin(pi*z)) - loggamma(1 - z)
@@ -624,123 +719,132 @@ Jmat.Complex.gamma_q_inva = function(p, z) {
   });
 };
 
-// Calculates gamma(x) / gamma(y), and can cancel out negative integer arguments if both are negative integers in some cases. That is useful for functions like beta, binomial, ...
+// Calculates gamma(x) / gamma(y), and can cancel out negative integer arguments if both are nonpositive integers in some cases.
+// That is useful for functions like beta, binomial, hypergeometric, ...
 // Uses the formula gamma(a)/gamma(b) = (-1)^(a-b) * gamma(-b+1) / gamma(-a+1) if necessary
 // It is also optimized to use for loops if x and y are nearby integers, ...
 Jmat.Complex.gammaDiv_ = function(x, y) {
-  if(x.eq(y)) return Jmat.Complex.ONE; // For the "combined" function, this is considered correct even for negative integers...
+  var C = Jmat.Complex;
+  if(x.eq(y)) return C.ONE; // For the "combined" function, this is considered correct even for negative integers...
 
-  if(Jmat.Complex.isInfOrNaN(x) || Jmat.Complex.isInfOrNaN(y)) {
-    return Jmat.Complex(NaN);
+  if(C.isInfOrNaN(x) || C.isInfOrNaN(y)) {
+    return C(NaN);
   }
 
-  if(Jmat.Complex.isNegativeIntOrZero(y) && (x.re > 0 || !Jmat.Complex.isInt(x))) return Jmat.Complex.ZERO; // division of non-infinity through infinity
+  if(C.isNegativeIntOrZero(y) && (x.re > 0 || !C.isInt(x))) return C.ZERO; // division of non-infinity through infinity
 
-  if(Jmat.Complex.isInt(x) && Jmat.Complex.isInt(y)) {
+  if(C.isInt(x) && C.isInt(y)) {
     if(x.re <= 0 && y.re <= 0) {
       var sign = Jmat.Real.isOdd(x.re - y.re) ? -1 : 1;
-      return Jmat.Complex.gammaDiv_(y.rsub(1), x.rsub(1)).mulr(sign);
+      return C.gammaDiv_(y.rsub(1), x.rsub(1)).mulr(sign);
     }
 
     if(x.re > 0 && y.re > 0 && Jmat.Real.dist(x.re, y.re) < 16) {
       if(x.re > y.re) {
         var result = y.re;
         for(var z = y.re + 1; z < x.re; z++) result *= z;
-        return Jmat.Complex(result);
+        return C(result);
       } else {
         var result = 1 / x.re;
         for(var z = x.re + 1; z < y.re; z++) result /= z;
-        return Jmat.Complex(result);
+        return C(result);
       }
     }
   }
 
-  return Jmat.Complex.gamma(x).div(Jmat.Complex.gamma(y));
+  return C.gamma(x).div(C.gamma(y));
 };
 
 // Similar to Jmat.Complex.gammaDiv_, but takes 3 arguments and cancels out more if possible. Returns gamma(a) / (gamma(b) * gamma(c))
 Jmat.Complex.gammaDiv12_ = function(a, b, c) {
+  var C = Jmat.Complex;
   // Try to combine two negative-integer-ones to have the errors cancel out
-  if(Jmat.Complex.isNegativeIntOrZero(b)) {
-    if(Jmat.Complex.isNegativeIntOrZero(c) && (a.re > 0 || !Jmat.Complex.isInt(a))) return Jmat.Complex.ZERO; // division of non-infinity through infinity
-    return Jmat.Complex.gammaDiv_(a, b).div(Jmat.Complex.gamma(c));
+  if(C.isNegativeIntOrZero(b)) {
+    if(C.isNegativeIntOrZero(c) && (a.re > 0 || !C.isInt(a))) return C.ZERO; // division of non-infinity through infinity
+    return C.gammaDiv_(a, b).div(C.gamma(c));
   } else {
-    return Jmat.Complex.gammaDiv_(a, c).div(Jmat.Complex.gamma(b));
+    return C.gammaDiv_(a, c).div(C.gamma(b));
   }
 };
 
 // Similar to Jmat.Complex.gammaDiv_, but takes 3 arguments and cancels out more if possible. Returns (gamma(a) * gamma(b)) / gamma(c)
 Jmat.Complex.gammaDiv21_ = function(a, b, c) {
+  var C = Jmat.Complex;
   // Try to combine two negative-integer-ones to have the errors cancel out
-  if(Jmat.Complex.isNegativeIntOrZero(a)) {
-    return Jmat.Complex.gammaDiv_(a, c).mul(Jmat.Complex.gamma(b));
+  if(C.isNegativeIntOrZero(a)) {
+    return C.gammaDiv_(a, c).mul(C.gamma(b));
   } else {
-    return Jmat.Complex.gammaDiv_(b, c).mul(Jmat.Complex.gamma(a));
+    return C.gammaDiv_(b, c).mul(C.gamma(a));
   }
 };
 
 // Similar to Jmat.Complex.gammaDiv_, but takes 4 arguments and cancels out more if possible. Returns (gamma(a) * gamma(b)) / (gamma(c) * gamma(d))
 Jmat.Complex.gammaDiv22_ = function(a, b, c, d) {
+  var C = Jmat.Complex;
   // Try to combine two negative-integer-ones to have the errors cancel out
-  if(Jmat.Complex.isNegativeIntOrZero(a) == Jmat.Complex.isNegativeIntOrZero(c)) {
-    return Jmat.Complex.gammaDiv_(a, c).mul(Jmat.Complex.gammaDiv_(b, d));
+  if(C.isNegativeIntOrZero(a) == C.isNegativeIntOrZero(c)) {
+    return C.gammaDiv_(a, c).mul(C.gammaDiv_(b, d));
   } else {
-    return Jmat.Complex.gammaDiv_(a, d).mul(Jmat.Complex.gammaDiv_(b, c));
+    return C.gammaDiv_(a, d).mul(C.gammaDiv_(b, c));
   }
 };
 
 // Calculates log(gamma(x) / gamma(y)) = loggamma(x) - loggamma(y), and can cancel out negative integer arguments if both are negative integers in some cases. That is useful for functions like beta, binomial, ...
 // Uses the formula gamma(a)/gamma(b) = (-1)^(a-b) * gamma(-b+1) / gamma(-a+1) if necessary
 Jmat.Complex.loggammaDiv_ = function(x, y) {
-  if(x.eq(y)) return Jmat.Complex.ZERO; // For the "combined" function, this is correct even for negative integers...
+  var C = Jmat.Complex;
+  if(x.eq(y)) return C.ZERO; // For the "combined" function, this is correct even for negative integers...
 
-  if(Jmat.Complex.isInfOrNaN(x) || Jmat.Complex.isInfOrNaN(y)) {
-    return Jmat.Complex(NaN);
+  if(C.isInfOrNaN(x) || C.isInfOrNaN(y)) {
+    return C(NaN);
   }
 
-  if(Jmat.Complex.isNegativeIntOrZero(y) && (x.re > 0 || !Jmat.Complex.isInt(x))) return Jmat.Complex(-Infinity); // division of non-infinity through infinity ==> log(0)
+  if(C.isNegativeIntOrZero(y) && (x.re > 0 || !C.isInt(x))) return C(-Infinity); // division of non-infinity through infinity ==> log(0)
 
-  if(Jmat.Complex.isInt(x) && Jmat.Complex.isInt(y)) {
+  if(C.isInt(x) && C.isInt(y)) {
     if(x.re <= 0 && y.re <= 0) {
       var sign = Jmat.Real.isOdd(x.re - y.re) ? -1 : 1;
-      var result = Jmat.Complex.loggammaDiv_(y.rsub(1), x.rsub(1));
-      if(sign == -1) result = result.add(Jmat.Complex.newi(Math.PI)); // log(-x) = log(x) + i*pi
+      var result = C.loggammaDiv_(y.rsub(1), x.rsub(1));
+      if(sign == -1) result = result.add(C.newi(Math.PI)); // log(-x) = log(x) + i*pi
       return result;
     }
   }
 
-  return Jmat.Complex.loggamma(x).sub(Jmat.Complex.loggamma(y));
+  return C.loggamma(x).sub(C.loggamma(y));
 };
 
 // Similar to Jmat.Complex.loggammaDiv_, but takes 3 arguments and cancels out more if possible. Returns loggamma(a) - (loggamma(b) + loggamma(c))
 Jmat.Complex.loggammaDiv12_ = function(a, b, c) {
+  var C = Jmat.Complex;
   // Try to combine two negative-integer-ones to have the errors cancel out
-  if(Jmat.Complex.isNegativeIntOrZero(b)) {
-    if(Jmat.Complex.isNegativeIntOrZero(c) && (a.re > 0 || !Jmat.Complex.isInt(a))) return Jmat.Complex(-Infinity); // division of non-infinity through infinity ==> log(0)
-    return Jmat.Complex.loggammaDiv_(a, b).sub(Jmat.Complex.loggamma(c));
+  if(C.isNegativeIntOrZero(b)) {
+    if(C.isNegativeIntOrZero(c) && (a.re > 0 || !C.isInt(a))) return C(-Infinity); // division of non-infinity through infinity ==> log(0)
+    return C.loggammaDiv_(a, b).sub(C.loggamma(c));
   } else {
-    return Jmat.Complex.loggammaDiv_(a, c).sub(Jmat.Complex.loggamma(b));
+    return C.loggammaDiv_(a, c).sub(C.loggamma(b));
   }
 };
 
 // Similar to Jmat.Complex.loggammaDiv_, but takes 3 arguments and cancels out more if possible. Returns (loggamma(a) + loggamma(b)) - loggamma(c)
 Jmat.Complex.loggammaDiv21_ = function(a, b, c) {
+  var C = Jmat.Complex;
   // Try to combine two negative-integer-ones to have the errors cancel out
-  if(Jmat.Complex.isNegativeIntOrZero(a)) {
-    return Jmat.Complex.loggammaDiv_(a, c).add(Jmat.Complex.loggamma(b));
+  if(C.isNegativeIntOrZero(a)) {
+    return C.loggammaDiv_(a, c).add(C.loggamma(b));
   } else {
-    return Jmat.Complex.loggammaDiv_(b, c).add(Jmat.Complex.loggamma(a));
+    return C.loggammaDiv_(b, c).add(C.loggamma(a));
   }
 };
 
 // Similar to Jmat.Complex.loggammaDiv_, but takes 4 arguments and cancels out more if possible. Returns (loggamma(a) + loggamma(b)) - (loggamma(c) + loggamma(d))
 // To have only 3 values, set a, b, c or d to 1 (it will be fast for that)
 Jmat.Complex.loggammaDiv2_ = function(a, b, c, d) {
+  var C = Jmat.Complex;
   // Try to combine two negative-integer-ones to have the errors cancel out
-  if(Jmat.Complex.isNegativeIntOrZero(a) == Jmat.Complex.isNegativeIntOrZero(c)) {
-    return Jmat.Complex.loggammaDiv_(a, c).add(Jmat.Complex.loggammaDiv_(b, d));
+  if(C.isNegativeIntOrZero(a) == C.isNegativeIntOrZero(c)) {
+    return C.loggammaDiv_(a, c).add(C.loggammaDiv_(b, d));
   } else {
-    return Jmat.Complex.loggammaDiv_(a, d).add(Jmat.Complex.loggammaDiv_(b, c));
+    return C.loggammaDiv_(a, d).add(C.loggammaDiv_(b, c));
   }
 };
 
