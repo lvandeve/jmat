@@ -1,4 +1,4 @@
-/*
+/** @license
 Jmat.js
 
 Copyright (c) 2011-2015, Lode Vandevenne
@@ -42,12 +42,16 @@ Overview of some functionality:
 -date and time: Real.isLeapYear, Real.dayOfWeek,
 */
 
-// Constructor. This is for Jmat.Real, Jmat.Complex, Jmat.Matrix, Jmat.Quaternion and Jmat.BigInt, but defined here as real is the one that everything else depends on.
+/** @constructor
+Namespace for all of Jmat. Defined in jmat_real.js as this is the first js file that everything else depends on.
+*/
 function Jmat() {
   // Empty, this is a namespace, no need to ever call this
 }
 
-//Constructor, but not to be actually used, just a namespace for real functions
+/** @constructor
+namespace for real functions
+*/
 Jmat.Real = function() {
 };
 
@@ -860,7 +864,7 @@ Jmat.Real.logy = function(x, y) {
 // Gives floor of log2 of x by doing 31 - clz32(x)
 // Gives num bits of x by doing 32 - clz32(x)
 // Only guaranteed to work for numbers less than 32 bits
-Jmat.Real.clz32 = Math.clz32 || function(x) {
+Jmat.Real.clz32 = Math['clz32'] || function(x) {
   var result = 0;
   while(x > 0) {
     x = Math.floor(x / 2);

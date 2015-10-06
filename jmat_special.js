@@ -404,7 +404,7 @@ Jmat.Complex.regularized_hypergeometric = function(a, b, z) {
     }
     g = g.mul(C.gamma(b[i]));
   }
-  h = C.hypergeometric(a, b, z);
+  var h = C.hypergeometric(a, b, z);
   return h.div(g);
 };
 
@@ -848,6 +848,43 @@ Jmat.Complex.loggammaDiv2_ = function(a, b, c, d) {
   }
 };
 
+// n! / (n-p)!
+Jmat.Complex.permutation = function(n, p) {
+  // gammaDiv_ is already optimized for integers near each other etc...
+  return Jmat.Complex.gammaDiv_(n.inc(), n.sub(p).inc());
+};
+
+//Binomial coefficient, aka combination(s). Number of rows of p elements that can be made out of n elements, where order doesn't matter.
+//    ( n )
+//    ( p )
+// n! / (p! * (n-p)!)
+Jmat.Complex.binomial = function(n, p) {
+  if(Jmat.Complex.isPositiveIntOrZero(n) && Jmat.Complex.isPositiveIntOrZero(p) && p.re <= n.re && n.re < 30) return Jmat.Complex(Jmat.Real.pascal_triangle(n.re, p.re));
+
+  // gammaDiv_ is already optimized for integers near each other etc...
+  var result = Jmat.Complex.gammaDiv12_(n.inc(), p.inc(), n.sub(p).inc());
+  // Round to integer if large result, it sometimes gets numerically a bit off.
+  if(result.re > 100 && Jmat.Complex.isPositiveInt(n) && Jmat.Complex.isPositiveInt(p) && n.re > p.re) result = Jmat.Complex.round(result);
+  return result;
+};
+
+//Stirling number of the second kind
+//    { n }
+//    { k }
+// 1/k! * SUM_j=0..k((-1)^(k-j) * combination(k, j) * j^n)
+Jmat.Complex.stirling2 = function(n, k) {
+  if(!Jmat.Complex.isInt(k)) return Jmat.Complex(NaN); // only defined for integer k
+
+  var result = Jmat.Complex.ZERO;
+  var sign = Jmat.Real.isOdd(k.re) ? -1 : 1;
+  var j = Jmat.Complex(0);
+  for(j.re = 0; j.re <= k.re; j.re++) {
+    result = result.add(Jmat.Complex.binomial(k, j).mul(j.pow(n)).mulr(sign));
+    sign *= -1;
+  }
+  return result.div(Jmat.Complex.factorial(k));
+};
+
 ////////////////////////////////////////////////////////////////////////////////
 
 Jmat.Complex.beta = function(x, y) {
@@ -1228,6 +1265,7 @@ Jmat.Complex.besselj_hankelexpansion_ = function(nu, z) {
   var nu4 = nu.mul(nu).mulr(4); // 4 * nu^2
   var prevt;
   var num = Math.max(4, Math.min(60, Math.abs(nu.re)));
+  var t;
   for(var k = 0; k < num; k++) {
     // there are two sums, one uses 2k, the other uses 2k+1. This loop instead alternates between a term of each sum. So k here has the meaning of 2k and 2k+1 in the formula.
     if(k > 0) {
@@ -1237,7 +1275,7 @@ Jmat.Complex.besselj_hankelexpansion_ = function(nu, z) {
       prevt = t;
     }
     var sign = ((k % 4) < 2) ? 1 : -1;
-    var t = ak.div(zz).mulr(sign);
+    t = ak.div(zz).mulr(sign);
     if(t.abssq() < 1e-28) break;
 
     if(k % 2 == 0)  c = c.add(t);
@@ -1399,6 +1437,7 @@ Jmat.Complex.bessely_hankelexpansion_ = function(nu, z) {
   var nu4 = nu.mul(nu).mulr(4); // 4 * nu^2
   var prevt;
   var num = Math.max(4, Math.min(60, Math.abs(nu.re)));
+  var t;
   for(var k = 0; k < num; k++) {
     // there are two sums, one uses 2k, the other uses 2k+1. This loop instead alternates between a term of each sum. So k here has the meaning of 2k and 2k+1 in the formula.
     if(k > 0) {
@@ -1408,7 +1447,7 @@ Jmat.Complex.bessely_hankelexpansion_ = function(nu, z) {
       prevt = t;
     }
     var sign = ((k % 4) < 2) ? 1 : -1;
-    var t = ak.div(zz).mulr(sign);
+    t = ak.div(zz).mulr(sign);
     if(t.abssq() < 1e-28) break;
 
     if(k % 2 == 0)  c = c.add(t);
@@ -2993,7 +3032,7 @@ Jmat.Real.tetration_loop_ = function(a, b, num, l) {
   for(var i = 0; i < num; i++) {
     if(l) result = Jmat.Real.logy(result, a);
     else result = Math.pow(a, result);
-    if(R.isInfOrNaN(result)) return result;
+    if(Jmat.Real.isInfOrNaN(result)) return result;
     if(result == Infinity) return result; // Actually redundant, result == last already checks that too
     if(result == last) return result; // E.g. a=1.01 already converges to 1.0101015237405409 after just 7 iterations. 1.44 converges to 2.393811748202943 after 244 iterations, so numbers near that take a while to loop. 1.45 and higher converge to Infinity.
     last = result;
@@ -3867,11 +3906,13 @@ Jmat.Complex.doSummation = function(valuex, valuey, step, f, stopLoop) {
   var y = valuey.re;
   var result = Jmat.Complex(0);
   // the step / 4 thing is to avoid numerical problems that may let it miss the last value
+  var i = 0;
   for(var z = x; z <= y + step / 4; z += step) {
     var fz = f(Jmat.Complex(z));
     result = result.add(fz);
 
     if(!!stopLoop && i % 50 == 49 && stopLoop()) return Jmat.Complex(NaN);
+    i++;
   }
   return result;
 };
@@ -3884,12 +3925,14 @@ Jmat.Complex.doProduct = function(valuex, valuey, step, f, stopLoop) {
   var x = valuex.re;
   var y = valuey.re;
   var result = Jmat.Complex.ONE;
+  var i = 0;
   // the step / 4 thing is to avoid numerical problems that may let it miss the last value
   for(var z = x; z <= y + step / 4; z += step) {
     var fz = f(Jmat.Complex(z));
     result = result.mul(fz);
 
     if(!!stopLoop && i % 50 == 49 && stopLoop()) return Jmat.Complex(NaN);
+    i++;
   }
   return result;
 };

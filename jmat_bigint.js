@@ -53,7 +53,10 @@ Overview of some functionality:
 -factorial: BigInt.factorial, BigInt.primorial
 */
 
-//Constructor. All parameters are optional.
+/*
+Constructor, but also usable without new as factory function.
+All parameters are optional.
+*/
 Jmat.BigInt = function(a, b, minus) {
   if(this instanceof Jmat.BigInt) {
     this.a = a || []; // least significant in rightmost element
@@ -77,7 +80,7 @@ Jmat.BigInt.STRINGBASE_ = 10;
 //Typically, a is array, string, number or BigInt, and b is base of output (that of input may be different, e.g. always 10 for string).
 //minus is only used for array or no input
 Jmat.BigInt.make = function(a, b, minus) {
-  if(a == undefined) return new Jmat.Bigum(a, b, minus);
+  if(a == undefined) return new Jmat.BigInt(a, b, minus);
   if(typeof a == 'number') return Jmat.BigInt.fromInt(a, b);
   if(typeof a == 'string') return Jmat.BigInt.parse(a, Jmat.BigInt.STRINGBASE_, b);
   if(a.length != undefined) return new Jmat.BigInt(a, b, minus);
@@ -988,6 +991,7 @@ Jmat.BigInt.isEven = function(x) {
 
 //Finds the nth root of a (e.g. sqrt if n is 2)
 Jmat.BigInt.root = function(a, n) {
+  var B = Jmat.BigInt;
   var r = n.toInt();
   if(r <= 0) return undefined;
   if(r > Jmat.Real.BIGGESTJSINT) {
@@ -2366,7 +2370,7 @@ Jmat.BigInt.FORMAT_STRING_ = 3;
 
 Jmat.BigInt.getFormat = function(v) {
   if(typeof v == 'string') return Jmat.BigInt.FORMAT_STRING_;
-  if(toString.call(v) === "[object Array]") return Jmat.BigInt.FORMAT_ARRAY_;
+  if(Object.prototype.toString.call(v) === "[object Array]") return Jmat.BigInt.FORMAT_ARRAY_;
   if(v instanceof Jmat.BigInt) return Jmat.BigInt.FORMAT_BIGINT_;
   return Jmat.BigInt.FORMAT_UNKNOWN_;
 };

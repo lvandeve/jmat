@@ -34,20 +34,23 @@ Jmat.Complex: arithmetic on complex numbers
 Overview of some functionality:
 -elementary arithmetic: Complex.add, Complex.sub, Complex.mul, Complex.div
 -mathematical functions: Complex.pow, Complex.exp, Complex.sqrt, Complex.log, Complex.cos, Complex.cosh, Complex.acos, ...
--special functions: Complex.erf, Complex.lambertw, Complex.gamma, Complex.binomial
+-special functions: Complex.erf, Complex.lambertw, Complex.gamma (more are in jmat_special.js)
 */
 
 /*
-Constructor.
+Constructor, but also usable without new as factory function.
+
 Class representing a complex value with real and imaginary part.
 
-Aliased as simply "Complex" at the end of the file - disable that if it causes name clashes
-
-This is the actual object used as complex number. In addition, most of the
-functions are implemented as static functions in here.
+Serves as both the actual object used as complex number, and namespace for most
+complex mathematical functions.
 
 The only sad thing is that Javascript doesn't support operator overloading
 and nice expressions like a + b have to become a.add(b) instead.
+
+When used as factory function, makes it easy to construct values, e.g. if you
+set C = Jmat.Complex, you can create real value 1 with C(1), or a complex value
+with C('1+2i') or C(1, 2).
 */
 Jmat.Complex = function(re, im) {
   if(this instanceof Jmat.Complex) {
@@ -1029,43 +1032,6 @@ Jmat.Complex.decompose = function(x, max) {
     var re = Math.round(x.re * nd[1]);
     return [Jmat.Complex(re, nd[0]), Jmat.Complex(nd[1])];
   }
-};
-
-// n! / (n-p)!
-Jmat.Complex.permutation = function(n, p) {
-  // gammaDiv_ is already optimized for integers near each other etc...
-  return Jmat.Complex.gammaDiv_(n.inc(), n.sub(p).inc());
-};
-
-//Binomial coefficient, aka combination(s). Number of rows of p elements that can be made out of n elements, where order doesn't matter.
-//    ( n )
-//    ( p )
-// n! / (p! * (n-p)!)
-Jmat.Complex.binomial = function(n, p) {
-  if(Jmat.Complex.isPositiveIntOrZero(n) && Jmat.Complex.isPositiveIntOrZero(p) && p.re <= n.re && n.re < 30) return Jmat.Complex(Jmat.Real.pascal_triangle(n.re, p.re));
-
-  // gammaDiv_ is already optimized for integers near each other etc...
-  var result = Jmat.Complex.gammaDiv12_(n.inc(), p.inc(), n.sub(p).inc());
-  // Round to integer if large result, it sometimes gets numerically a bit off.
-  if(result.re > 100 && Jmat.Complex.isPositiveInt(n) && Jmat.Complex.isPositiveInt(p) && n.re > p.re) result = Jmat.Complex.round(result);
-  return result;
-};
-
-//Stirling number of the second kind
-//    { n }
-//    { k }
-// 1/k! * SUM_j=0..k((-1)^(k-j) * combination(k, j) * j^n)
-Jmat.Complex.stirling2 = function(n, k) {
-  if(!Jmat.Complex.isInt(k)) return Jmat.Complex(NaN); // only defined for integer k
-
-  var result = Jmat.Complex.ZERO;
-  var sign = Jmat.Real.isOdd(k.re) ? -1 : 1;
-  var j = Jmat.Complex(0);
-  for(j.re = 0; j.re <= k.re; j.re++) {
-    result = result.add(Jmat.Complex.binomial(k, j).mul(j.pow(n)).mulr(sign));
-    sign *= -1;
-  }
-  return result.div(Jmat.Complex.factorial(k));
 };
 
 // Manhattan distance of complex numbers, returned as a real number (JS float)

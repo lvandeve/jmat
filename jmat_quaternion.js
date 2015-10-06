@@ -47,7 +47,8 @@ Overview of some functionality:
 ////////////////////////////////////////////////////////////////////////////////
 
 /*
-Constructor.
+Constructor, but also usable without new as factory function.
+
 Class representing a quaternion value.
 
 Aliased as simply "Quaternion" at the end of the file - disable that if it causes name clashes

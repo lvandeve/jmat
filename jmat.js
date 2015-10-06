@@ -1,5 +1,4 @@
-/*
-@license
+/** @license
 Jmat.js
 
 Copyright (c) 2011-2015, Lode Vandevenne
