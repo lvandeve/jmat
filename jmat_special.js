@@ -2033,7 +2033,7 @@ Jmat.Complex.lambda = function(s) {
 };
 
 /*
-zeta(1 / (s - 1)) * SUM_n=0..oo 1/(n+1) SUM_k=0..n ((-1)^k binomial(n, k) (q+k)^(1-s))
+for n = 0 to steps: 1/(n+1) SUM_k=0..n ((-1)^k binomial(n, k)
             k=0  k=1  k=2  k=3
              +    -    +    -
 n=0 1    *   1
@@ -2195,7 +2195,128 @@ Jmat.Complex.hurwitzzeta = function(s, q) {
   // (TODO: use the functional equation, that will allow to support negative s for integer and rational q (with small denominator, otherwise it gets too many calculations))
 
   // TODO: support s.re < 0 for all q
-  return Jmat.Complex(NaN); // not supported in this region :( e.g.
+  return Jmat.Complex(NaN); // not supported in this region
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+
+Jmat.Complex.lerchphi_pow_ = function(z, s, opt_var) {
+  if(opt_var) return z.mul(z).pow(s.divr(2));
+  else return z.pow(s);
+};
+
+// This is slower than Jmat.Complex.hurwitzzeta_generate_hasse_table_, because this depends on a and s, so it is only
+// cached for constant a, due to the reason that in the lerchphi series with binomial, some value depends on z, while for
+// hurwitz zeta that is not the case.
+Jmat.Complex.lerchphi_generate_binomial_table_ = function(s, a, steps, opt_var) {
+  var C = Jmat.Complex;
+  var result = [];
+  for(var n = 0; n < steps; n++) {
+    result[n] = C(0);
+    var sign = 1;
+    for(var k = 0; k <= n; k++) {
+      var p = C.lerchphi_pow_(a.addr(k), s, opt_var);
+      result[n] = result[n].add(p.inv().mulr(sign * Jmat.Real.pascal_triangle(n, k)));
+      sign = -sign;
+    }
+  }
+  return result;
+};
+
+Jmat.Complex.lerchphi_binomial_table_a_ = undefined;
+Jmat.Complex.lerchphi_binomial_table_s_ = undefined;
+Jmat.Complex.lerchphi_binomial_table_var_ = undefined;
+Jmat.Complex.lerchphi_binomial_table_ = undefined;
+
+Jmat.Complex.lerchphi_binomial_series_ = function(z, s, a, opt_var) {
+  var C = Jmat.Complex;
+  var N = 30;
+  if(!C.lerchphi_binomial_table_ || !C.lerchphi_binomial_table_a_.eq(a) || !C.lerchphi_binomial_table_s_.eq(s) || C.lerchphi_binomial_table_var_ != !!opt_var) {
+    C.lerchphi_binomial_table_ = C.lerchphi_generate_binomial_table_(s, a, N);
+    C.lerchphi_binomial_table_a_ = a;
+    C.lerchphi_binomial_table_s_ = s;
+    C.lerchphi_binomial_table_var_ = !!opt_var;
+  }
+  var z2 = z.neg().div(z.rsub(1));
+  var table = C.lerchphi_binomial_table_;
+  var result = C.ZERO;
+  var zz = C(1);
+  for(var k = 0; k < N; k++) {
+    var r = result.add(zz.mul(table[k]));
+    if(C.near(r, result, 1e-15)) break;
+    result = r;
+    zz = zz.mul(z2);
+  }
+  result = result.mul(z.rsub(1).inv());
+  return result;
+};
+
+Jmat.Complex.lerchphi_series_ = function(z, s, a, opt_var) {
+  var C = Jmat.Complex;
+  var result = C(0);
+  var zz = C(1);
+  for(var k = 0; k < 30; k++) {
+    var p = C.lerchphi_pow_(a.addr(k), s, opt_var);
+    var r = zz.div(p);
+    if(C.near(result.add(r), result, 1e-15)) break; // converged
+    result = result.add(r);
+    zz = zz.mul(z); // z^k
+  }
+  return result;
+};
+
+
+//NOTE: the precision of this is super low
+//TODO: use better quadrature algorithm, that might allow more precision with not too many iterations
+Jmat.Complex.lerchphi_integral_ = function(z, s, a, opt_var) {
+  var C = Jmat.Complex;
+
+  if(a.re < 1) {
+    if(C.isNegativeIntOrZero(a)) return C(Infinity, Infinity);
+    var m = Math.ceil(1 - a.re);
+    if(m > 1000) return C(NaN); // a bit too much
+    var v = C(0);
+    var zz = C(1);
+    for(var k = 0; k < m; k++) {
+      v = v.add(zz.div(C.lerchphi_pow_(a.addr(k), s)));
+      zz = zz.mul(z);
+    }
+    return zz.mul(C.lerchphi(z, s, a.addr(m), opt_var)).add(v);
+  }
+
+  // requires a.re >= 1
+  // no lerchphi_pow_ necessary: only makes difference for negative a.re
+  var l = C.log(z);
+  var v = a.pow(s).mulr(2).inv();
+  var g = C.incgamma_upper(s.rsub(1), a.mul(l).neg());
+  v = v.add(g.mul(l.neg().pow(s.subr(1))).div(z.pow(a)));
+  var h = s.divr(2);
+  var r = Math.PI * 2;
+  var f = function(t) {
+    var u = C.sin(C.atan(t.div(a)).mul(s).sub(t.mul(l)));
+    var v = a.mul(a).add(t.mul(t)).pow(h);
+    var w = C.expm1(t.mulr(r));
+    var result = u.div(v).div(w);
+    return result;
+  };
+  var q = C.integrate(C(0), C(Infinity), f, 200); // requires 1000+ iterations for more precise number. At least adjusting precision actually works.
+  v = v.add(q.mulr(2));
+  return v;
+};
+
+// Lerch transcendent. Precise if |z| < 0.75, numerically quite broken in other cases
+// opt_var enables a variation (different branch cut), differing only for a.re < 0:
+// Without opt_var, it is SUM_k=0..oo z^k / (a+k)^s. This is the default, but is sometimes called hurwitzhlerchphi
+// With opt_var, it is SUM_k=0..oo z^k / ((a+k)^2)^(s/2)
+// TODO: Does not yet support the whole complex domain for all parameters, and is very imprecise in some cases
+// TODO: with opt_var true, then with a=0 it should returns some result, not infinity, and that result looks like not the limit of the neighborhood
+Jmat.Complex.lerchphi = function(z, s, a, opt_var) {
+  // to debug: Jmat.plot2D(function(x,y){return C.lerchphi(x, y, C(0.5);}, plotContainerEl);
+  var C = Jmat.Complex;
+  if(z.abs() < 0.75) return Jmat.Complex.lerchphi_series_(z, s, a, opt_var);
+  if(z.re < 0.5) return Jmat.Complex.lerchphi_binomial_series_(z, s, a, opt_var);
+  return C.lerchphi_integral_(z, s, a, opt_var);
 };
 
 
@@ -3815,6 +3936,14 @@ Jmat.Real.integrate = function(x, y, f, steps) {
   return Jmat.Real.integrate_simpson(x, y, steps, f);
 };
 
+/*
+TODO: more quadrature algorithms:
+-Newton-Cotes: rectangle, trapezoid, simpson's rule
+-Gaussian Quadrature
+-TanhSinh Quadrature
+*/
+
+
 //numerical integration, aka quadrature
 //integrate function f using simpsons rule, from x to y, with amount of steps given by steps parameter (higher = more precision, number of evaluations is thoroughly steps * 2)
 Jmat.Complex.integrate_simpson = function(x, y, steps, f, stopLoop) {
@@ -3823,11 +3952,15 @@ Jmat.Complex.integrate_simpson = function(x, y, steps, f, stopLoop) {
   var fa = null;
 
   var a, b;
+  var infmul = 2;
+  var inflow = 1e-12;
+  var infhigh = 1e12;
+  if(y.eqr(Infinity)) infmul = Math.pow(infhigh / inflow, 1.0 / steps);
 
   for(var i = 0; i <= steps; i++) {
     if(y.eqr(Infinity)) {
       a = (b ? b : x);
-      b = (b ? b.mulr(2) : x.addr(0.1));
+      b = (b ? b.mulr(infmul) : x.addr(inflow));
     } else {
       a = x.add(step.mulr(i - 1));
       b = x.add(step.mulr(i));
