@@ -1264,6 +1264,12 @@ Jmat.Real.hypot = function(x, y) {
   return x * Math.sqrt(1 + t * t);
 };
 
+//exp(x) - 1, with better precision for x around 0
+Jmat.Real.expm1 = function(x) {
+  if(Math.abs(x) < 1e-5) return x + x * x / 2 + x * x * x / 6;
+  else return Math.exp(x) - 1;
+};
+
 ////////////////////////////////////////////////////////////////////////////////
 
 // Replicate the rest of JS Math library.

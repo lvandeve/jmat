@@ -343,7 +343,7 @@ Jmat.Complex.hypergeometric2F1 = function(a, b, c, z) {
     var n = t.pow(b.dec()).mul(C.ONE.sub(t).pow(c.sub(b).dec()));
     var d = C.ONE.sub(z.mul(t)).pow(a);
     return n.mul(d);
-  }, 30);
+  });
   return g.mul(i);*/
 };
 
@@ -414,6 +414,7 @@ Jmat.Complex.regularized_hypergeometric = function(a, b, z) {
 // Associated legendre function P^mu_nu(z). Set mu to zero for Legendre function. Have nu integer for Legendre polynomial.
 // opt_type is 1, 2 or 3, and gives a slightly different formula, see comment in function (1 and 2 are identical).
 // NOTE: precision of this function is not high, could be less than 4 digits in some cases. TODO: improve
+// NOTE: see inside the gaussian integration code for a recursive implementation of legendre polynomials
 Jmat.Complex.legendrep = function(nu, mu, z, opt_type) {
   var C = Jmat.Complex;
   if(mu.eqr(0) && C.isInt(nu) && nu.re >= 0) {
@@ -949,7 +950,7 @@ Jmat.Complex.incbeta = function(x, a, b) {
     return Jmat.Complex.integrate(x.divr(3000), x, function(t) {
       var r = t.pow(a.subr(1)).mul(Jmat.Complex.ONE.sub(t).pow(b.subr(1)));
       return r;
-    }, 30);
+    });
   }*/
 };
 
@@ -2267,8 +2268,7 @@ Jmat.Complex.lerchphi_series_ = function(z, s, a, opt_var) {
 };
 
 
-//NOTE: the precision of this is super low
-//TODO: use better quadrature algorithm, that might allow more precision with not too many iterations
+//NOTE: the precision of this is low
 Jmat.Complex.lerchphi_integral_ = function(z, s, a, opt_var) {
   var C = Jmat.Complex;
 
@@ -2285,37 +2285,35 @@ Jmat.Complex.lerchphi_integral_ = function(z, s, a, opt_var) {
     return zz.mul(C.lerchphi(z, s, a.addr(m), opt_var)).add(v);
   }
 
-  // requires a.re >= 1
-  // no lerchphi_pow_ necessary: only makes difference for negative a.re
+  // The code below requires a.re >= 1.
+  // No lerchphi_pow_ necessary: only makes difference for negative a.re
+
+  if(z.eqr(1)) z = C(1.0000000000001); // avoid singularity. TODO: do this better (this introduces small imaginary part): find out how incgamma multiplied by the log cancel out.
   var l = C.log(z);
-  var v = a.pow(s).mulr(2).inv();
+  var result = a.pow(s).mulr(2).inv();
   var g = C.incgamma_upper(s.rsub(1), a.mul(l).neg());
-  v = v.add(g.mul(l.neg().pow(s.subr(1))).div(z.pow(a)));
-  var h = s.divr(2);
-  var r = Math.PI * 2;
+  result = result.add(g.mul(l.neg().pow(s.subr(1))).div(z.pow(a)));
   var f = function(t) {
     var u = C.sin(C.atan(t.div(a)).mul(s).sub(t.mul(l)));
-    var v = a.mul(a).add(t.mul(t)).pow(h);
-    var w = C.expm1(t.mulr(r));
-    var result = u.div(v).div(w);
-    return result;
+    var v = a.mul(a).add(t.mul(t)).pow(s.divr(2));
+    var w = C.expm1(t.mulr(Math.PI * 2));
+    var r = u.div(v).div(w);
+    return r;
   };
-  var q = C.integrate(C(0), C(Infinity), f, 200); // requires 1000+ iterations for more precise number. At least adjusting precision actually works.
-  v = v.add(q.mulr(2));
-  return v;
+  var q = C.integrate(C(0), C(Infinity), f, 30, 1).mulr(2);
+  result = result.add(q);
+  return result;
 };
 
-// Lerch transcendent. Precise if |z| < 0.75, numerically quite broken in other cases
+// Lerch transcendent. Precise if |z| < 0.75, numerically imprecise in many other cases
 // opt_var enables a variation (different branch cut), differing only for a.re < 0:
 // Without opt_var, it is SUM_k=0..oo z^k / (a+k)^s. This is the default, but is sometimes called hurwitzhlerchphi
 // With opt_var, it is SUM_k=0..oo z^k / ((a+k)^2)^(s/2)
-// TODO: Does not yet support the whole complex domain for all parameters, and is very imprecise in some cases
-// TODO: with opt_var true, then with a=0 it should returns some result, not infinity, and that result looks like not the limit of the neighborhood
+// TODO: with opt_var true, then with a=0 it should returns some result, not infinity (and it's not just a limit)
 Jmat.Complex.lerchphi = function(z, s, a, opt_var) {
-  // to debug: Jmat.plot2D(function(x,y){return C.lerchphi(x, y, C(0.5);}, plotContainerEl);
   var C = Jmat.Complex;
   if(z.abs() < 0.75) return Jmat.Complex.lerchphi_series_(z, s, a, opt_var);
-  if(z.re < 0.5) return Jmat.Complex.lerchphi_binomial_series_(z, s, a, opt_var);
+  //if(z.re < 0.5) return Jmat.Complex.lerchphi_binomial_series_(z, s, a, opt_var); //the integral is more precise than this one, disabled
   return C.lerchphi_integral_(z, s, a, opt_var);
 };
 
@@ -2514,23 +2512,23 @@ Jmat.Complex.polylog_integral_ = function(s, z) {
     // Approximate with an integral representation (only works for real s.re, and has some serious problems with periodic things appearing near the positive real axis of z)
     // In practice, only works for s.re > 1 (!!) and s.im = 0, or very small |s.im| and s.re > 0
     var g = Jmat.Complex.gamma(s);
-    var r = Jmat.Complex.integrate(Jmat.Complex(0), Jmat.Complex(20), function(t) {
+    var r = Jmat.Complex.integrate_simpson(Jmat.Complex(0), Jmat.Complex(20), function(t) {
       var result = t.pow(s.dec()).div(Jmat.Complex.exp(t).sub(z));
       if(Jmat.Complex.isNaN(result)) result = Jmat.Complex.ZERO;
       return result;
-    }, 100);
+    }, 100); //TODO: use integrate instead of integrate_simpson
     return z.div(g).mul(r);
   } else if(Jmat.Complex.isNegative(s) && Math.abs(z.arg()) > 0.1) {
     // Approximate with an integral representation (only works for s.re < 0
     var lzm = Jmat.Complex.log(z.neg());
-    var r = Jmat.Complex.integrate(Jmat.Complex(0), Jmat.Complex(20), function(t) {
+    var r = Jmat.Complex.integrate_simpson(Jmat.Complex(0), Jmat.Complex(20), function(t) {
       var ta = t.pow(s.neg());
       var tb = Jmat.Complex.sin(s.mulr(Math.PI/2).sub(t.mul(lzm)));
       var na = Jmat.Complex.sinh(t.mulr(Math.PI));
       var result = ta.mul(tb).div(na);
       if(Jmat.Complex.isNaN(result)) result = Jmat.Complex.ZERO;
       return result;
-    }, 100);
+    }, 100); //TODO: use integrate instead of integrate_simpson
     return r;
   } else if(z.im <= 0 || (s.re > 0 && Math.abs(s.im) < s.re)) {
     // Integral formula for polylog that works for all complex s and z, except for positive real z if s.re < 0
@@ -2547,9 +2545,10 @@ Jmat.Complex.polylog_integral_ = function(s, z) {
       return result;
     };
     var r = Jmat.Complex.ZERO;
-    r = r.add(Jmat.Complex.integrate(Jmat.Complex(0), Jmat.Complex(5), f, 50));
-    r = r.add(Jmat.Complex.integrate(Jmat.Complex(5), Jmat.Complex(20), f, 20));
-    r = r.add(Jmat.Complex.integrate(Jmat.Complex(20), Jmat.Complex(100), f, 10));
+    //TODO: use integrate instead of integrate_simpson
+    r = r.add(Jmat.Complex.integrate_simpson(Jmat.Complex(0), Jmat.Complex(5), f, 50));
+    r = r.add(Jmat.Complex.integrate_simpson(Jmat.Complex(5), Jmat.Complex(20), f, 20));
+    r = r.add(Jmat.Complex.integrate_simpson(Jmat.Complex(20), Jmat.Complex(100), f, 10));
     return z.mulr(0.5).add(z.mul(r));
   } else if(z.im > 0) { // Because something is broken for z.im <= 0. TODO: find out what
     // Similar integral, but with upper incomplete gamma.
@@ -2565,9 +2564,10 @@ Jmat.Complex.polylog_integral_ = function(s, z) {
       return result;
     };
     var r = Jmat.Complex.ZERO;
-    r = r.add(Jmat.Complex.integrate(Jmat.Complex(0), Jmat.Complex(5), f, 50));
-    r = r.add(Jmat.Complex.integrate(Jmat.Complex(5), Jmat.Complex(20), f, 20));
-    r = r.add(Jmat.Complex.integrate(Jmat.Complex(20), Jmat.Complex(100), f, 10));
+    //TODO: use integrate instead of integrate_simpson
+    r = r.add(Jmat.Complex.integrate_simpson(Jmat.Complex(0), Jmat.Complex(5), f, 50));
+    r = r.add(Jmat.Complex.integrate_simpson(Jmat.Complex(5), Jmat.Complex(20), f, 20));
+    r = r.add(Jmat.Complex.integrate_simpson(Jmat.Complex(20), Jmat.Complex(100), f, 10));
     var g = Jmat.Complex.incgamma_upper(Jmat.Complex.ONE.sub(s), lz.neg());
     var l = lz.neg().pow(Jmat.Complex.ONE.sub(s));
     return z.mulr(0.5).add(g.div(l)).add(z.mulr(2).mul(r));
@@ -2930,7 +2930,6 @@ Jmat.Complex.ellipticrj = function(x, y, z, p) {
   // Homogeneity: R_F(kx, ky, kz) = k^(-0.5) * R_F(x, y, z)
   // Duplication theorem: R_F(x, y, z) = R_F((x+l)/4, (y+l)/4, (z+l)/4) with l the lambda in the algorithm below.
   // The algorithm is based on the duplication theorem.
-
 
   var origp = p;
   var ca, cb, rcx;
@@ -3858,6 +3857,37 @@ Jmat.Complex.newtonStartValueAround_ = function(f, z0, dist) {
   return best;
 };
 
+//Like Jmat.Real.rootfind_newton, but fdf returns both f(x) and f'(x) in an array
+Jmat.Real.rootfind_newton2 = function(fdf, z0, maxiter) {
+  if (!z0) z0 = 0;
+  if (!maxiter) maxiter = 30;
+  var z = z0;
+  var prevz = z;
+  var bestdist = Infinity;
+  var best = NaN;
+  for (var i = 0; i < maxiter; i++) {
+    var prevz = z;
+    var v = fdf(z);
+    z -= v[0] / v[1];
+    var dist = Infinity;
+    if(Jmat.Real.isInfOrNaN(z)) z = prevz - 0.1; // get out of singularity. TODO: improve this to choose correct direction
+    else dist = Math.abs(z - prevz);
+    if(dist < bestdist) {
+      i = 0;
+      best = z;
+      bestdist = dist;
+      if(dist < 1e-15) break; // Near enough, stop iterations
+    }
+  }
+
+  return best;
+};
+
+//Newton-Raphson. Finds a root (zero) given function f, its derivative df, and an initial value z0
+Jmat.Real.rootfind_newton = function(f, df, z0, maxiter) {
+  return Jmat.Real.rootfind_newton2(function(t) { return [f(t), df(t)]}, z0, maxiter);
+};
+
 //Newton-Raphson. Finds a complex root (zero) given function f, its derivative df, and an initial value z0
 Jmat.Complex.rootfind_newton = function(f, df, z0, maxiter) {
   if (!z0) z0 = Jmat.Complex.ZERO;//Jmat.Complex.newtonStartValue_(f);//Jmat.Complex.ZERO;
@@ -3903,11 +3933,117 @@ Jmat.Complex.finvert_newton_noderiv = function(z, f, z0,  maxiter) {
   return Jmat.Complex.rootfind_newton_noderiv(function(x) { return f(x).sub(z); }, z0, maxiter);
 };
 
+/*
+Orthogonal polynomials for Gaussian quadrature:
+
+Uses the n roots (with n the order) of a polynomial in the relevant interval,
+with a weight for each root, and evaluates the function at each root.
+
+The polynomial is evaluated with a recursive definition in each case, and the
+resulting roots and weights are cached for reuse of later integrations with the
+same order.
+
+Legendre: -1..1
+P0(x) = 1
+P1(x) = x
+Pn(x) = ((2n-1)*x*P(n-1)(x) - (n-1)*P(n-2)(x)) / n
+Pn'(x) = (n*P(n-1)(x) - n*x*Pn(x)) / (1-x*x)
+xi = roots of the polynomial in the interval
+wi = 2 / ((1 - xi^2) * Pn'(xi)^2)
+
+Laguerre: 0..oo
+L0(x) = 1
+L1(x) = 1-x
+Ln(x) = ((2n-1-x)*L(n-1)(x) - (n-1)*L(n-2)(x))/n
+Ln'(x) = (n*Ln(x) - n*L(n-1)(x)) / x
+xi = roots of the polynomial in the interval
+wi = -1 / (order * Ln'(xi) * L(n-1)(xi))
+
+TODO: TanhSinh quadrature
+*/
+
+Jmat.Real.gausleg_cache_ = [];
+
+// returns roots and weights for gauss-legendre quadrature
+// caches the calculation result for the given order
+Jmat.Real.gauss_legendre_roots_ = function(order) {
+  if (Jmat.Real.gausleg_cache_[order]) return Jmat.Real.gausleg_cache_[order];
+
+  // returns Pn(x) and Pn'(x), with n the order and P legendre polynomial
+  var legendre_eval = function(x, order) {
+     var p0 = 1;
+     var p1 = x;
+     for(var i = 2; i <= order; i++) {
+       var pi = ((2 * i - 1) * x * p1 - (i - 1) * p0) / i;
+       p0 = p1;
+       p1 = pi;
+     }
+     var dp1 = (order * p0 - order * x * p1) / (1 - x * x);
+     return [p1, dp1];
+  };
+
+  var roots = [];
+  var weights = [];
+  for (var i = 0; i < order; i++) {
+    // initial root guess heuristics
+    var x = Math.cos(Math.PI * (i + 0.75) / (order + 0.5));
+    x = Jmat.Real.rootfind_newton2(function(t) { return legendre_eval(t, order); }, x, 100);
+    var p = legendre_eval(x, order);
+    roots[i] = x;
+    weights[i] = 2 / ((1 - x * x) * p[1] * p[1]);
+  }
+
+  Jmat.Real.gausleg_cache_[order] = [roots, weights];
+  return Jmat.Real.gausleg_cache_[order];
+};
+
+Jmat.Real.gauslag_cache_ = [];
+
+// returns roots and weights for gauss-laguerre quadrature
+// caches the calculation result for the given order
+Jmat.Real.gauss_laguerre_roots_ = function(order) {
+  if (Jmat.Real.gauslag_cache_[order]) return Jmat.Real.gauslag_cache_[order];
+
+  // returns value of Ln(x), Ln'(x) and L(n-1)(x), with n the order and L laguerre polynomial
+  var laguerre_eval = function(x, order) {
+    if(order == 0) return [1, 0, 0];
+    var l0 = 1;
+    var l1 = 1 - x;
+    for(var i = 2; i <= order; i++) {
+      var li = ((2 * i - 1 - x) * l1 - (i - 1) * l0) / i;
+      l0 = l1;
+      l1 = li;
+    }
+    var dl1 = order * (l1 - l0) / x;
+    return [l1, dl1, l0];
+  };
+
+  var roots = [];
+  var weights = [];
+  for(var i = 0; i < order; i++) {
+    // initial root guess heuristics
+    var x = 0;
+    if (i == 0) {
+      x = 3 / (1 + 2.4 * order);
+    } else if(i == 1) {
+      x = roots[i - 1] + 15 / (1 + 2.5 * order);
+    } else {
+      x = roots[i - 1] + (1 + 2.55 * (i - 1)) / (1.9 * (i - 1)) * (roots[i - 1] - roots[i - 2]);
+    }
+    x = Jmat.Real.rootfind_newton2(function(t) { return laguerre_eval(t, order); }, x, 100);
+    var p = laguerre_eval(x, order);
+    roots[i] = x;
+    weights[i] = -1 / (order * p[1] * p[2]);
+  }
+
+  Jmat.Real.gauslag_cache_[order] = [roots, weights];
+  return Jmat.Real.gauslag_cache_[order];
+};
 
 //numerical integration, aka quadrature
 //integrate function f using simpsons rule, from x to y, with amount of steps given by steps parameter (higher = more precision, number of evaluations is thoroughly steps * 2)
 //NOTE: this is the real version, real JS numbers only. Complex version is Jmat.Complex.integrate_simpson
-Jmat.Real.integrate_simpson = function(x, y, steps, f, stopLoop) {
+Jmat.Real.integrate_simpson = function(x, y, f, steps, stopLoop) {
   var step = (y - x) / steps;
   var result = 0;
   var fa = 0;
@@ -3929,24 +4065,141 @@ Jmat.Real.integrate_simpson = function(x, y, steps, f, stopLoop) {
   return result;
 };
 
-//numerical integration, aka quadrature
-//NOTE: this is the real version, real JS numbers only. Complex version is Jmat.Complex.integrate
-Jmat.Real.integrate = function(x, y, f, steps) {
-  if(!steps) steps = 30;
-  return Jmat.Real.integrate_simpson(x, y, steps, f);
+Jmat.Real.integrate_gaussian_legendre = function(x, y, f, order) {
+  var R = Jmat.Real;
+  if(order < 1 || order != Math.round(order)) return NaN;
+  if(order > 100) return NaN; // too slow
+
+  var l = R.gauss_legendre_roots_(order); // roots, weights
+  var roots = l[0];
+  var weights = l[1];
+
+  var x2 = (y - x) / 2;
+  var y2 = (y + x) / 2;
+  var sum = 0;
+  for (var i = 0; i < order; i++) {
+    sum += f(x2 * roots[i] + y2) * weights[i];
+  }
+  return x2 * sum;
 };
 
-/*
-TODO: more quadrature algorithms:
--Newton-Cotes: rectangle, trapezoid, simpson's rule
--Gaussian Quadrature
--TanhSinh Quadrature
-*/
 
+// Integrates from a to infinity
+Jmat.Real.integrate_gaussian_laguerre = function(a, f, order) {
+  var R = Jmat.Real;
+  if(order < 1 || order != Math.round(order)) return NaN;
+  if(order > 100) return NaN; // too slow
+
+  var l = R.gauss_laguerre_roots_(order); // roots, weights
+  var roots = l[0];
+  var weights = l[1];
+
+  var sum = 0;
+  for (var i = 0; i < roots.length; i++) {
+    var w = Math.exp(-roots[i]); // weighing function for laguerre-gaussian
+    var v = f(roots[i] + a);
+    sum += v / w * weights[i];
+  }
+  return sum;
+};
+
+// Gaussian quadrature (legendre for -1..1, laguerre for 0..oo)
+// E.g. try Jmat.Real.integrate_gaussian(0, Infinity, function(t) { return 1 / Math.exp(t); }, 5);
+Jmat.Real.integrate_gaussian = function(x, y, f, order) {
+  var R = Jmat.Real;
+
+  if(y == Infinity) {
+    if(x == -Infinity) {
+      // TODO: hermite
+      var a = R.integrate_gaussian_laguerre(0, function(t) { return f(-t); }, order);
+      var b = R.integrate_gaussian_laguerre(0, f, order);
+      return a + b;
+    }
+    return R.integrate_gaussian_laguerre(x, f, order);
+  }
+  if(x == -Infinity) {
+    return R.integrate_gaussian_laguerre(-x, function(t) { return f(-t); }, order);
+  }
+
+  return R.integrate_gaussian_legendre(x, y, f, order);
+};
+
+//numerical integration, aka quadrature
+//opt_type: 0: simpson, 1: gaussian. Default: 1
+//NOTE: this is the real version, real JS numbers only. Complex version is Jmat.Complex.integrate
+//NOTE: using this function requires experimentation for your usecase, it depends a lot on the function what parameters work best. With gaussian, steps > 30 usually makes it worse, not better.
+Jmat.Real.integrate = function(x, y, f, steps, opt_type) {
+  if(opt_type == undefined) opt_type = 1;
+  if(!steps) steps = opt_type == 1 ? 20 : 30;
+
+  if(opt_type == 0) return Jmat.Real.integrate_simpson(x, y, f, steps);
+  return Jmat.Real.integrate_gaussian(x, y, f, steps);
+};
+
+Jmat.Complex.integrate_gaussian_legendre = function(x, y, f, order) {
+  var C = Jmat.Complex;
+  if(order < 1 || order != Math.round(order)) return C(NaN);
+  if(order > 100) return C(NaN); // too slow
+
+  var l = Jmat.Real.gauss_legendre_roots_(order); // roots, weights
+  var roots = l[0];
+  var weights = l[1];
+
+  var x2 = (y.sub(x)).divr(2);
+  var y2 = (y.add(x)).divr(2);
+  var sum = C(0);
+  for (var i = 0; i < order; i++) {
+    sum = sum.add(f(x2.mulr(roots[i]).add(y2)).mulr(weights[i]));
+  }
+  return x2.mul(sum);
+};
+
+
+// Integrates from a to infinity
+Jmat.Complex.integrate_gaussian_laguerre = function(a, f, order) {
+  var C = Jmat.Complex;
+  if(order < 1 || order != Math.round(order)) return C(NaN);
+  if(order > 100) return C(NaN); // too slow
+
+  var l = Jmat.Real.gauss_laguerre_roots_(order); // roots, weights
+  var roots = l[0];
+  var weights = l[1];
+
+  var sum = C(0);
+  for (var i = 0; i < roots.length; i++) {
+    var w = Math.exp(-roots[i]); // weighing function for laguerre-gaussian
+    var v = f(C(roots[i]).add(a));
+    sum = sum.add(v.divr(w).mulr(weights[i]));
+  }
+  return sum;
+};
+
+// Gaussian quadrature (legendre for -1..1, laguerre for 0..oo)
+// NOTE: order over 20 or 30 is not useful. Sometimes less order is more
+// precise, e.g. if f is quadratic or cubic, then order=2 is most precise
+// Tricks for more precision: the smaller the derivatives of the function, the more precise, so try to transform to other function with lower derivatives
+Jmat.Complex.integrate_gaussian = function(x, y, f, order) {
+  var C = Jmat.Complex;
+
+  if(y.eqr(Infinity)) {
+    if(x.eqr(-Infinity)) {
+      // TODO: hermite
+      var a = C.integrate_gaussian_laguerre(C(0), function(t) { return f(t.neg()); }, order);
+      var b = C.integrate_gaussian_laguerre(C(0), f, order);
+      return a.add(b);
+    }
+    return C.integrate_gaussian_laguerre(x, f, order);
+  }
+  if(x.eqr(-Infinity)) {
+    return C.integrate_gaussian_laguerre(x.neg(), function(t) { return f(t.neg()); }, order);
+  }
+
+  return C.integrate_gaussian_legendre(x, y, f, order);
+};
 
 //numerical integration, aka quadrature
 //integrate function f using simpsons rule, from x to y, with amount of steps given by steps parameter (higher = more precision, number of evaluations is thoroughly steps * 2)
-Jmat.Complex.integrate_simpson = function(x, y, steps, f, stopLoop) {
+Jmat.Complex.integrate_simpson = function(x, y, f, steps, stopLoop) {
   var step = y.sub(x).divr(steps);
   var result = Jmat.Complex(0);
   var fa = null;
@@ -3983,9 +4236,14 @@ Jmat.Complex.integrate_simpson = function(x, y, steps, f, stopLoop) {
 };
 
 //numerical integration, aka quadrature
-Jmat.Complex.integrate = function(x, y, f, steps) {
-  if(!steps) steps = 30;
-  return Jmat.Complex.integrate_simpson(x, y, steps, f);
+//opt_type: 0: simpson, 1: gaussian. Default: 1
+//NOTE: using this function requires experimentation for your usecase, it depends a lot on the function what parameters work best. With gaussian, steps > 30 usually makes it worse, not better.
+Jmat.Complex.integrate = function(x, y, f, steps, opt_type) {
+  if(opt_type == undefined) opt_type = 1;
+  if(!steps) steps = opt_type == 1 ? 20 : 30;
+
+  if(opt_type == 0) return Jmat.Complex.integrate_simpson(x, y, f, steps);
+  return Jmat.Complex.integrate_gaussian(x, y, f, steps);
 };
 
 // differentiation with just two points (finite difference, or secant)
