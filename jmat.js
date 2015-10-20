@@ -557,6 +557,27 @@ Jmat.sign = function(z) {
   if(Jmat.quaternionIn_(z)) return Jmat.Quaternion.sign(Jmat.Quaternion.cast(z));
   return Jmat.Complex.sign(Jmat.Complex.cast(z));
 };
+/* Euclidean distance. a,b:{number|Complex|Quaternion|Matrix|BigInt}. returns {number} */
+Jmat.dist = function(a, b) {
+  if(Jmat.quaternionIn_(a) || Jmat.quaternionIn_(b)) return Jmat.Quaternion.dist(Jmat.Quaternion.cast(a), Jmat.Quaternion.cast(b));
+  else if(Jmat.bigIntIn_(a) || Jmat.bigIntIn_(b)) return Jmat.BigInt.dist(Jmat.BigInt.cast(a), Jmat.BigInt.cast(b));
+  else if(Jmat.matrixIn_(a) || Jmat.matrixIn_(b)) return Jmat.Matrix.dist(Jmat.Matrix.cast(a), Jmat.Matrix.cast(b));
+  return Jmat.Complex.dist(Jmat.Complex.cast(a), Jmat.Complex.cast(b));
+};
+/* Chebyshev distance. a,b:{number|Complex|Quaternion|Matrix|BigInt}. returns {number} */
+Jmat.cheb = function(a, b) {
+  if(Jmat.quaternionIn_(a) || Jmat.quaternionIn_(b)) return Jmat.Quaternion.cheb(Jmat.Quaternion.cast(a), Jmat.Quaternion.cast(b));
+  else if(Jmat.bigIntIn_(a) || Jmat.bigIntIn_(b)) return Jmat.BigInt.cheb(Jmat.BigInt.cast(a), Jmat.BigInt.cast(b));
+  else if(Jmat.matrixIn_(a) || Jmat.matrixIn_(b)) return Jmat.Matrix.cheb(Jmat.Matrix.cast(a), Jmat.Matrix.cast(b));
+  return Jmat.Complex.cheb(Jmat.Complex.cast(a), Jmat.Complex.cast(b));
+};
+/* Manhattan distance. a,b:{number|Complex|Quaternion|Matrix|BigInt}. returns {number} */
+Jmat.manhattan = function(a, b) {
+  if(Jmat.quaternionIn_(a) || Jmat.quaternionIn_(b)) return Jmat.Quaternion.manhattan(Jmat.Quaternion.cast(a), Jmat.Quaternion.cast(b));
+  else if(Jmat.bigIntIn_(a) || Jmat.bigIntIn_(b)) return Jmat.BigInt.manhattan(Jmat.BigInt.cast(a), Jmat.BigInt.cast(b));
+  else if(Jmat.matrixIn_(a) || Jmat.matrixIn_(b)) return Jmat.Matrix.manhattan(Jmat.Matrix.cast(a), Jmat.Matrix.cast(b));
+  return Jmat.Complex.manhattan(Jmat.Complex.cast(a), Jmat.Complex.cast(b));
+};
 /* Complex sign. z:{number|Complex}. returns {Complex} */
 Jmat.csgn = function(z) { return Jmat.Complex.csgn(Jmat.Complex.cast(z)); };
 /* Floor. x:{number|Complex}. returns {Complex} */

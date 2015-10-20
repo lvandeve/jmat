@@ -700,6 +700,20 @@ Jmat.BigInt.prototype.abs = function() {
   return this;
 };
 
+// dist, cheb and manhattan all return regular real JS numbers for all types. In some types they are all the same, but not for e.g. Complex or Matrix.
+// Euclidean distance
+Jmat.BigInt.dist = function(a, b) {
+  return a.sub(b).abs();
+};
+//Chebyshev distance
+Jmat.BigInt.cheb = function(a, b) {
+  return Jmat.BigInt.dist(a, b);
+};
+//Manhattan distance
+Jmat.BigInt.manhattan = function(a, b) {
+  return Jmat.BigInt.dist(a, b);
+};
+
 // does NOT copy the array, on purpose (cheap operation).
 Jmat.BigInt.neg = function(a) {
   return a.neg();

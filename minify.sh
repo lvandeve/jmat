@@ -10,3 +10,6 @@
 # Unfortunately, closure compiler does not warn about unused local varaibles, a warning we would want...
 
 java -jar compiler.jar jmat_real.js jmat_complex.js jmat_matrix.js jmat_quaternion.js jmat_special.js jmat_bigint.js jmat.js --create_source_map jmat.map -W VERBOSE --jscomp_off={globalThis,checkTypes,duplicate} >jmat.min.js
+
+# Run uglifyjs as well, because it gives warnings about unused local variables that the closure compiler doesn't give.
+uglifyjs jmat_real.js jmat_complex.js jmat_matrix.js jmat_quaternion.js jmat_special.js jmat_bigint.js jmat.js -m -c --lint -v --comments --source-map /dev/null > /dev/null

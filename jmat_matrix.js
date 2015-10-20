@@ -1540,6 +1540,32 @@ Jmat.Matrix.norm2 = function(m) {
   return svd.s.e[0][0];
 };
 
+// dist, cheb and manhattan all return regular real JS numbers for all types. In some types they are all the same, but not for e.g. Complex or Matrix.
+// Euclidean distance
+Jmat.Matrix.dist = function(a, b) {
+  return Jmat.Matrix.norm(a.sub(b)).re;
+};
+//Chebyshev distance
+Jmat.Matrix.cheb = function(a, b) {
+  var result = 0; // chebyshev norm, sup norm, max norm or infinity norm of a-b
+  for(var y = 0; y < a.h; y++) {
+    for(var x = 0; x < a.w; x++) {
+      result = Math.max(result, Jmat.Complex.cheb(a.e[y][x], b.e[y][x]));
+    }
+  }
+  return result;
+};
+// Manhattan distance
+Jmat.Matrix.manhattan = function(a, b) {
+  var result = 0; // chebyshev norm, sup norm, max norm or infinity norm of a-b
+  for(var y = 0; y < a.h; y++) {
+    for(var x = 0; x < a.w; x++) {
+      result += Jmat.Complex.manhattan(a.e[y][x], b.e[y][x]);
+    }
+  }
+  return result;
+};
+
 //condition number: largest singular value divided through smallest singular value. Higher ==> more imprecise numerical calculations with this matrix.
 //Infinity means the matrix is singular. For numerical stability, consider singular if above e.g. 1/1e-15
 Jmat.Matrix.conditionNumber = function(m) {

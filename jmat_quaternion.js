@@ -256,6 +256,21 @@ Jmat.Quaternion.prototype.abssq = function() {
   return this.w * this.w + this.x * this.x + this.y * this.y + this.z * this.z;
 };
 
+// dist, cheb and manhattan all return regular real JS numbers for all types. In some types they are all the same, but not for e.g. Complex or Matrix.
+// Euclidean distance
+Jmat.Quaternion.dist = function(a, b) {
+  return a.sub(b).abs();
+};
+//Chebyshev distance
+Jmat.Quaternion.cheb = function(a, b) {
+  return Math.max(Math.max(Jmat.Real.dist(a.w, b.w), Jmat.Real.dist(a.x, b.x)),
+                  Math.max(Jmat.Real.dist(a.y, b.y), Jmat.Real.dist(a.z, b.z)));
+};
+// Manhattan distance
+Jmat.Quaternion.manhattan = function(a, b) {
+  return Math.abs(a.w - b.w) + Math.abs(a.x - b.x) + Math.abs(a.y - b.y) + Math.abs(a.z - b.z);
+};
+
 // absolute value of the vector part (returned as Quaternion object)
 Jmat.Quaternion.absv = function(q) {
   return Jmat.Quaternion(q.absv());

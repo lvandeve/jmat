@@ -63,10 +63,23 @@ Jmat.Test.expectNear = function(e, a, precision) {
   }
 };
 
+Jmat.Test.accrep = ''; // accuracy report string
+Jmat.Test.accworst = 0; // worst accuracy seen
+
 // Expect that the result of the mathematical function f with the arguments of var_arg, is near the expected result. Some numerical intolerance is allowed.
+// The name must be given to report about accuracy.
+// Set epsilon to NaN to not test anything, just report.
 Jmat.Test.testFunction = function(expected, epsilon, f, var_arg) {
-  var result = f.apply(this, Array.prototype.slice.call(arguments).slice(3) /*var_arg*/);
-  Jmat.Test.expectNear(expected, result, epsilon);
+  var a = Array.prototype.slice.call(arguments).slice(3); /*var_arg*/
+  var result = f.apply(this, a);
+  if(!Jmat.bigIntIn_(result)) {
+    var e = Jmat.cheb(expected, result);
+    if(e > 0) {
+      if(e > Jmat.Test.accworst) Jmat.Test.accworst = e;
+      Jmat.Test.accrep += (f.testName ? f.testName : 'unk') + '(' + var_arg + ') = ' + expected + ', got: ' + result + ', eps: ' + e + '\n';
+    }
+  }
+  if(!isNaN(epsilon)) Jmat.Test.expectNear(expected, result, epsilon);
 };
 
 //u,s,v = expected values
@@ -89,16 +102,32 @@ Jmat.Test.testEIG = function(l, v, epsilon, m) {
   Jmat.Test.expectNear(v, eig.v, epsilon);
 };
 
+Jmat.Test.annotateFunctionNames = function() {
+  var objects = [Jmat, Jmat.Real, Jmat.Complex, Jmat.Quaternion, Jmat.BigInt, Jmat.BigIntC, Jmat.Matrix];
+  for(var i = 0; i < objects.length; i++) {
+    for(var p in objects[i]) {
+      if(!objects[i].hasOwnProperty(p)) continue;
+      var o = objects[i][p];
+      if(o) o.testName = p;
+    }
+  }
+};
+
 // throws on fail, prints 'success' on success
-Jmat.doUnitTest = function() {
+Jmat.doUnitTest = function(opt_verbose) {
   // check that the test framework itself can actually fail
   var thrown = false;
   try {
-    Jmat.Test.testFunction(3, eps, Jmat.add, 1, 1);
+    Jmat.Test.testFunction(3, 0, Jmat.add, 1, 1);
   } catch(error) {
     thrown = true; // this is expected
   }
   if(!thrown) throw 'that should have thrown error!';
+
+
+  Jmat.Test.annotateFunctionNames();
+  Jmat.Test.accrep = '';
+  Jmat.Test.accworst = 0;
 
   var eps = 1e-10;
   // basic operators
@@ -237,6 +266,8 @@ Jmat.doUnitTest = function() {
   Jmat.Test.expectNear(vec01.transpose(), Jmat.Matrix.make([[0,1]]), eps);
   Jmat.Test.expectNear(vec01.transpose(), Jmat.Matrix.subrow(Jmat.Matrix.make([[2,0],[0,1]]), 0), eps);
 
+  if(opt_verbose) console.log(Jmat.Test.accrep);
+  console.log('precision: ' + Jmat.Test.accworst);
   console.log('success');
   return 'success';
 };

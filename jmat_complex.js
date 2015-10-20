@@ -1034,10 +1034,6 @@ Jmat.Complex.decompose = function(x, max) {
   }
 };
 
-// Manhattan distance of complex numbers, returned as a real number (JS float)
-Jmat.Complex.manhattan = function(a, b) {
-  return Math.max(Math.abs(a.re - b.re), Math.abs(a.im - b.im));
-};
 
 Jmat.Complex.near = function(x, y, opt_epsilon) {
   var epsilon = (opt_epsilon == undefined) ? 1e-15 : opt_epsilon;
@@ -1051,6 +1047,20 @@ Jmat.Complex.nearr = function(x, y, opt_epsilon) {
   var epsilon = (opt_epsilon == undefined) ? 1e-15 : opt_epsilon;
   // Manhattan NOT used, because then this function returns false for equal infinities
   return x.re - epsilon <= y && x.re + epsilon >= y && x.im - epsilon <= 0 && x.im + epsilon >= 0;
+};
+
+// dist, cheb and manhattan all return regular real JS numbers for all types. In some types they are all the same, but not for e.g. Complex or Matrix.
+// Euclidean distance
+Jmat.Complex.dist = function(a, b) {
+  return a.sub(b).abs();
+};
+//Chebyshev distance
+Jmat.Complex.cheb = function(a, b) {
+  return Math.max(Jmat.Real.dist(a.re, b.re), Jmat.Real.dist(a.im, b.im));
+};
+// Manhattan distance
+Jmat.Complex.manhattan = function(a, b) {
+  return Math.max(Math.abs(a.re - b.re), Math.abs(a.im - b.im));
 };
 
 /*
