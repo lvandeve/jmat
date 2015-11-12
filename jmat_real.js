@@ -1241,6 +1241,7 @@ Jmat.Real.cosh = Math.cosh || function(x) {
 
 // ECMAScript 5 doesn't have it
 Jmat.Real.tanh = Math.tanh || function(x) {
+  if(x > 354) return 1; // exp overflow
   return (Math.exp(2 * x) - 1) / (Math.exp(2 * x) + 1);
 };
 
