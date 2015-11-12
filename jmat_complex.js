@@ -759,6 +759,9 @@ Jmat.Complex.cosh = function(z) {
 };
 
 Jmat.Complex.tanh = function(z) {
+  // at z.re > 709, exp gives infinity, at z.re > 304, it gets wrong value if z.im != 0
+  if(z.re > 350) return Jmat.Complex(1);
+  if(z.re < -350) return Jmat.Complex(-1);
   var e = Jmat.Complex.exp(z);
   var ei = Jmat.Complex.inv(e);
   return e.sub(ei).div(e.add(ei));

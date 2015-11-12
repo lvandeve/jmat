@@ -2504,75 +2504,71 @@ Jmat.Complex.stieltjes_zeta = [
 // Unfortunately almost every integral has problems on the positive real axis of z.
 // Since there is an awesome solution for all s with s.re < 0, only the formulas for s.re > 0 below are actually u sed
 Jmat.Complex.polylog_integral_ = function(s, z) {
+  var C = Jmat.Complex;
   // To test these, try e.g.:
-  // complexDomainPlot(function(z){return Jmat.Complex.polylog(Jmat.Complex(15, 0.5), z);}, 2, 1);
-  // complexDomainPlot(function(z){return Jmat.Complex.polylog(Jmat.Complex(0.5, 15), z);}, 2, 1);
+  // complexDomainPlot(function(z){return C.polylog(C(15, 0.5), z);}, 2, 1);
+  // complexDomainPlot(function(z){return C.polylog(C(0.5, 15), z);}, 2, 1);
 
   if(s.re > 1 && Math.abs(s.im) < s.re && Math.abs(z.arg()) > 0.1) {
     // Approximate with an integral representation (only works for real s.re, and has some serious problems with periodic things appearing near the positive real axis of z)
     // In practice, only works for s.re > 1 (!!) and s.im = 0, or very small |s.im| and s.re > 0
-    var g = Jmat.Complex.gamma(s);
-    var r = Jmat.Complex.integrate_simpson(Jmat.Complex(0), Jmat.Complex(20), function(t) {
-      var result = t.pow(s.dec()).div(Jmat.Complex.exp(t).sub(z));
-      if(Jmat.Complex.isNaN(result)) result = Jmat.Complex.ZERO;
+    var g = C.gamma(s);
+    var f = function(t) {
+      var result = t.pow(s.dec()).div(C.exp(t).sub(z));
+      if(C.isNaN(result)) result = C.ZERO;
       return result;
-    }, 100); //TODO: use integrate instead of integrate_simpson
+    };
+    var r = C.integrate(C(0), C(Infinity), f, 50);
     return z.div(g).mul(r);
-  } else if(Jmat.Complex.isNegative(s) && Math.abs(z.arg()) > 0.1) {
+  } else if(C.isNegative(s) && Math.abs(z.arg()) > 0.1) {
     // Approximate with an integral representation (only works for s.re < 0
-    var lzm = Jmat.Complex.log(z.neg());
-    var r = Jmat.Complex.integrate_simpson(Jmat.Complex(0), Jmat.Complex(20), function(t) {
+    var lzm = C.log(z.neg());
+    var f = function(t) {
       var ta = t.pow(s.neg());
-      var tb = Jmat.Complex.sin(s.mulr(Math.PI/2).sub(t.mul(lzm)));
-      var na = Jmat.Complex.sinh(t.mulr(Math.PI));
+      var tb = C.sin(s.mulr(Math.PI/2).sub(t.mul(lzm)));
+      var na = C.sinh(t.mulr(Math.PI));
       var result = ta.mul(tb).div(na);
-      if(Jmat.Complex.isNaN(result)) result = Jmat.Complex.ZERO;
+      if(C.isNaN(result)) result = C.ZERO;
       return result;
-    }, 100); //TODO: use integrate instead of integrate_simpson
+    };
+    var r = C.integrate(C(0), C(Infinity), f, 30);
     return r;
   } else if(z.im <= 0 || (s.re > 0 && Math.abs(s.im) < s.re)) {
     // Integral formula for polylog that works for all complex s and z, except for positive real z if s.re < 0
     // Is from 0 to infinity, but seems to work well from 0-10 with only 100 steps (at least in the areas where this is used)
     // While in theory it works for all z and all s (except z near positive axis if s.re < 0), in practice it seems to work only for z.im <= 0 and s.re > 0 and |s.im| << s.re
     // --> I tried with z-plot for s=-15+0.5i, s=0.5+15i, and other variations like that
-    var lzm = Jmat.Complex.log(z.neg());
+    var lzm = C.log(z.neg());
     var f = function(t) {
-      var ta = Jmat.Complex.sin(s.mul(Jmat.Complex.atan(t)).sub(t.mul(lzm)));
-      var na = (Jmat.Complex.ONE.add(t.mul(t))).pow(s.divr(2));
-      var nb = Jmat.Complex.sinh(t.mulr(Math.PI));
+      var ta = C.sin(s.mul(C.atan(t)).sub(t.mul(lzm)));
+      var na = (C.ONE.add(t.mul(t))).pow(s.divr(2));
+      var nb = C.sinh(t.mulr(Math.PI));
       var result = ta.div(na).div(nb);
-      if(Jmat.Complex.isNaN(result)) result = Jmat.Complex.ZERO;
+      if(C.isNaN(result)) result = C.ZERO;
       return result;
     };
-    var r = Jmat.Complex.ZERO;
-    //TODO: use integrate instead of integrate_simpson
-    r = r.add(Jmat.Complex.integrate_simpson(Jmat.Complex(0), Jmat.Complex(5), f, 50));
-    r = r.add(Jmat.Complex.integrate_simpson(Jmat.Complex(5), Jmat.Complex(20), f, 20));
-    r = r.add(Jmat.Complex.integrate_simpson(Jmat.Complex(20), Jmat.Complex(100), f, 10));
+    // TODO: better integral. The interval is in reality from 0 to infinity, but the gaus laguerre implementation (or f) here returns a better result if you end it at 10 than at infinity...
+    var r = C.integrate(C(0), C(10), f, 30);
     return z.mulr(0.5).add(z.mul(r));
   } else if(z.im > 0) { // Because something is broken for z.im <= 0. TODO: find out what
     // Similar integral, but with upper incomplete gamma.
     // It is theoretically better than the above because it supports even its last edge case.
     // But it seems broken. It does not work for z.im <= 0... At least it gets
-    var lz = Jmat.Complex.log(z);
+    var lz = C.log(z);
     var f = function(t) {
-      var ta = Jmat.Complex.sin(s.mul(Jmat.Complex.atan(t)).sub(t.mul(lz)));
-      var na = (Jmat.Complex.ONE.add(t.mul(t))).pow(s.divr(2));
-      var nb = Jmat.Complex.exp(t.mulr(2*Math.PI)).sub(1);
+      var ta = C.sin(s.mul(C.atan(t)).sub(t.mul(lz)));
+      var na = (C.ONE.add(t.mul(t))).pow(s.divr(2));
+      var nb = C.exp(t.mulr(2*Math.PI)).subr(1);
       var result = ta.div(na).div(nb);
-      if(Jmat.Complex.isNaN(result)) result = Jmat.Complex.ZERO;
+      if(C.isNaN(result)) result = C.ZERO;
       return result;
     };
-    var r = Jmat.Complex.ZERO;
-    //TODO: use integrate instead of integrate_simpson
-    r = r.add(Jmat.Complex.integrate_simpson(Jmat.Complex(0), Jmat.Complex(5), f, 50));
-    r = r.add(Jmat.Complex.integrate_simpson(Jmat.Complex(5), Jmat.Complex(20), f, 20));
-    r = r.add(Jmat.Complex.integrate_simpson(Jmat.Complex(20), Jmat.Complex(100), f, 10));
-    var g = Jmat.Complex.incgamma_upper(Jmat.Complex.ONE.sub(s), lz.neg());
-    var l = lz.neg().pow(Jmat.Complex.ONE.sub(s));
+    var r = C.integrate(C(0), C(Infinity), f, 30);
+    var g = C.incgamma_upper(C.ONE.sub(s), lz.neg());
+    var l = lz.neg().pow(C.ONE.sub(s));
     return z.mulr(0.5).add(g.div(l)).add(z.mulr(2).mul(r));
   } else {
-    return Jmat.Complex(NaN); //there is nothing we can do... :(
+    return C(NaN); //there is nothing we can do... :(
   }
 };
 
@@ -2747,6 +2743,7 @@ Jmat.Complex.polylog = function(s, z) {
   } else if(Jmat.Complex.polylog_borwein_ok_(s, z)) {
     return Jmat.Complex.polylog_borwein_(s, z);
   } else if(s.re < 0) {
+    // TODO: the integral with gaussian laguerre handles this one better than polylog_residue_, either fix polylog_residue_ or use the integral
     return Jmat.Complex.polylog_residue_(s, z);
   } else if(Jmat.Complex.isNegativeInt(s) && a > 1) {
     // Inversion formula. Since the "sum of residue" above works so fantastic and is already for all negative s, this code probably never gets called anymore.

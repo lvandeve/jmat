@@ -125,15 +125,16 @@ Jmat.Real.isInfOrNaN = function(x) {
 // dist, cheb and manhattan all return regular real JS numbers for all types. In some types they are all the same, but not for e.g. Complex or Matrix.
 // Euclidean distance
 Jmat.Real.dist = function(a, b) {
+  if(a == b) return 0; // this is to avoid subtracting Infinity - Infinity
   return Math.abs(a - b);
 };
 //Chebyshev distance
 Jmat.Real.cheb = function(a, b) {
-  return Math.abs(a - b);
+  return Jmat.Real.dist(a, b);
 };
 //Manhattan distance
 Jmat.Real.manhattan = function(a, b) {
-  return Math.abs(a - b);
+  return Jmat.Real.dist(a, b);
 };
 
 // Modulo operation. Different than JS's % operator in case of negative operands.

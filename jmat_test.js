@@ -113,6 +113,35 @@ Jmat.Test.annotateFunctionNames = function() {
   }
 };
 
+Jmat.Test.initAccuracy = function() {
+  Jmat.Test.annotateFunctionNames();
+  Jmat.Test.accrep = '';
+  Jmat.Test.accworst = 0;
+};
+
+Jmat.Test.finalizeAccuracy = function(opt_verbose) {
+  if(opt_verbose) console.log(Jmat.Test.accrep);
+  console.log('precision: ' + Jmat.Test.accworst);
+};
+
+Jmat.Test.testPolylog = function() {
+  Jmat.Test.initAccuracy();
+  var polylog = function(a, b) { return Jmat.Complex.polylog(Jmat.Complex.cast(a), Jmat.Complex.cast(b)); };
+  Jmat.Test.testFunction(Infinity, NaN, polylog, 1, 1);
+  Jmat.Test.testFunction('-0.69314718055994530941', NaN, polylog, 1, -1);
+  Jmat.Test.testFunction('-3.14159265358979323846i', NaN, polylog, 1, 2);
+  Jmat.Test.testFunction('0.80612672304285226132', NaN, polylog, 0.5, 0.5);
+  Jmat.Test.testFunction('-0.37375223798097305644', NaN, polylog, 0.5, -0.5);
+  Jmat.Test.testFunction('1.34725375273575069219', NaN, polylog, -0.5, 0.5);
+  Jmat.Test.testFunction('-0.28301281074650602317', NaN, polylog, -0.5, -0.5);
+  Jmat.Test.testFunction('10.12002396823740075704-0.01575172198981096218i', NaN, polylog, 10, 10);
+  Jmat.Test.testFunction('-0.09236458657786628703+9.98692954551758154675i', NaN, polylog, 10, '10i');
+  Jmat.Test.testFunction('-43.94797353817581944710+13.70036401689160455461i', NaN, polylog, -10, '10i');
+  //Jmat.Test.testFunction('-771.09626291551731193169-29255.534755954886987832i', NaN, polylog, '0.5+10i', '0.5+10i'); // result very large numbers, eps 0.15 but that clouds the other tests too much
+  Jmat.Test.testFunction('-4.17886432849095879367+1.50745493019209405537i', NaN, polylog, '0.1+2i', '0.1+2i');
+  Jmat.Test.finalizeAccuracy(true);
+};
+
 // throws on fail, prints 'success' on success
 Jmat.doUnitTest = function(opt_verbose) {
   // check that the test framework itself can actually fail
@@ -124,10 +153,7 @@ Jmat.doUnitTest = function(opt_verbose) {
   }
   if(!thrown) throw 'that should have thrown error!';
 
-
-  Jmat.Test.annotateFunctionNames();
-  Jmat.Test.accrep = '';
-  Jmat.Test.accworst = 0;
+  Jmat.Test.initAccuracy();
 
   var eps = 1e-10;
   // basic operators
@@ -266,8 +292,7 @@ Jmat.doUnitTest = function(opt_verbose) {
   Jmat.Test.expectNear(vec01.transpose(), Jmat.Matrix.make([[0,1]]), eps);
   Jmat.Test.expectNear(vec01.transpose(), Jmat.Matrix.subrow(Jmat.Matrix.make([[2,0],[0,1]]), 0), eps);
 
-  if(opt_verbose) console.log(Jmat.Test.accrep);
-  console.log('precision: ' + Jmat.Test.accworst);
+  Jmat.Test.finalizeAccuracy(opt_verbose);
   console.log('success');
   return 'success';
 };
