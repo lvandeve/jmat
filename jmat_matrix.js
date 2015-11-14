@@ -702,7 +702,7 @@ Jmat.Matrix.isZero = function(a, opt_epsilon) {
 };
 
 // Equal to its transpose
-Jmat.Matrix.isSymmetrical = function(a, opt_epsilon) {
+Jmat.Matrix.isSymmetric = function(a, opt_epsilon) {
   var epsilon = (opt_epsilon == undefined) ? 1e-15 : opt_epsilon;
   if (!Jmat.Matrix.isSquare(a)) return false;
 
@@ -730,7 +730,7 @@ Jmat.Matrix.isHermitian = function(a, opt_epsilon) {
 
 // Equal to negative of its transpose
 // Diagonal elements must be zero as they have to be their own negative
-Jmat.Matrix.isSkewSymmetrical = function(a, opt_epsilon) {
+Jmat.Matrix.isSkewSymmetric = function(a, opt_epsilon) {
   var epsilon = (opt_epsilon == undefined) ? 1e-15 : opt_epsilon;
   if (!Jmat.Matrix.isSquare(a)) return false;
 
@@ -1024,10 +1024,10 @@ Jmat.Matrix.getProperties = function(a) {
   result['identity'] = M.isIdentity(a);
   result['diagonal'] = M.isDiagonal(a);
   result['tridiagonal'] = M.isTridiagonal(a);
-  result['symmetrical'] = M.isSymmetrical(a);
+  result['symmetric'] = M.isSymmetric(a);
   result['hermitian'] = M.isHermitian(a);
   result['skewHermitian'] = M.isSkewHermitian(a);
-  result['skewSymmetrical'] = M.isSkewSymmetrical(a);
+  result['skewSymmetric'] = M.isSkewSymmetric(a);
   result['upperTriangular'] = M.isUpperTriangular(a);
   result['lowerTriangular'] = M.isLowerTriangular(a);
   result['strictlyUpperTriangular'] = M.isStrictlyUpperTriangular(a);
@@ -1062,7 +1062,7 @@ Jmat.Matrix.getProperties = function(a) {
 };
 
 // Gives a one-sentence summary of some interesting properites of the matrix. The more properties the matrix has, the longer the sentence (e.g. if it's square more properties appear, ...)
-// Does not show redundant properties. E.g. if the matrix is 'identity', will not show 'symmetrical', if it's 'normal', will not show 'orthogonal', etc...
+// Does not show redundant properties. E.g. if the matrix is 'identity', will not show 'symmetric', if it's 'normal', will not show 'orthogonal', etc...
 // To see every single property instead, do "Jmat.toString(Jmat.Matrix.getProperties(a))"
 Jmat.Matrix.summary = function(a) {
   var p = Jmat.Matrix.getProperties(a);
@@ -1083,7 +1083,7 @@ Jmat.Matrix.summary = function(a) {
   var nonsquare = ['height', 'width', 'zero', 'real', 'NaN',
                    'rank', 'frobeniusNorm', 'spectralNorm', 'conditionNumber', 'integer', 'binary'];
   //order of properties only applicable for square matrices
-  var square = ['identity', 'symmetrical', 'hermitian', 'skewSymmetrical', 'skewHermitian', 'diagonal', 'tridiagonal',
+  var square = ['identity', 'symmetric', 'hermitian', 'skewSymmetric', 'skewHermitian', 'diagonal', 'tridiagonal',
                 'upperTriangular', 'lowerTriangular', 'strictlyUpperTriangular', 'strictlyLowerTriangular', 'upperHessenberg', 'lowerHessenberg',
                 'singular', 'invertible', 'determinant', 'trace', 'orthogonal', 'unitary', 'normal', 'permutation', 'toeplitz', 'hankel',
                 'indefinite', 'positiveDefinite', 'negativeDefinite', 'positiveSemidefinite', 'negativeSemidefinite', 'frobenius', 'involutory', 'idempotent'];
@@ -1092,8 +1092,8 @@ Jmat.Matrix.summary = function(a) {
   // these properties are added only to avoid some redundancy in summary output with the "sub" sytem
   p['small2x2'] = (a.w <= 2 && a.h <= 2);
   p['small1x1'] = (a.w <= 1 && a.h <= 1);
-  p['realsym'] = p['real'] && p['symmetrical'];
-  p['realskewsym'] = p['real'] && p['skewSymmetrical'];
+  p['realsym'] = p['real'] && p['symmetric'];
+  p['realskewsym'] = p['real'] && p['skewSymmetric'];
   // pairs of child:parents, where child is always true if any of the parents is true, with the intention to not display child in a list if parent is already true as it's redundant
   var sub = {
     'strictlyUpperTriangular': ['zero'], 'strictlyLowerTriangular' : ['zero'],
@@ -1102,7 +1102,7 @@ Jmat.Matrix.summary = function(a) {
     'diagonal' : ['small1x1', 'identity', 'zero'], 'tridiagonal' : ['small2x2', 'diagonal'],
     'orthogonal' : ['normal', 'identity'], 'unitary' : ['normal'], 'normal' : ['identity', 'zero'],
     'hermitian' : ['normal', 'realsym'],  'skewHermitian' : ['realskewsym'],
-    'symmetrical' : ['diagonal'], 'skewSymmetrical' : ['zero'],
+    'symmetric' : ['diagonal'], 'skewSymmetric' : ['zero'],
     'permutation' : ['identity'], 'invertible' : ['identity'], 'singular' : ['zero'],
     'real' : ['integer'], 'toeplitz' : ['identity', 'zero'], 'hankel' : ['zero'], 'frobenius' : ['identity'],
     'positiveDefinite' : ['identity'], 'negativeSemidefinite' : ['zero', 'negativeDefinite'], 'positiveSemidefinite' : ['zero', 'positiveDefinite'],
@@ -1141,7 +1141,7 @@ Jmat.Matrix.prototype.render_summary = function() {
   return Jmat.Matrix.render_summary(this);
 };
 
-// TODO: functions like isSymmetrical, isHermitian, isDiagonal, ...
+// TODO: functions like isSymmetric, isHermitian, isDiagonal, ...
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -2026,6 +2026,37 @@ Jmat.Matrix.eigenVectorFor = function(m, lambda, opt_normalize) {
   return g;
 };
 
+// Returns eigenvalues and eigenvectors of real symmetric matrix with the Jacobi eigenvalue algorithm, as { l: eigenvalues, v: eigenvectors }
+// For correct result, requires that m is square, real and symmetric.
+Jmat.Matrix.jacobi_ = function(m, opt_epsilon, opt_normalize) {
+  var a = [];
+  var v = [];
+  var n = m.w;
+  for(var y = 0; y < n; y++) {
+    a[y] = [];
+    for(var x = 0; x < n; x++) {
+      a[y][x] = m.e[y][x].re;
+    }
+  }
+  Jmat.Real.matrix_jacobi(a, v, n, opt_epsilon);
+
+  if(opt_normalize == 1 || opt_normalize == undefined) {
+    for(var y = 0; y < n; y++) {
+      if(v[y][n - 1] == 0) continue;
+      for(var x = 0; x < n; x++) {
+        v[y][x] /= v[y][n - 1];
+      }
+    }
+  }
+  v = Jmat.Matrix(v).transpose();
+  var l = Jmat.Matrix(n, 1);
+  for(var i = 0; i < n; i++) {
+    l.e[i][0] = Jmat.Complex(a[i][i]);
+  }
+
+  return { l: l, v: v };
+};
+
 // Returns the eigenvectors and eigenvalues of m as { l: eigenvalues, v: eigenvectors }
 // eigenvalues as n*1 column vector, eigenvectors as n*n matrix
 // for each column of v and corresponding eigenvalue: A*v = l*v (l represents lambda, A is m)
@@ -2036,6 +2067,8 @@ Jmat.Matrix.eig = function(m, opt_normalize) {
   var n = m.w;
   if(n == 1) return M.eig11(m);
   if(n == 2) return M.eig22(m);
+
+  if(M.isReal(m) && M.isSymmetric(m)) return Jmat.Matrix.jacobi_(m, opt_normalize);
 
   var l = M.eigval(m);
 

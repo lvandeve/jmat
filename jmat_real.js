@@ -1366,6 +1366,83 @@ Jmat.Real.dayOfWeek = function(y, m, d) {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+// This is a matrix algorithm, but is in Jmat.Real because it operates on real elements, and you can use the algorithm without Matrix class.
+// Jacobi eigenvalue algorithm for real symmetric matrix
+// a is n*n 2D array with input and output matrix (real symmetric), contains eigenvalues on diagonal after the algorithm (sorted)
+// v is n*n 2D output array (may be initialized as []), matrix which will contain eigenvectors as rows after the algorithm (normalized)
+// n is matrix size
+// opt_epsilon is precision for when to stop the iterations (default 1e-15)
+Jmat.Real.matrix_jacobi = function(a, v, n, opt_epsilon) {
+  var epsilon = opt_epsilon == undefined ? 1e-15 : opt_epsilon;
+
+  // Make identity
+  for(var y = 0; y < n; y++) {
+    v[y] = [];
+    for(var x = 0; x < n; x++) {
+      v[y][x] = (x == y) ? 1 : 0;
+    }
+  }
+
+  // Sum of squares of all off-diagonal elements
+  var off2 = 0;
+  for(var y = 0; y < n; y++) {
+    for(var x = y + 1; x < n; x++) {
+      if(x != y) {
+        off2 += 2 * a[y][x] * a[y][x];
+      }
+    }
+  }
+
+  while(off2 > epsilon) {
+    for(var y = 0; y < n; y++) {
+      for(var x = y + 1; x < n; x++) {
+        if(a[y][x] * a[y][x] <= off2 / (2 * n * n)) continue; // Too small
+        off2 -= 2 * a[y][x] * a[y][x];
+        // Jacobi rotation coefficients
+        var beta = (a[x][x] - a[y][y]) / (2 * a[y][x]);
+        var t = Math.sign(beta) / (Math.abs(beta) + Math.sqrt(beta * beta + 1));
+        var s = 1 / (Math.sqrt(t * t + 1));
+        var c = s * t;
+        // Rotate rows of A
+        for(var k = 0; k < n; k++) {
+          var tmp = a[k][y];
+          a[k][y] = s * a[k][x] + c * tmp;
+          a[k][x] = c * a[k][x] - s * tmp;
+        }
+        // Rotate columns of A and V
+        for(var k = 0; k < n; k++) {
+          var tmp = a[y][k];
+          a[y][k] = s * a[x][k] + c * tmp;
+          a[x][k] = c * a[x][k] - s * tmp ;
+          tmp = v[y][k];
+          v[y][k] = cs = s * v[x][k] + c * tmp;
+          v[x][k] = sc = c * v[x][k] - s * tmp;
+        }
+      }
+    }
+  }
+
+  // Sort eigenvalues if needed
+  for(var k = 0; k < n; k++) {
+    var m = k;
+    for(var l = k + 1; l < n; l++) {
+      if(a[l][l] > a[m][m]) m = l;
+    }
+    if(k != m) {
+      var tmp = a[m][m];
+      a[m][m] = a[k][k];
+      a[k][k] = tmp;
+      for(var l = 0; l < n; l++) {
+        var tmp = v[m][l];
+        v[m][l] = v[k][l];
+        v[k][l] = tmp;
+      }
+    }
+  }
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 //f is function taking integer index as parameter and returning a real
 //returns index belonging to max return value of f in index range [s, e)
 Jmat.Real.argmax = function(s, e, f) {

@@ -976,6 +976,10 @@ Jmat.toString = function(a) {
   return Jmat.toString_(a, false);
 };
 
+Jmat.print = function(a) {
+  console.log(Jmat.toString(a));
+}
+
 // Nice string of any known object, with possibly some multiline rendered matrices
 Jmat.render = function(a, opt_precision) {
   return Jmat.toString_(a, true, opt_precision);
