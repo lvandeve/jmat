@@ -282,12 +282,13 @@ Jmat.Complex.hypergeometric2F1 = function(a, b, c, z) {
     } else {
       // 1 / z
       var t = C.isNegativeIntOrZero;
-      if((t(c) + t(b.sub(a)) != t(b) + t(c.sub(a))) || (t(c) + t(a.sub(b)) != t(a) + t(c.sub(b)))) {
+      // This if probably covers more cases than needed, but there are a lot of cases. Even gammaDiv22_ doesn't help out. E.g. if a,b,c are all 0.5, the limit is different than gammaDiv22_.
+      if(t(a) || t(b) || t(b) || C.isInt(a.sub(b)) || t(c.sub(a)) || t(c.sub(b))) {
         // Twiddle to take the limit to avoid singularities (they cancel it out, but, finding exact formula here is too hard)
         // TODO: improve this since this is very imprecise
-        a = a.addr(1.0e-6);
-        b = b.subr(1.1e-6);
-        c = c.addr(1.2e-6);
+        a = a.addr(0.1e-7);
+        b = b.subr(0.2e-7);
+        c = c.addr(0.3e-7);
       }
       var zi = z.inv();
       var za = z.neg().pow(a.neg());

@@ -177,6 +177,8 @@ Jmat.doUnitTest = function(opt_verbose) {
   Jmat.Test.testFunction('9.59012e-135-9.59012e-135i', 1e-6, Jmat.besselj, '112.5', '-5.5i');
   Jmat.Test.testFunction('-0.359814152183402722051986577', 1e-12, Jmat.bessely, '10', '10');
   Jmat.Test.testFunction('6.3618456410625559136428432181', 1e-12, Jmat.hypergeometric1F1, 1, 2, 3);
+  Jmat.Test.testFunction('0.506370', 1e-5, Jmat.hypergeometric2F1, 0.5, 0.5, 0.5, -2.9);
+  Jmat.Test.testFunction('0.493865', 1e-5, Jmat.hypergeometric2F1, 0.5, 0.5, 0.5, -3.1);
 
   //other
   Jmat.Test.testFunction(3581, 0, Real.smallestPrimeFactor, 12830723);
