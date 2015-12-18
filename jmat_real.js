@@ -1415,8 +1415,8 @@ Jmat.Real.matrix_jacobi = function(a, v, n, opt_epsilon) {
           a[y][k] = s * a[x][k] + c * tmp;
           a[x][k] = c * a[x][k] - s * tmp ;
           tmp = v[y][k];
-          v[y][k] = cs = s * v[x][k] + c * tmp;
-          v[x][k] = sc = c * v[x][k] - s * tmp;
+          v[y][k] = s * v[x][k] + c * tmp;
+          v[x][k] = c * v[x][k] - s * tmp;
         }
       }
     }
