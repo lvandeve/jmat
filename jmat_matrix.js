@@ -418,25 +418,58 @@ Jmat.Matrix.n3mul_ = function(a, b) {
   return result;
 };
 
+// the iterative O(n^3) multiplication algorithm
+// slow version without cache optimization, left for reference and comparison
+Jmat.Matrix.n3mul_nocache_ = function(a, b) {
+  if(a.w != b.h) return null; // mathematically invalid
+  var result = new Jmat.Matrix(a.h, b.w);
+
+  for(var y = 0; y < a.h; y++) {
+    for(var x = 0; x < b.w; x++) {
+      var e = Jmat.Complex(0);
+      for(var z = 0; z < a.w; z++) e = e.add(a.e[y][z].mul(b.e[z][x]));
+      result.e[y][x] = e;
+    }
+  }
+  return result;
+};
+
+// the iterative O(n^3) multiplication algorithm
+Jmat.Matrix.n3mul_ = function(a, b) {
+  if(a.w != b.h) return null; // mathematically invalid
+  var result = new Jmat.Matrix(a.h, b.w);
+  var temp = [];
+  for (var x = 0; x < b.w; x++) {
+    for (var z = 0; z < a.w; z++) temp[z] = b.e[z][x]; // copy for better caching (faster)
+    for (var y = 0; y < a.h; y++) {
+      var e = Jmat.Complex(0);
+      for (var z = 0; z < a.w; z++) e = e.add(a.e[y][z].mul(temp[z]));
+      result.e[y][x] = e;
+    }
+  }
+  return result;
+};
+
 // Strassen matrix multiplication algorithm
-// Only executes the algorithm for large enough square even-sized matrix
-// TODO: also support odd-sized and non-square matrices
-// Measurably faster in JS for 256x256 matrices and higher
+// Measurably faster in JS for 400x400 matrices and higher
 Jmat.Matrix.strassen_ = function(a, b) {
   var M = Jmat.Matrix;
-  if(a.w < 128 || b.w < 128) return M.n3mul_(a, b);
-  if(a.w != b.h) return null;
-  if(a.w != a.h || b.w != b.h) return M.n3mul_(a, b);
-  if((a.w & 1) || (b.w & 1)) return M.n3mul_(a, b);
+  if(a.w != b.h) return null; // mathematically invalid
+  if(a.w < 2 || a.h < 2 || b.w < 2) return M.n3mul_(a, b); // doesn't support smaller size than that
 
-  var a00 = M.submatrix(a, 0, a.h / 2, 0, a.w / 2);
-  var a01 = M.submatrix(a, 0, a.h / 2, a.w / 2, a.w);
-  var a10 = M.submatrix(a, a.h / 2, a.h, 0, a.w / 2);
-  var a11 = M.submatrix(a, a.h / 2, a.h, a.w / 2, a.w);
-  var b00 = M.submatrix(b, 0, b.h / 2, 0, b.w / 2);
-  var b01 = M.submatrix(b, 0, b.h / 2, b.w / 2, b.w);
-  var b10 = M.submatrix(b, b.h / 2, b.h, 0, b.w / 2);
-  var b11 = M.submatrix(b, b.h / 2, b.h, b.w / 2, b.w);
+  var n = Math.min(a.h, Math.min(a.w, b.w));
+  if(n & 1) n--; // we need even size
+
+  var n2 = Math.floor(n / 2);
+
+  var a00 = M.submatrix(a, 0, n2, 0, n2);
+  var a01 = M.submatrix(a, 0, n2, n2, n2 * 2);
+  var a10 = M.submatrix(a, n2, n2 * 2, 0, n2);
+  var a11 = M.submatrix(a, n2, n2 * 2, n2, n2 * 2);
+  var b00 = M.submatrix(b, 0, n2, 0, n2);
+  var b01 = M.submatrix(b, 0, n2, n2, n2 * 2);
+  var b10 = M.submatrix(b, n2, n2 * 2, 0, n2);
+  var b11 = M.submatrix(b, n2, n2 * 2, n2, n2 * 2);
 
   var m0 = (a00.add(a11)).mul(b00.add(b11));
   var m1 = (a10.add(a11)).mul(b00);
@@ -446,20 +479,39 @@ Jmat.Matrix.strassen_ = function(a, b) {
   var m5 = (a10.sub(a00)).mul(b00.add(b01));
   var m6 = (a01.sub(a11)).mul(b10.add(b11));
 
-  var c00 = m0.add(m3).sub(m4).add(m6); // a00.mul(b00).add(a01.mul(b10));
-  var c01 = m2.add(m4);                 // a00.mul(b01).add(a01.mul(b11));
-  var c10 = m1.add(m3);                 // a10.mul(b00).add(a11.mul(b10));
-  var c11 = m0.sub(m1).add(m2).add(m5); // a10.mul(b01).add(a11.mul(b11));
+  var c00 = m0.add(m3).sub(m4).add(m6); // instead of: a00.mul(b00).add(a01.mul(b10));
+  var c01 = m2.add(m4);                 // instead of: a00.mul(b01).add(a01.mul(b11));
+  var c10 = m1.add(m3);                 // instead of: a10.mul(b00).add(a11.mul(b10));
+  var c11 = m0.sub(m1).add(m2).add(m5); // instead of: a10.mul(b01).add(a11.mul(b11));
 
-  var c = c00;
-  c = M.augment(c, c01, 0, c00.w);
-  c = M.augment(c, c10, c00.h, 0);
-  c = M.augment(c, c11, c00.h, c00.w);
+  var c = M(a.h, b.w);
+  M.insertInPlace(c, c00, 0, 0);
+  M.insertInPlace(c, c01, 0, c00.w);
+  M.insertInPlace(c, c10, c00.h, 0);
+  M.insertInPlace(c, c11, c00.h, c00.w);
+
+  // fix dynamic peeling. TODO: this means it's as slow as the n^3 algorithm for parts of very non-square matrices. Implement smarter solution.
+  if(n != a.w || n != a.h || n != b.w) {
+    var temp = [];
+    for (var x = 0; x < b.w; x++) {
+      for (var z = 0; z < a.w; z++) temp[z] = b.e[z][x]; // copy for better caching (faster)
+      for (var y = 0; y < a.h; y++) {
+        var e = Jmat.Complex(0);
+        var z0 = 0;
+        if(x < n && y < n) z0 = n;
+        else c.e[y][x] = Jmat.Complex(0);
+        for (var z = z0; z < a.w; z++) e = e.add(a.e[y][z].mul(temp[z]));
+        c.e[y][x] = c.e[y][x].add(e);
+      }
+    }
+  }
 
   return c;
 };
 
 Jmat.Matrix.mul = function(a, b) {
+  var m = Math.min(a.w, Math.min(a.h, b.w));
+  if(m < 350) return Jmat.Matrix.n3mul_(a, b);
   return Jmat.Matrix.strassen_(a, b);
 };
 Jmat.Matrix.prototype.mul = function(b) {
@@ -1589,11 +1641,11 @@ Jmat.Matrix.rank = function(m, opt_epsilon) {
   return Jmat.Complex(rank);
 };
 
-// Only defined for square matrices
+// Mathematically only defined for square matrices, but will also return the
+// sum of diagonal elements of non-square matrix in this implementation
 Jmat.Matrix.trace = function(m) {
-  if(m.w != m.h) return Jmat.Complex(NaN);
   var result = Jmat.Complex.ZERO;
-  for(var x = 0; x < m.w; x++) result = result.add(m.e[x][x]);
+  for(var x = 0; x < m.w && x < m.h; x++) result = result.add(m.e[x][x]);
   return result;
 };
 
@@ -1654,19 +1706,22 @@ Jmat.Matrix.overlap = function(a, b, row, col) {
 };
 
 // given b shifted by row,col, insert it into a, overwriting the matching elements of a, leaving other elements of a untouched. Parts of b outside of a, are discarded. The result has the same size as a.
-Jmat.Matrix.insert = function(a, b, row, col) {
-  var result = Jmat.Matrix.copy(a);
-
+Jmat.Matrix.insertInPlace = function(a, b, row, col) {
   for(var y = 0; y < b.h; y++) {
     for(var x = 0; x < b.w; x++) {
       var rx = x + col;
       var ry = y + row;
       if(rx >= 0 && rx < a.w && ry >= 0 && ry < a.h) {
-        result.e[ry][rx] = b.e[y][x];
+        a.e[ry][rx] = b.e[y][x];
       }
     }
   }
+};
 
+// given b shifted by row,col, insert it into a, overwriting the matching elements of a, leaving other elements of a untouched. Parts of b outside of a, are discarded. The result has the same size as a.
+Jmat.Matrix.insert = function(a, b, row, col) {
+  var result = Jmat.Matrix.copy(a);
+  Jmat.Matrix.insertInPlace(result, b, row, col);
   return result;
 };
 
