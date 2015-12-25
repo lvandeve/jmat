@@ -1366,6 +1366,119 @@ Jmat.Real.dayOfWeek = function(y, m, d) {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+/*
+Here are a few matrix algorithms in Jmat.Real. Much more algorithms are in
+Jmat.Matrix. However, the ones here work only on real numbers, and do not use
+any special class for matrices, just 2D arrays. The length of the array is the
+matrix height, sub-arrays are rows. Sometimes a column vector is given as a 1D
+array.
+*/
+
+Jmat.Real.matrix_add = function(a, b) {
+  if(a.length != b.length || a[0].length != b[0].length) return undefined;
+  var c = [];
+  for(var y = 0; y < a.length; y++) {
+    c[y] = [];
+    for(var x = 0; x < a[y].length; x++) {
+      c[y][x] = a[y][x] + b[y][x];
+    }
+  }
+  return c;
+};
+
+Jmat.Real.matrix_mul = function(a, b) {
+  // TODO: add strassen algorithm
+  var m = a.length;
+  var n = a[0].length;
+  var p = b[0].length;
+  if(n != b.length) return undefined;
+  var result = [];
+  for (var y = 0; y < m; y++) result[y] = [];
+  var temp = [];
+  for (var x = 0; x < p; x++) {
+    for (var z = 0; z < n; z++) temp[z] = b[z][x]; // copy for better caching (faster)
+    for (var y = 0; y < m; y++) {
+      var e = 0;
+      for (var z = 0; z < n; z++) e += a[y][z] * temp[z];
+      result[y][x] = e;
+    }
+  }
+  return result;
+};
+
+// Bring a to reduced row echelon form, in-place (modifies the input object)
+Jmat.Real.matrix_rref = function(a) {
+  var h = a.length;
+  var w = a[0].length;
+
+  var swaprow = function(matrix, y0, y1) {
+    var temp = matrix[y0];
+    matrix[y0] = matrix[y1];
+    matrix[y1] = temp;
+  };
+
+  // subtracts f * y0 from y1 (modifying row y1), starting from x.
+  var subrow = function(matrix, x, y0, y1, f) {
+    var w = matrix[0].length;
+    for (var i = x; i < w; i++) {
+      matrix[y1][i] -= f * matrix[y0][i];
+    }
+  };
+
+  // only starts at x rather than from the beginning
+  var mulrow = function(matrix, x, y, v) {
+    for (var i = x; i < w; i++) {
+      matrix[y][i] = matrix[y][i] * v;
+    }
+  };
+
+  var pivots = []; // x coordinate of pivot in each row (except the zero rows at the end, so may have smaller length than h)
+
+  // gaussian elimination
+  var k2 = 0; //next row, equal to k unless there are zero-rows
+  for(var k = 0; k < w; k++) {
+    var n = Jmat.Real.argmax(k2, h, function(i) { return Math.abs(a[i][k]); });
+    if (a[n][k] == 0) continue; // singular, leave row as is
+    if(k2 != n) swaprow(a, k2, n);
+    mulrow(a, k, k2, 1 / a[k2][k]); // pivot is now 1
+    for (var i = k2 + 1; i < h; i++) {
+      if(a[i][k] != 0) subrow(a, k, k2, i, a[i][k]);
+      a[i][k] = 0; // make extra-sure it's 0, avoid numerical imprecision
+    }
+    pivots.push(k);
+    k2++;
+    if(k2 >= h) break;
+  }
+
+  //now bring from row echolon form to reduced row echolon form
+  for(var k = 0; k < pivots.length; k++) {
+    var p = pivots[k];
+    for(var y = k - 1; y >= 0; y--) {
+      if(a[y][p] != 0) subrow(a, p, k, y, a[y][p]);
+      a[y][p] = 0; // make extra-sure it's 0, avoid numerical imprecision
+    }
+  }
+
+  return a;
+};
+
+// solves A*X = B. B and result are column vector given as 1D array.
+Jmat.Real.matrix_solve = function(a, b) {
+  var aug = [];
+  for(var y = 0; y < a.length; y++) {
+    aug[y] = [];
+    for(var x = 0; x < a[y].length; x++) aug[y][x] = a[y][x];
+    aug[y].push(b[y] || 0);
+  }
+
+  var r = Jmat.Real.matrix_rref(aug);
+
+  // If we got a non-square a as input, our output size must be the width, not height, of a.
+  var result = [];
+  for(var i = 0; i < r[0].length - 1; i++) result[i] = r[i][r[i].length - 1];
+  return result;
+};
+
 // This is a matrix algorithm, but is in Jmat.Real because it operates on real elements, and you can use the algorithm without Matrix class.
 // Jacobi eigenvalue algorithm for real symmetric matrix
 // a is n*n 2D array with input and output matrix (real symmetric), contains eigenvalues on diagonal after the algorithm (sorted)

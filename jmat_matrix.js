@@ -32,6 +32,8 @@ THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 Jmat.Matrix: matrix and vector math
 
 NOTE: Many routines assume an epsilon of 1e-15, considering values smaller than this to be zero
+NOTE: There are also a few matrix algorithms in jmat_real.js. Those work on 2D arrays of real numbers,
+      while here we work on a custom object with complex numbers.
 
 Overview of some functionality:
 -decompositions: Matrix.lu, Matrix.qr, Matrix.svd, Matrix.evd
