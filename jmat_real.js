@@ -1386,6 +1386,18 @@ Jmat.Real.matrix_add = function(a, b) {
   return c;
 };
 
+Jmat.Real.matrix_sub = function(a, b) {
+  if(a.length != b.length || a[0].length != b[0].length) return undefined;
+  var c = [];
+  for(var y = 0; y < a.length; y++) {
+    c[y] = [];
+    for(var x = 0; x < a[y].length; x++) {
+      c[y][x] = a[y][x] - b[y][x];
+    }
+  }
+  return c;
+};
+
 Jmat.Real.matrix_mul = function(a, b) {
   // TODO: add strassen algorithm
   var m = a.length;
@@ -1401,6 +1413,39 @@ Jmat.Real.matrix_mul = function(a, b) {
       var e = 0;
       for (var z = 0; z < n; z++) e += a[y][z] * temp[z];
       result[y][x] = e;
+    }
+  }
+  return result;
+};
+
+Jmat.Real.matrix_mulr = function(a, v) {
+  var r = [];
+  for(var y = 0; y < a.length; y++) {
+    r[y] = [];
+    for(var x = 0; x < a[y].length; x++) {
+      r[y][x] = a[y][x] * v;
+    }
+  }
+  return r;
+};
+
+Jmat.Real.matrix_divr = function(a, v) {
+  var r = [];
+  for(var y = 0; y < a.length; y++) {
+    r[y] = [];
+    for(var x = 0; x < a[y].length; x++) {
+      r[y][x] = a[y][x] / v;
+    }
+  }
+  return r;
+};
+
+Jmat.Real.matrix_transpose = function(m) {
+  var result = [];
+  for(var y = 0; y < m[0].length; y++) {
+    result[y] = [];
+    for(var x = 0; x < m.length; x++) {
+      result[y][x] = m[x][y];
     }
   }
   return result;
