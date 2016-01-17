@@ -1252,6 +1252,7 @@ Jmat.Matrix.prototype.transjugate = function() {
 // Internal algorithm for lu.
 // Returns L and U merged into one matrix (without L's diagonal 1's), a pivot array (permutation) with element i the pivot row interchanged with row i, and the parity (0 or 1) of the permutation.
 // TODO: usually the permutation format of this function is what you want, not the matrix that lu() returns, so make this public in some way
+// TODO: support rectangular matrices
 Jmat.Matrix.doolittle_lup_ = function(a) {
   if(a.h != a.w) return null; //must be square
   var M = Jmat.Matrix;
@@ -1291,7 +1292,7 @@ Jmat.Matrix.doolittle_lup_ = function(a) {
       if(C.isNaN(a.e[i][k])) a.e[i][k] = C(0); // Set 0/0 to 0 for singular input matrix.
     }
     for(var i = k + 1; i < a.h; i++) {
-      for(var j = k + 1; j < a.h; j++) {
+      for(var j = k + 1; j < a.w; j++) {
         a.e[i][j] = a.e[i][j].sub(a.e[i][k].mul(a.e[k][j]));
       }
     }
@@ -1728,7 +1729,10 @@ Jmat.Matrix.insert = function(a, b, row, col) {
 };
 
 // similar to insert, but will write outside the matrix if needed, increasing its size
-Jmat.Matrix.augment = function(a, b, row, col) {
+// by default, appends to the right
+Jmat.Matrix.augment = function(a, b, opt_row, opt_col) {
+  var row = (opt_row == undefined ? 0 : opt_row);
+  var col = (opt_col == undefined ? a.w : opt_col);
   var h = Math.max(row + b.h, a.h) - Math.min(0, row);
   var w = Math.max(col + b.w, a.w) - Math.min(0, col);
 
@@ -2791,9 +2795,9 @@ Jmat.Matrix.relnear = function(a, b, precision) {
 //solves system of linear equations ax=b.
 //Returns null if the system is inconsistent and has no solution, x otherwise.
 //If multiple solutions are possible, returns the solution where the vector of free variables is 0.
-//Uses the pseudoinverse if A is not invertible
-//a: input matrix, h*w size
+//a: input matrix, h*w size (h = number of equations, w = number of unknowns)
 //b: input vector, h*1 size
+//result: w*1 size
 //opt_epsilon: optional parameter, in case of homogenous system, how near the smallest singular value of a should be to return a solution
 Jmat.Matrix.solve = function(a, b, opt_epsilon) {
   var M = Jmat.Matrix;
@@ -2808,31 +2812,28 @@ Jmat.Matrix.solve = function(a, b, opt_epsilon) {
     return M.col(svd.v, a.w - 1);
   }
 
-  var r = M.doolittle_lup_(a);
-  if(!r) return null; // error
-  var lu = r[0];
-  var pivot = r[1];
-
-  var n = lu.h;
-  var x = M(n, 1);
-
-  for (var k = 0; k < n; k++) {
-    if (pivot[k] != k) { var temp = b.e[k][0]; b.e[k][0] = b.e[pivot[k]][0]; b.e[pivot[k]][0] = temp; }
-    x.e[k][0] = b.e[k][0];
-    for(var i = 0; i < k; i++) x.e[k][0] = x.e[k][0].sub(x.e[i][0].mul(lu.e[k][i]));
+  // TODO: more numerically stable algorithm?
+  var ab = M.augment(a, b);
+  var r = M.rref(ab);
+  var result = M(a.w, 1, 0);
+  var x0 = 0;
+  for(var y = 0; y < r.h; y++) {
+    var x = x0;
+    for(; x < r.w; x++) {
+      if(!r.e[y][x].eqr(0)) {
+        if(x == r.w - 1) return null; // inconsistent system: row with all zeroes except in the augmented part
+        result.e[x][0] = r.e[y][ab.w - 1];
+        x0 = x + 1;
+        break;
+      }
+    }
+    if(x == r.w - 1) break; // done
   }
-  for (var k = n-1; k >= 0; k--) {
-    if (pivot[k] != k) { var temp = b.e[k][0]; b.e[k][0] = b.e[pivot[k]][0]; b.e[pivot[k]][0] = temp; }
-    for(var i = k + 1; i < n; i++) x.e[k][0] = x.e[k][0].sub(x.e[i][0].mul(lu.e[k][i]));
-    if (!lu.e[k][k].eqr(0)) x.e[k][0] = x.e[k][0].div(lu.e[k][k]);
-  }
-
-  return x;
+  return result;
 };
 
 
 // Returns the matrix in reduced row echolon form. Supports non-square and singular matrices. Is always the identity matrix if the input is invertible.
-// Can also be used to solve a linear system, by giving the augmented matrix and using the right column, though Jmat.Matrix.solve should be numerically more stable.
 Jmat.Matrix.rref = function(a) {
   /*
   Check in console:
