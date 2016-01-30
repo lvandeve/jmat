@@ -1,7 +1,7 @@
 /*
 Jmat.js
 
-Copyright (c) 2011-2015, Lode Vandevenne
+Copyright (c) 2011-2016, Lode Vandevenne
 All rights reserved.
 
 Redistribution and use in source and binary forms, with or without modification,
@@ -35,6 +35,7 @@ Overview of some functionality:
 -elementary arithmetic: Complex.add, Complex.sub, Complex.mul, Complex.div
 -mathematical functions: Complex.pow, Complex.exp, Complex.sqrt, Complex.log, Complex.cos, Complex.cosh, Complex.acos, ...
 -special functions: Complex.erf, Complex.lambertw, Complex.gamma (more are in jmat_special.js)
+-fft
 */
 
 /*
@@ -1205,3 +1206,233 @@ Jmat.Complex.random = function(r0, r1) {
   r1 = (r1 == undefined) ?  1 : r1;
   return Jmat.Complex.polar(Math.random() * (r1 - r0) + r0, Math.random() * Math.PI * 2);
 };
+
+
+
+////////////////////////////////////////////////////////////////////////////////
+/** @license
+License of Jmat.Complex.kiss_fft_ (converted from C to JavaScript):
+Kiss FFT
+Copyright (c) 2003-2010, Mark Borgerding
+All rights reserved.
+Redistribution and use in source and binary forms, with or without modification, are permitted provided that the following conditions are met:
+* Redistributions of source code must retain the above copyright notice, this list of conditions and the following disclaimer.
+* Redistributions in binary form must reproduce the above copyright notice, this list of conditions and the following disclaimer in the documentation and/or other materials provided with the distribution.
+* Neither the author nor the names of any contributors may be used to endorse or promote products derived from this software without specific prior written permission.
+THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT OWNER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+*/
+Jmat.Complex.kiss_fft_ = function(fin/*Jmat.Complex array of size nfft*/, fout/*Jmat.Complex array of size nfft*/, inverse) {
+  // Constructor
+  var KissFFTState = function(nfft, inverse) {
+    this.nfft = nfft;
+    this.inverse = inverse;
+    this.factors = []; //int array, size 32
+    this.twiddles = []; //complex Jmat.Complex array, size nfft-1
+  };
+  var kf_bfly2_ = function(Fout /*array of complex Jmat.Complex*/, Fout_index, fstride /*int*/, st /*kiss_fft_state*/, m /*int*/) {
+    var j = 0;
+    for(var i = 0; i < m; i++) {
+      var t = Fout[Fout_index + i + m].mul(st.twiddles[j]);
+      j += fstride;
+      Fout[Fout_index + i + m] = Fout[Fout_index + i].sub(t);
+      Fout[Fout_index + i] = Fout[Fout_index + i].add(t);
+    }
+  };
+  var kf_bfly4_ = function(Fout /*array of complex Jmat.Complex*/, Fout_index, fstride /*int*/, st /*kiss_fft_state*/, m /*int*/) {
+    var scratch = []; //size 6
+    var m2=2*m;
+    var m3=3*m;
+    var j1 = 0;
+    var j2 = 0;
+    var j3 = 0;
+    for(var i = 0; i < m; i++) {
+      scratch[0] = Fout[Fout_index + i + m].mul(st.twiddles[j1]);
+      scratch[1] = Fout[Fout_index + i + m2].mul(st.twiddles[j2]);
+      scratch[2] = Fout[Fout_index + i + m3].mul(st.twiddles[j3]);
+      scratch[5] = Fout[Fout_index + i].sub(scratch[1]);
+      Fout[Fout_index + i] = Fout[Fout_index + i].add(scratch[1]);
+      scratch[3] = scratch[0].add(scratch[2]);
+      scratch[4] = scratch[0].sub(scratch[2]);
+      Fout[Fout_index + i + m2] = Fout[Fout_index + i].sub(scratch[3]);
+      j1 += fstride;
+      j2 += fstride*2;
+      j3 += fstride*3;
+      Fout[Fout_index + i] = Fout[Fout_index + i].add(scratch[3]);
+      if(st.inverse) {
+        Fout[Fout_index + i + m].re = scratch[5].re - scratch[4].im;
+        Fout[Fout_index + i + m].im = scratch[5].im + scratch[4].re;
+        Fout[Fout_index + i + m3].re = scratch[5].re + scratch[4].im;
+        Fout[Fout_index + i + m3].im = scratch[5].im - scratch[4].re;
+      } else {
+        Fout[Fout_index + i + m].re = scratch[5].re + scratch[4].im;
+        Fout[Fout_index + i + m].im = scratch[5].im - scratch[4].re;
+        Fout[Fout_index + i + m3].re = scratch[5].re - scratch[4].im;
+        Fout[Fout_index + i + m3].im = scratch[5].im + scratch[4].re;
+      }
+    }
+  };
+  var kf_bfly3_ = function(Fout /*array of complex Jmat.Complex*/, Fout_index, fstride /*int*/, st /*kiss_fft_state*/, m /*int*/) {
+    var k=m;
+    var m2 = 2*m;
+    var j1 = 0;
+    var j2 = 0;
+    var scratch = [];
+    var epi3 = st.twiddles[fstride*m];
+    for(var i = 0; i < k; i++) {
+      scratch[1]=Fout[Fout_index + i+m].mul(st.twiddles[j1]);
+      scratch[2]=Fout[Fout_index + i+m2].mul(st.twiddles[j2]);
+      scratch[3]=scratch[1].add(scratch[2]);
+      scratch[0]=scratch[1].sub(scratch[2]);
+      j1 += fstride;
+      j2 += fstride*2;
+      Fout[Fout_index + i+m].re = Fout[Fout_index + i].re - scratch[3].re/2;
+      Fout[Fout_index + i+m].im = Fout[Fout_index + i].im - scratch[3].im/2;
+      scratch[0] = scratch[0].mulr(epi3.im);
+      Fout[Fout_index + i] = Fout[Fout_index + i].add(scratch[3]);
+      Fout[Fout_index + i+m2].re = Fout[Fout_index + i+m].re + scratch[0].im;
+      Fout[Fout_index + i+m2].im = Fout[Fout_index + i+m].im - scratch[0].re;
+      Fout[Fout_index + i+m].re -= scratch[0].im;
+      Fout[Fout_index + i+m].im += scratch[0].re;
+    }
+  };
+  var kf_bfly5_ = function(Fout /*array of complex Jmat.Complex*/, Fout_index, fstride /*int*/, st /*kiss_fft_state*/, m /*int*/) {
+    var scratch = []; //size-13 complex array
+    var ya = st.twiddles[fstride*m];
+    var yb = st.twiddles[fstride*2*m];
+    var m2 = 2 * m;
+    var m3 = 3 * m;
+    var m4 = 4 * m;
+    for (var u=0; u<m; ++u ) {
+      scratch[0] = Jmat.Complex(Fout[Fout_index + u]);
+      scratch[1] = Fout[Fout_index + m+u].mul(st.twiddles[u*fstride]);
+      scratch[2] = Fout[Fout_index + m2+u].mul(st.twiddles[2*u*fstride]);
+      scratch[3] = Fout[Fout_index + m3+u].mul(st.twiddles[3*u*fstride]);
+      scratch[4] = Fout[Fout_index + m4+u].mul(st.twiddles[4*u*fstride]);
+      scratch[7] = scratch[1].add(scratch[4]);
+      scratch[10]= scratch[1].sub(scratch[4]);
+      scratch[8] = scratch[2].add(scratch[3]);
+      scratch[9] = scratch[2].sub(scratch[3]);
+      Fout[Fout_index + u].re += scratch[7].re + scratch[8].re;
+      Fout[Fout_index + u].im += scratch[7].im + scratch[8].im;
+      scratch[5] = Jmat.Complex(0);
+      scratch[5].re = scratch[0].re + scratch[7].re*ya.re + scratch[8].re*yb.re;
+      scratch[5].im = scratch[0].im + scratch[7].im*ya.re + scratch[8].im*yb.re;
+      scratch[6] = Jmat.Complex(0);
+      scratch[6].re = scratch[10].im*ya.im + scratch[9].im*yb.im;
+      scratch[6].im = -scratch[10].re*ya.im - scratch[9].re*yb.im;
+      Fout[Fout_index + m+u]=scratch[5].sub(scratch[6]);
+      Fout[Fout_index + m4+u]=scratch[5].add(scratch[6]);
+      scratch[11] = Jmat.Complex(0);
+      scratch[11].re = scratch[0].re + scratch[7].re*yb.re + scratch[8].re*ya.re;
+      scratch[11].im = scratch[0].im + scratch[7].im*yb.re + scratch[8].im*ya.re;
+      scratch[12] = Jmat.Complex(0);
+      scratch[12].re = -scratch[10].im*yb.im + scratch[9].im*ya.im;
+      scratch[12].im = scratch[10].re*yb.im - scratch[9].re*ya.im;
+      Fout[Fout_index + m2+u]=scratch[11].add(scratch[12]);
+      Fout[Fout_index + m3+u]=scratch[11].sub(scratch[12]);
+    }
+  };
+  // perform the butterfly for one stage of a mixed radix FFT
+  var kf_bfly_generic_ = function(Fout /*array of complex Jmat.Complex*/, Fout_index, fstride /*int*/, st /*kiss_fft_state*/, m /*int*/, p /*int*/) {
+    var u,k,q1,q; /*int*/
+    var t; // complex Jmat.Complex
+    var Norig = st.nfft;
+    var scratch = [];
+    for ( u=0; u<m; ++u ) {
+      k=u;
+      for ( q1=0 ; q1<p ; ++q1 ) {
+        scratch[q1] = Jmat.Complex(Fout[Fout_index + k]);
+        k += m;
+      }
+      k=u;
+      for ( q1=0 ; q1<p ; ++q1 ) {
+        var twidx=0;
+        Fout[Fout_index + k] = scratch[0];
+        for (q=1;q<p;++q ) {
+          twidx += fstride * k;
+          if (twidx>=Norig) twidx-=Norig;
+          t = scratch[q].mul(st.twiddles[twidx] );
+          Fout[Fout_index + k] = Fout[Fout_index + k].add(t);
+        }
+        k += m;
+      }
+    }
+  };
+  var kf_work_ = function(Fout /*array of complex Jmat.Complex*/, Fout_index, f /*array of complex Jmat.Complex*/,f_index,
+      fstride /*int*/, in_stride /*int*/, factors /*int array*/, factors_index,st /*kiss_fft_state*/) {
+    var p = factors[factors_index + 0]; /* the radix */
+    var m = factors[factors_index + 1]; /* stage's fft length/p */
+    var j = 0;
+
+    if (m==1) {
+      for(var i = 0; i < p*m; i++) {
+        Fout[i + Fout_index] = Jmat.Complex(f[f_index + j]);
+        j += fstride*in_stride;
+      }
+    }else{
+      for(var i = 0; i < p*m; i += m) {
+        // recursive call:
+        // DFT of size m*p performed by doing p instances of smaller DFTs of size m, each one takes a decimated version of the input
+        kf_work_(Fout, Fout_index + i, f, f_index + j, fstride*p, in_stride, factors, factors_index + 2, st);
+        j += fstride*in_stride;
+      }
+    }
+    // recombine the p smaller DFTs
+    switch (p) {
+      case 2: kf_bfly2_(Fout,Fout_index,fstride,st,m); break;
+      case 3: kf_bfly3_(Fout,Fout_index,fstride,st,m); break;
+      case 4: kf_bfly4_(Fout,Fout_index,fstride,st,m); break;
+      case 5: kf_bfly5_(Fout,Fout_index,fstride,st,m); break;
+      default: kf_bfly_generic_(Fout,Fout_index,fstride,st,m,p); break;
+    }
+  };
+  // facbuf is populated by p1,m1,p2,m2, ... where p[i] * m[i] = m[i-1], m0 = n
+  var kf_factor_ = function(n, facbuf) {
+    var i = 0;
+    var p=4;
+    var floor_sqrt = Math.floor( Math.sqrt(n) );
+    // factor out powers of 4, powers of 2, then any remaining primes
+    do {
+      while (n % p != 0) {
+        switch (p) {
+          case 4: p = 2; break;
+          case 2: p = 3; break;
+          default: p += 2; break;
+        }
+        if (p > floor_sqrt) p = n; // no more factors, skip to end
+      }
+      n = Math.floor(n / p);
+      facbuf[i + 0] = p;
+      facbuf[i + 1] = n;
+      i += 2;
+    } while (n > 1);
+  };
+  // returns kiss_fft_state object initialized for given size and inversion
+  var kiss_fft_alloc_ = function(nfft,inverse_fft) {
+    var st = new KissFFTState(nfft, inverse_fft);
+    for (var i=0;i<nfft;++i) {
+      var phase = -Math.PI*2*i / nfft;
+      if (st.inverse) phase *= -1;
+      st.twiddles[i] = new Jmat.Complex(Math.cos(phase), Math.sin(phase));
+    }
+    kf_factor_(nfft,st.factors);
+    return st;
+  };
+  var kiss_fft_ = function(st/*kiss_fft_state object*/,fin/*complex Jmat.Complex array of size nfft*/,fout/*complex Jmat.Complex array of size nfft*/) {
+    kf_work_(fout, 0, fin, 0, 1, 1/*in_stride*/, st.factors, 0, st);
+  };
+  var st = kiss_fft_alloc_(fin.length, inverse);
+  kiss_fft_(st, fin, fout);
+};
+// End of Kiss FFT
+////////////////////////////////////////////////////////////////////////////////
+
+Jmat.Complex.fft = function(a, inverse) {
+  var out = [];
+  for(var i = 0; i < a.length; i++) out[i] = Jmat.Complex(0);
+  Jmat.Complex.kiss_fft_(a, out, inverse);
+  var factor = 1.0 / Math.sqrt(a.length);
+  for(var i = 0; i < a.length; i++) out[i] = out[i].mulr(factor);
+  return out;
+};
+

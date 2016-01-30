@@ -1,7 +1,7 @@
 /*
 Jmat.js
 
-Copyright (c) 2011-2014, Lode Vandevenne
+Copyright (c) 2011-2016, Lode Vandevenne
 All rights reserved.
 
 Redistribution and use in source and binary forms, with or without modification,
