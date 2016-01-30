@@ -2832,6 +2832,10 @@ Jmat.Matrix.solve = function(a, b, opt_epsilon) {
   return result;
 };
 
+// Gives the least squares solution to the (overdetermined) linear system ax=b, that is, minimizes ||ax-b||^2
+Jmat.Matrix.leastSquares = function(a, b) {
+  return Jmat.Matrix.pseudoinverse(a).mul(b);
+};
 
 // Returns the matrix in reduced row echolon form. Supports non-square and singular matrices. Is always the identity matrix if the input is invertible.
 Jmat.Matrix.rref = function(a) {
