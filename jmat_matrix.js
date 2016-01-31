@@ -2688,7 +2688,7 @@ Jmat.Matrix.zsvdc_ = function(x, ldx, n, p, s, e, u, ldu, v, ldv, work, job) {
 ////////////////////////////////////////////////////////////////////////////////
 
 // Singular value decomposition with Matrix objects
-// input M, returns {u: U, s: S, v: V } such that U * W * V^T = M and S diagonal with singular values (^T means conjugate transpose here)
+// input M, returns {u: U, s: S, v: V } such that U * S * V^T = M and S diagonal with singular values (^T means conjugate transpose here)
 // Input allowed to be non-square. The size of "S" is same as the input matrix.
 Jmat.Matrix.svd = function(m) {
   /*
