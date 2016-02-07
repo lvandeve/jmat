@@ -1528,24 +1528,30 @@ Matrix norms:
 This list is shown here to ensure to not confuse the Frobenius norm with the 2-norm
 oo = infinity
 
-p-norms (a.k.a. induced norms or operator norms)
--------
+induced norm (aka operator norm, matrix p-norm)
+------------
 1-norm: maximum absolute column sum of the matrix --> Jmat.maxcolnorm
-2-norm: largest singular value, aka spectral norm --> Jmat.Matrix.norm2
+2-norm: largest singular value, aka spectral norm or 2-norm --> Jmat.Matrix.norm2
 oo-norm: maximum absolute row sum of the matrix --> Jmat.Matrix.maxrownorm
 
-entrywise norms
+entrywise norms (vector p-norm)
 ---------------
-entrywise 1-norm: sum of abs of all the elements --> (not implemented yet)
+entrywise 1-norm: sum of abs of all the elements --> Jmat.Matrix.vectorNorm with p=0
 entrywise 2-norm: Frobenius norm, sqrt of sum of squares of the elements --> Jmat.Matrix.norm
-entrywise oo-norm: maximum of abs of all the elements --> (not implemented yet)
+entrywise oo-norm: maximum of abs of all the elements, Chebyshev norm --> Jmat.Matrix.chebNorm
+arbitrary entrywise norm: --> Jmat.Matrix.vectorNorm
+L2,1-norm: sum of Euclidean norms of columns --> Jmat.Matrix.lpqNorm with p=2, q=1
 
 schatten norms
 --------------
-schatten 1-norm: sum of singular values, aka nuclear norm, trace norm or Ky Fan norm --> (not implemented yet)
+schatten 1-norm: sum of singular values, aka nuclear norm or trace norm --> Jmat.Matrix.schattenNorm with p = 1
 schatten 2-norm: sqrt of sum of squares of singular values, results in same value as Frobenius norm --> Jmat.Matrix.norm
-schatten oo-norm: max of the singular values, results in same value as the spectral norm (2-norm) --> Jmat.Matrix.norm2
+schatten oo-norm: max of the singular values, aka spectral norm or 2-norm --> Jmat.Matrix.norm2
 
+Ky Fan norms
+------------
+first Ky Fan norm: max of the singular values, aka spectral norm or 2-norm --> Jmat.Matrix.norm2
+last Ky Fan norm: sum of singular values, aka nuclear norm or trace norm --> Jmat.Matrix.schattenNorm with p = 1
 */
 
 //Frobenius norm of the matrix (sqrt of sum of squares of modulus of all elements)
@@ -1593,6 +1599,90 @@ Jmat.Matrix.maxrownorm = function(m) {
 Jmat.Matrix.norm2 = function(m) {
   var svd = Jmat.Matrix.svd(m);
   return svd.s.e[0][0];
+};
+
+// entrywise norm with arbitrary p (vector p-norm)
+// works on all elements of the matrix (it does not have to be a vector)
+// NOTE: p must be given as complex number, not regular JS number
+// with p = 0 (handwavy): calculates hamming distance of elements to zero
+// with p = 1: entriwise manhattan norm
+// with p = 2: frobenius norm
+// with p = Infinity: maximum absolute value of elements
+// with other p: arbitrary p-norms with complex p
+Jmat.Matrix.vectorNorm = function(m, p) {
+  var C = Jmat.Complex;
+  if(C.isReal(p)) {
+    var result = 0;
+    for(var y = 0; y < m.h; y++) {
+      for(var x = 0; x < m.w; x++) {
+        var e = m.e[y][x];
+        if(p.eqr(0)) {
+          if(!C.nearr(e, 0, 1e-15)) result++;
+        } else if(p.eqr(1)) {
+          result += e.abs();
+        } else if(p.eqr(2)) {
+          result += e.abssq();
+        } else if(p.eqr(Infinity)) {
+          result = Math.max(e.abs(), result);
+        } else {
+          result += Math.pow(e.abssq(), p.re / 2);
+        }
+      }
+    }
+    if(result == Infinity && p.re > 0) return Jmat.Matrix.vectorNorm(m, C(Infinity)); // overflow, approximate with max norm instead
+    if(p.eqr(2)) {
+      result = Math.sqrt(result);
+    } else if(!p.eqr(0) && !p.eqr(1) && !p.eqr(Infinity)) {
+      result = Math.pow(result, 1 / p.re);
+    }
+    return C(result);
+  } else {
+    var result = C(0);
+    for(var y = 0; y < m.h; y++) {
+      for(var x = 0; x < m.w; x++) {
+        var e = C.abssq(m.e[y][x]);
+        result = result.add(e.pow(p.divr(2)));
+      }
+    }
+    if(result.eqr(0)) return result;
+    return C.pow(result, p.inv());
+  }
+};
+
+// Lp,q norm, e.g. L2,1 norm for p=2, q=1
+Jmat.Matrix.lpqNorm = function(m, p, q) {
+  var M = Jmat.Matrix;
+  var a = M(1, m.w);
+  for(var x = 0; x < m.w; x++) {
+    a.e[0][x] = M.vectorNorm(M.col(m, x), p);
+  }
+  return M.vectorNorm(a, q);
+};
+
+// Schatten norm with arbitrary p
+// NOTE: p must be given as complex number, not regular JS number
+// with p = 1: sum of singular values: nuclear norm or trace norm
+// with p = 2: sqrt of sum of squares of singular values, results in same value as Frobenius norm
+// with p = Infinity: value of largest singular value
+// with other p: arbitrary p-norm of the singular values
+Jmat.Matrix.schattenNorm = function(m, p) {
+  if(p.eqr(2)) return Jmat.Matrix.norm(m); // not needed to calculate singular values if it's two, as it's the same as frobenius norm
+  if(p.eqr(Infinity)) return Jmat.Matrix.norm2(m); // spectral norm
+  var M = Jmat.Matrix;
+  var svd = M.svd(m);
+  var d = M.diagToRow(svd.s);
+  return M.vectorNorm(d, p);
+};
+
+//Maximum absolute element value
+Jmat.Matrix.chebNorm = function(m) {
+  var result = 0;
+  for(var x = 0; x < m.w; x++) {
+    for(var y = 0; y < m.h; y++) {
+      result = Math.max(m.e[y][x].abs());
+    }
+  }
+  return Jmat.Complex(result);
 };
 
 // dist, cheb and manhattan all return regular real JS numbers for all types. In some types they are all the same, but not for e.g. Complex or Matrix.
@@ -2233,6 +2323,22 @@ Jmat.Matrix.diag = function(d) {
       i++;
     }
   }
+  return result;
+};
+
+// Puts all diagonal elements from a into a single column vector
+Jmat.Matrix.diagToCol = function(a) {
+  var n = Math.min(a.h, a.w);
+  var result = Jmat.Matrix(n, 1);
+  for(var i = 0; i < n; i++) result.e[i][0] = a.e[i][i];
+  return result;
+};
+
+// Puts all diagonal elements from a into a single row vector
+Jmat.Matrix.diagToRow = function(a) {
+  var n = Math.min(a.h, a.w);
+  var result = Jmat.Matrix(1, n);
+  for(var i = 0; i < n; i++) result.e[0][i] = a.e[i][i];
   return result;
 };
 

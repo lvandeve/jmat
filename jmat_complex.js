@@ -468,13 +468,6 @@ Jmat.Complex.prototype.eqr = function(y) {
   return (this.re == y && this.im == 0);
 };
 
-Jmat.Complex.powr = function(z, a) {
-  return Jmat.Complex.pow(z, Jmat.Complex(a));
-};
-Jmat.Complex.prototype.powr = function(a) {
-  return Jmat.Complex.pow(this, Jmat.Complex(a));
-};
-
 Jmat.Complex.inv = function(z) {
   return Jmat.Complex.ONE.div(z);
 };
@@ -649,10 +642,13 @@ Jmat.Complex.isEven = function(z) {
 ////////////////////////////////////////////////////////////////////////////////
 
 Jmat.Complex.pow = function(x, y) {
-  if(Jmat.Complex.isReal(x) && Jmat.Complex.isReal(y) && (x.re >= 0 || y.re == Infinity || y.re == -Infinity || Jmat.Real.isInt(y.re))) {
-    //if(x.re == 0 && y.re == 0) return Jmat.Complex(NaN); // JS's pow returns 1 for 0^0
+  var C = Jmat.Complex;
+  if(C.isReal(x) && C.isReal(y) && (x.re >= 0 || y.re == Infinity || y.re == -Infinity || Jmat.Real.isInt(y.re))) {
+    //if(x.re == 0 && y.re == 0) return C(NaN); // JS's pow returns 1 for 0^0
     // It is chosen to return 1 for 0^0, not NaN. NaN is mathematically more correct, however 0^0 is correct in many practical applications.
-    return Jmat.Complex(Math.pow(x.re, y.re));
+    return C(Math.pow(x.re, y.re));
+  } else if(x.eqr(0)) {
+    return y.re == 0 ? C(NaN) : C(y.re < 0 ? Infinity : 0);
   } else {
     // This is just one branch. In fact it returns a complex result for -3 ^ (1/3),
     // the cube root of -3. To get the real result, use absolute value (and then negate) on it.
@@ -668,11 +664,27 @@ Jmat.Complex.pow = function(x, y) {
       else u = NaN;
     }
     var v = y.im * Math.log(r) + y.re * t;
-    return Jmat.Complex(u * Math.cos(v), u * Math.sin(v));
+    return C(u * Math.cos(v), u * Math.sin(v));
   }
 };
 Jmat.Complex.prototype.pow = function(y) {
   return Jmat.Complex.pow(this, y);
+};
+
+Jmat.Complex.powr = function(z, a) {
+  return Jmat.Complex.pow(z, Jmat.Complex(a));
+};
+Jmat.Complex.prototype.powr = function(a) {
+  return Jmat.Complex.pow(this, Jmat.Complex(a));
+};
+
+// raise regular js number x, to complex power a
+Jmat.Complex.rpow = function(x, a) {
+  return Jmat.Complex.pow(Jmat.Complex(x), a);
+};
+// raise regular js number x, to this complex number
+Jmat.Complex.prototype.rpow = function(x) {
+  return Jmat.Complex.pow(Jmat.Complex(x), this);
 };
 
 Jmat.Complex.sin = function(z) {
