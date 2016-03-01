@@ -2040,6 +2040,7 @@ Jmat.Matrix.eigval22 = function(m) {
 };
 
 // explicit algebraic formula for eigenvalues and vectors of 2x2 matrix
+// NOTE: the eigenvectors are to be read as columns of v, not rows.
 Jmat.Matrix.eig22 = function(m) {
   if(m.w != 2 || m.h != 2) return null;
 
@@ -2212,6 +2213,7 @@ Jmat.Matrix.jacobi_ = function(m, opt_epsilon, opt_normalize) {
 // eigenvalues as n*1 column vector, eigenvectors as n*n matrix
 // for each column of v and corresponding eigenvalue: A*v = l*v (l represents lambda, A is m)
 // opt_normalize is how to normalize the eigenvectors: 0: don't (length unspecified), 1: last element equals 1, 2: length 1. The default is "1".
+// NOTE: the eigenvectors are to be read as columns of v, not rows.
 Jmat.Matrix.eig = function(m, opt_normalize) {
   var M = Jmat.Matrix;
   if(m.w != m.h || m.w < 1) return null;
@@ -2222,6 +2224,7 @@ Jmat.Matrix.eig = function(m, opt_normalize) {
   if(M.isReal(m) && M.isSymmetric(m)) return Jmat.Matrix.jacobi_(m, opt_normalize);
 
   var l = M.eigval(m);
+  for(var i = 0; i < l.length; i++) if(Jmat.Complex.nearr(l[i], 0, 1e-15)) l[i] = Jmat.Complex(0); // this avoids numerical instability problems with calculation of eigenvectors in case of eigenvalues that should be zero, but are close to it instead
 
   // Fullfill our promise of eigenvalues sorted from largest to smallest magnitude, the eigenvalue algorithm usually has them somewhat but not fully correctly sorted
   l.sort(function(a, b) { return b.abssq() - a.abssq(); });
@@ -2229,6 +2232,7 @@ Jmat.Matrix.eig = function(m, opt_normalize) {
   var v = null;
   // TODO: use more efficient algorithm for eigenvectors, e.g. something that produces them as side-effect of the eigenvalue calculation
   // TODO: for hermitian or symmetric matrix, use faster algorithm for eigenvectors
+  // TODO: solve numerical imprecisions, e.g. see how high epsilon eigenVectorFor is using to circumvent various problems in unstable ways
   var v = new M(n, n);
   for(var j = 0; j < n; j++) {
     var g = M.eigenVectorFor(m, l[j], opt_normalize);

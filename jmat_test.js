@@ -94,7 +94,7 @@ Jmat.Test.testSVD = function(u, s, v, epsilon, m) {
   Jmat.Test.expectNear(v, svd.v, epsilon);
 };
 
-//l,v = expected values
+//l,v = expected values. Note that eigenvectors in v are columns, not rows.
 //m = input matrix
 Jmat.Test.testEIG = function(l, v, epsilon, m) {
   var eig = Matrix.eig(Matrix.cast(m));
@@ -258,6 +258,10 @@ Jmat.doUnitTest = function(opt_verbose) {
                     [[-0.871621/-0.268262,0.470604/-0.223801,-0.137143/0.936989],[-0.410258/-0.268262,-0.85349/-0.223801,-0.321315/0.936989],[1,1,1]],
                     1e-5,
                     [[3,0.5,0.5],[0.5,2,0.5],[0.5,0.5,1]]);
+  Jmat.Test.testEIG([[-2], [0], [0]],
+                    [[-1,0,0],[3,1,1],[1,0,0]],
+                    1e-8,
+                    [[-1,0,1],[3,0,-3],[1,0,-1]]);
   Jmat.Test.expectNear(Jmat.Matrix([[0.5],[-1],[0.5]]), Jmat.Matrix.solve(Jmat.Matrix([[0,1,2],[3,5,7],[11,13,17]]), Jmat.Matrix([[0],[0],[1]])), eps);
 
   // matrix parsing
