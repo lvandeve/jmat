@@ -36,9 +36,9 @@ NOTE: There are also a few matrix algorithms in jmat_real.js. Those work on 2D a
       while here we work on a custom object with complex numbers.
 
 Overview of some functionality:
--decompositions: Matrix.lu, Matrix.qr, Matrix.svd, Matrix.evd
+-decompositions: Matrix.lu, Matrix.qr, Matrix.svd, Matrix.evd, Matrix.cholesky, Matrix.ldl
 -inverse: Matrix.inv, Matrix.pseudoinverse
--solve: Matrix.solve
+-solve: Matrix.solve, Matrix.rref
 -eigen: Matrix.eig, Matrix.eig11, Matrix.eig22
 -fourier transform: Matrix.fft, Matrix.ifft
 -vectors: Matrix.cross, Matrix.dot
@@ -49,7 +49,7 @@ Overview of some functionality:
 -norms and ranks: Matrix.norm, Matrix.maxrownorm, Matrix.maxcolnorm, Matrix.norm2, Matrix.conditionNumber, Matrix.rank, Matrix.trace
 -tests: Matrix.isReal, Matrix.isNaN, Matrix.isInfOrNaN, Matrix.eq, Matrix.near
 -constructors: Jmat.Matrix, Matrix.make, Matrix.parse, Matrix.cast, Matrix.copy, Matrix.identity, Matrix.zero
--pretty print: Matrix.render
+-pretty print: Matrix.render, Matrix.toString, Matrix.summary
 */
 
 /*
@@ -119,6 +119,8 @@ Jmat.Matrix.make = function(a, b, var_arg) {
   if(a instanceof Jmat.Matrix) return Jmat.Matrix.copy(a);
 
   if(typeof a == 'string') return Jmat.Matrix.parse(a);
+
+  if(a.constructor === Array && b != undefined) throw 'no further arguments needed if first is array. Use 2D array if first is array, or otherwise w and h first';
 
   // Tolerant to all kinds of nonexisting array
   // Also supports a 1D array representing an Nx1 2D array
@@ -857,6 +859,28 @@ Jmat.Matrix.isStrictlyLowerTriangular = function(a, opt_epsilon) {
   return true;
 };
 
+// upper triangular with ones on the diagonal
+Jmat.Matrix.isUpperUnitriangular = function(a, opt_epsilon) {
+  var epsilon = (opt_epsilon == undefined) ? 1e-15 : opt_epsilon;
+  if (!Jmat.Matrix.isUpperTriangular(a)) return false;
+
+  for(var i = 0; i < a.h; i++) {
+     if (!Jmat.Complex.nearr(a.e[i][i], 1, epsilon)) return false;
+  }
+  return true;
+};
+
+// lower triangular with ones on the diagonal
+Jmat.Matrix.isLowerUnitriangular = function(a, opt_epsilon) {
+  var epsilon = (opt_epsilon == undefined) ? 1e-15 : opt_epsilon;
+  if (!Jmat.Matrix.isLowerTriangular(a)) return false;
+
+  for(var i = 0; i < a.h; i++) {
+     if (!Jmat.Complex.nearr(a.e[i][i], 1, epsilon)) return false;
+  }
+  return true;
+};
+
 // almost triangular: elements right below the diagonal are also allowed to be non-zero
 Jmat.Matrix.isUpperHessenberg = function(a, opt_epsilon) {
   var epsilon = (opt_epsilon == undefined) ? 1e-15 : opt_epsilon;
@@ -1072,7 +1096,7 @@ Jmat.Matrix.getProperties = function(a) {
   result['frobeniusNorm'] = M.norm(a);
   result['spectralNorm'] = M.norm2(a);
   result['conditionNumber'] = M.conditionNumber(a);
-  result['NaN'] = M.isNaN(a);
+  result['nan'] = M.isNaN(a);
 
   // The following properties only make sense for square matrices
   result['identity'] = M.isIdentity(a);
@@ -1086,6 +1110,8 @@ Jmat.Matrix.getProperties = function(a) {
   result['lowerTriangular'] = M.isLowerTriangular(a);
   result['strictlyUpperTriangular'] = M.isStrictlyUpperTriangular(a);
   result['strictlyLowerTriangular'] = M.isStrictlyLowerTriangular(a);
+  result['upperUnitriangular'] = M.isUpperUnitriangular(a);
+  result['lowerUnitriangular'] = M.isLowerUnitriangular(a);
   result['upperHessenberg'] = M.isUpperHessenberg(a);
   result['lowerHessenberg'] = M.isLowerHessenberg(a);
   result['singular'] = M.isSingular(a);
@@ -1123,7 +1149,7 @@ Jmat.Matrix.summary = function(a) {
 
   var toName = function(name) {
     // convert camelCase to lower case with spaces
-    if(name != 'NaN') name = name.replace(/([A-Z])/g, ' $1').toLowerCase();
+    name = name.replace(/([A-Z])/g, ' $1').toLowerCase();
     // But keep own names
     name = name.replace('hessenberg', 'Hessenberg');
     name = name.replace('frobenius', 'Frobenius');
@@ -1134,11 +1160,12 @@ Jmat.Matrix.summary = function(a) {
   };
 
   //order of non-square related properties
-  var nonsquare = ['height', 'width', 'zero', 'real', 'NaN',
+  var nonsquare = ['height', 'width', 'zero', 'real', 'nan',
                    'rank', 'frobeniusNorm', 'spectralNorm', 'conditionNumber', 'integer', 'binary'];
   //order of properties only applicable for square matrices
   var square = ['identity', 'symmetric', 'hermitian', 'skewSymmetric', 'skewHermitian', 'diagonal', 'tridiagonal',
-                'upperTriangular', 'lowerTriangular', 'strictlyUpperTriangular', 'strictlyLowerTriangular', 'upperHessenberg', 'lowerHessenberg',
+                'upperTriangular', 'lowerTriangular', 'strictlyUpperTriangular', 'strictlyLowerTriangular', 'upperUnitriangular', 'lowerUnitriangular',
+                'upperHessenberg', 'lowerHessenberg',
                 'singular', 'invertible', 'determinant', 'trace', 'orthogonal', 'unitary', 'normal', 'permutation', 'toeplitz', 'hankel',
                 'indefinite', 'positiveDefinite', 'negativeDefinite', 'positiveSemidefinite', 'negativeSemidefinite', 'frobenius', 'involutory', 'idempotent'];
 
@@ -1148,10 +1175,13 @@ Jmat.Matrix.summary = function(a) {
   p['small1x1'] = (a.w <= 1 && a.h <= 1);
   p['realsym'] = p['real'] && p['symmetric'];
   p['realskewsym'] = p['real'] && p['skewSymmetric'];
+
   // pairs of child:parents, where child is always true if any of the parents is true, with the intention to not display child in a list if parent is already true as it's redundant
   var sub = {
     'strictlyUpperTriangular': ['zero'], 'strictlyLowerTriangular' : ['zero'],
-    'upperTriangular' : ['diagonal', 'strictlyUpperTriangular'], 'lowerTriangular' : ['diagonal', 'frobenius', 'strictlyLowerTriangular'],
+    'upperUnitriangular': ['identity'], 'lowerUnitriangular' : ['identity'],
+    'upperTriangular' : ['diagonal', 'strictlyUpperTriangular', 'upperUnitriangular'],
+    'lowerTriangular' : ['diagonal', 'frobenius', 'strictlyLowerTriangular', 'lowerUnitriangular'],
     'upperHessenberg' : ['upperTriangular', 'tridiagonal'], 'lowerHessenberg' : ['lowerTriangular', 'tridiagonal'],
     'diagonal' : ['small1x1', 'identity', 'zero'], 'tridiagonal' : ['small2x2', 'diagonal'],
     'orthogonal' : ['normal', 'identity'], 'unitary' : ['normal'], 'normal' : ['identity', 'zero'],
@@ -1178,8 +1208,8 @@ Jmat.Matrix.summary = function(a) {
       summary += ', ' + toName(opposite[e]);
     }
   }
-  var det = p['square'] ? (', determinant ' + p['determinant']) : '';
-  summary = '' + summary + ' matrix with rank ' + p['rank'] + det + ' and condition number ' + p['conditionNumber'] + '.\n';
+  var det = p['square'] ? (', determinant ' + p['determinant']) : ', no determinant';
+  summary = '' + summary + ' matrix with rank ' + p['rank'] + det + ' and condition number ' + p['conditionNumber'] + '.';
 
   return summary;
 };
@@ -1339,6 +1369,60 @@ Jmat.Matrix.lu = function(a) {
 
   return {p: p, l: l, u: u};
 };
+
+// Cholesky decomposition of a into lower triangular matrix and its conjugate transpose
+// a must be hermitian and positive definite
+// returns l, the lower triangular matrix (a = ll*)
+Jmat.Matrix.cholesky = function(a) {
+  var M = Jmat.Matrix;
+  var C = Jmat.Complex;
+  if(!M.isHermitian(a)) return null;
+
+  var l = M.zero(a.w);
+
+
+  for(var i = 0; i < a.h; i++) {
+    for(var j = 0; j <= i; j++) {
+      var s = C(0);
+      for(var k = 0; k < j; k++) s = s.add(l.e[i][k].mul(l.e[j][k]));
+      s = a.e[i][j].sub(s);
+      l.e[i][j] = (i == j) ? C.sqrt(s) : l.e[j][j].inv().mul(s);
+    }
+  }
+  return l;
+};
+
+// LDL decomposition: similar to cholesky, but A = LDL* with D diagonal matrix and L unitriangular
+Jmat.Matrix.ldl = function(a) {
+  var M = Jmat.Matrix;
+  var C = Jmat.Complex;
+  if(!M.isHermitian(a)) return null;
+
+  var l = M.identity(a.w);
+  var d = M.zero(a.w);
+
+  for(var i = 0; i < a.h; i++) {
+    var v = [];
+    for(var j = 0; j < i; j++) {
+      v[j] = l.e[i][j].mul(d.e[j][j]);
+    }
+    v[i] = a.e[i][i];
+    for(var j = 0; j < i; j++) {
+      v[i] = v[i].sub(l.e[i][j].mul(v[j]));
+    }
+    d.e[i][i] = v[i];
+    for(var j = i + 1; j < a.h; j++) {
+      l.e[j][i] = a.e[j][i];
+      for(var k = 0; k < i; k++) {
+        l.e[j][i] = l.e[j][i].sub(l.e[j][k].mul(v[k]));
+      }
+      l.e[j][i] = l.e[j][i].div(v[i]);
+    }
+  }
+  return {l: l, d: d};
+};
+
+
 
 // Submatrix with 1 row removed
 Jmat.Matrix.subrow = function(a, row) {
@@ -1554,10 +1638,7 @@ first Ky Fan norm: max of the singular values, aka spectral norm or 2-norm --> J
 last Ky Fan norm: sum of singular values, aka nuclear norm or trace norm --> Jmat.Matrix.schattenNorm with p = 1
 */
 
-//Frobenius norm of the matrix (sqrt of sum of squares of modulus of all elements)
-//For a vector, this is the Euclidean norm.
-//TODO: since usually the more expensive to calculate 2-norm is meant by "the" norm of the matrix, maybe rename this function to "frobeniusnorm" or "frob"?
-Jmat.Matrix.norm = function(m) {
+Jmat.Matrix.sumsq = function(m) {
   var result = 0;
   for(var y = 0; y < m.h; y++) {
     for(var x = 0; x < m.w; x++) {
@@ -1565,8 +1646,21 @@ Jmat.Matrix.norm = function(m) {
       result += e.abssq();
     }
   }
-  result = Math.sqrt(result);
   return Jmat.Complex(result);
+};
+
+//Frobenius norm of the matrix (sqrt of sum of squares of modulus of all elements)
+//For a vector, this is the Euclidean norm.
+//TODO: since usually the more expensive to calculate 2-norm is meant by "the" norm of the matrix, maybe rename this function to "frobeniusnorm" or "frob"?
+Jmat.Matrix.norm = function(m) {
+  var result = Math.sqrt(Jmat.Matrix.sumsq(m).re);
+  return Jmat.Complex(result);
+};
+
+// divides through the Frobenius norm
+Jmat.Matrix.normalize = function(m) {
+  var norm = Jmat.Matrix.norm(m);
+  return m.divr(norm.re);
 };
 
 //Maximum absolute column sum norm
@@ -1844,6 +1938,54 @@ Jmat.Matrix.augment = function(a, b, opt_row, opt_col) {
     }
   }
 
+  return result;
+};
+
+// projects v onto u with inner product. Must be vectors.
+Jmat.Matrix.proj = function(v, u) {
+  var M = Jmat.Matrix;
+  var uu = M.sumsq(u);
+  if(uu.re == 0) return M.zero(v.h, v.w);
+  var vu = M.dot(v, u);
+  var f = vu.div(uu);
+  return u.mulc(f);
+};
+
+// does 1 step of gram-schmidt orthogonalization, for the column x of the matrix. us must have the x previously calculated vectors. The function returns the vector that you can fill in us[x].
+Jmat.Matrix.gramSchmidtStep_ = function(m, x, us) {
+  var M = Jmat.Matrix;
+  var v = M.col(m, x);
+  var u = v;
+
+  //for(var j = 0; j < i; j++) u = u.sub(M.proj(v, us[j])); // "classical" way, commented out
+  for(var j = 0; j < x; j++) u = u.sub(M.proj(u, us[j])); // more stable way, MGS (only difference is v is changed into previous u iteration)
+
+  return u;
+};
+
+
+// Performs gram-schmidt orthogonalization of the column vectors given in matrix M
+// NOTE: This is not for real usage but a demonstration of the Gram-Schmidt process.
+// The q returned by Matrix.qr is similar, but calculated with more stable and efficient algorithms (it givens or householder).
+Jmat.Matrix.gramSchmidt = function(m, opt_normalize) {
+  var M = Jmat.Matrix;
+  var vs = [];
+  for(var i = 0; i < m.w; i++) vs[i] = M.col(m, i);
+  var us = [];
+  for(var i = 0; i < m.w; i++) {
+    us[i] = M.gramSchmidtStep_(m, i, us);
+  }
+
+  if(opt_normalize) {
+    // Gram-Schmidt orthonormalization instead of orthogonalization.
+    for(var i = 0; i < us.length; i++) us[i] = M.normalize(us[i]);
+  }
+  var result = new M(m.h, m.w);
+  for(var y = 0; y < m.h; y++) {
+    for(var x = 0; x < m.w; x++) {
+      result.e[y][x] = us[x].e[y][0];
+    }
+  }
   return result;
 };
 
@@ -2134,7 +2276,8 @@ Jmat.Matrix.eigval_ = function(h) {
   return result;
 };
 
-// Returns the eigenvalues of m in an array, from largest to smallest
+// Returns the eigenvalues (aka spectrum) of m in an array, from largest to smallest
+// The eigenvalues also give the characteristic polynomial: (x-l[0])*(x-l[1])*...*(x-l[n-1])
 Jmat.Matrix.eigval = function(m) {
   var M = Jmat.Matrix;
   if(m.w != m.h || m.w < 1) return null;
@@ -2231,7 +2374,7 @@ Jmat.Matrix.eig = function(m, opt_normalize) {
 
   var v = null;
   // TODO: use more efficient algorithm for eigenvectors, e.g. something that produces them as side-effect of the eigenvalue calculation
-  // TODO: for hermitian or symmetric matrix, use faster algorithm for eigenvectors
+  // TODO: for hermitian matrix, use faster algorithm for eigenvectors (like is already done with jacobi for real symmetric)
   // TODO: solve numerical imprecisions, e.g. see how high epsilon eigenVectorFor is using to circumvent various problems in unstable ways
   var v = new M(n, n);
   for(var j = 0; j < n; j++) {
@@ -2242,7 +2385,7 @@ Jmat.Matrix.eig = function(m, opt_normalize) {
   return { l: l, v: v };
 };
 
-// Returns the eigen decomposition of m as { v: V, d: D }
+// Returns the eigen decomposition (aka spectral decomposition) of m as { v: V, d: D }
 // If M is diagonizable, M = V * D * V^(-1)
 // In other words: m == result.v.mul(result.d).mul(Jmat.Matrix.inv(result.v))
 // This function is very similar to Jmat.Matrix.eig. v is the same, d is the same as l but put on the diagonal of a matrix
@@ -2251,6 +2394,8 @@ Jmat.Matrix.evd = function(m) {
 
   return { v: eig.v, d: Jmat.Matrix.diag(eig.l) };
 };
+
+// TODO: Matrix.jordan, calculating jordan decomposition, jordan normal form, jordan canonical form, giving {v:V, j:J} with the generalized eigenvectors in V. (similar to Matrix.evd, but supports any matrix rather than only diagonizable ones)
 
 // returns the definiteness as an array of 3 booleans
 // the first boolean means negative eigenvalues are present
@@ -2375,7 +2520,7 @@ Jmat.Matrix.cross = function(a, b) {
   return c;
 };
 
-// Dot product of two vectors.
+// Dot product of two vectors (aka inner product, scalar product, projection product).
 // Also supports it for matrices of same dimensions (it then is the Frobenius inner product)
 // If vectors, row and column vectors may be mixed.
 Jmat.Matrix.dot = function(a, b) {
@@ -3226,3 +3371,49 @@ Jmat.Matrix.powc = function(m, s) {
   for(var i = 0; i < d.w; i++) d.e[i][i] = d.e[i][i].pow(s);
   return v.mul(d).mul(Jmat.Matrix.inv(v));
 };
+
+Jmat.Matrix.convolve = function(a, b, opt_grow) {
+  var C = Jmat.Complex;
+  // shift of b. TODO: optional configurable
+  var sy = Math.floor(b.h / 2);
+  var sx = Math.floor(b.w / 2);
+  if (opt_grow) {
+    var h2 = a.h + b.h - 1;
+    var w2 = a.w + b.w - 1;
+    var result = Jmat.Matrix(h2, w2);
+    for (var y = 0; y < h2; y++) {
+      for (var x = 0; x < w2; x++) {
+        var r = C(0);
+        for (var y2 = 0; y2 < b.h; y2++) {
+          for (var x2 = 0; x2 < b.w; x2++) {
+            var y3 = y - sy * 2 + y2;
+            var x3 = x - sx * 2 + x2;
+            if(x3 < 0 || x3 >= a.w || y3 < 0 || y3 >= a.h) continue;
+            r = r.add(a.e[y3][x3].mul(b.e[y2][x2]));
+          }
+        }
+        result.e[y][x] = r;
+      }
+    }
+    return result;
+  } else {
+    var result = Jmat.Matrix(a.h, a.w);
+    for (var y = 0; y < a.h; y++) {
+      for (var x = 0; x < a.w; x++) {
+        var r = C(0);
+        for (var y2 = 0; y2 < b.h; y2++) {
+          for (var x2 = 0; x2 < b.w; x2++) {
+            var y3 = y - sy + y2;
+            var x3 = x - sx + x2;
+            if(x3 < 0 || x3 >= a.w || y3 < 0 || y3 >= a.h) continue;
+            r = r.add(a.e[y3][x3].mul(b.e[y2][x2]));
+          }
+        }
+        result.e[y][x] = r;
+      }
+    }
+    return result;
+  }
+};
+
+

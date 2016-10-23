@@ -1542,11 +1542,20 @@ Jmat.BigInt.factorize = function(a) {
 
   // returns a factor, or a itself if end reached (a is prime), or 0 if undetermined because the problem is too hard
   var f = function(a) {
+    // Check 0: weed out low factors asap without expensive tests
+    if (!(a.a[a.a.length - 1] & 1)) return B(2);
+    if(a.modr(3).eqr(0)) return B(3);
+    if(a.modr(5).eqr(0)) return B(5);
+    if(a.modr(7).eqr(0)) return B(7);
+    if(a.modr(11).eqr(0)) return B(11);
+    if(a.modr(13).eqr(0)) return B(13);
+
     // Check 1: if it's prime, return self and stop.
     // Note that this may be probabilistic, so to be super sure, if the result has a very large prime factor, factorize a few more times.
     if(B.isPrime(a)) {
       return a;
     }
+
     // Check 2: simple trial division with primes.
     var num = Math.min(50000, B.sqrt(a).toInt());  // not too high, this is slow, the quadratic sieve will handle the rest
     var p = 1; //prime throughout the for loop
@@ -1556,6 +1565,7 @@ Jmat.BigInt.factorize = function(a) {
       if(i >= B.primeCache_.length) B.primeCache_[i] = Jmat.Real.nextPrime(p);
       p = B.primeCache_[i];
       i++;
+      if(p <= 13) continue; // already tested above with the first few low factors
       if(p != p || p > num) break;
       if(a.modr(p).eqr(0)) {
         return B(p);

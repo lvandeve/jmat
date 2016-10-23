@@ -506,7 +506,7 @@ Jmat.atanh = function(z) { return Jmat.Complex.atanh(Jmat.Complex.cast(z)); };
 /* Gamma function. z:{number|Complex}. returns {Complex} */
 Jmat.gamma = function(z) { return Jmat.Complex.gamma(Jmat.Complex.cast(z)); };
 /* Factorial. z:{number|Complex}. returns {Complex} */
-Jmat.factorial = function(z) { return Jmat.Complex.factorial(Jmat.Complex.cast(z)); };
+Jmat.factorial = function(z) { return Jmat.bigIntIn_(z) ? Jmat.BigInt.factorial(Jmat.BigInt.cast(z)) : Jmat.Complex.factorial(Jmat.Complex.cast(z)); };
 /* Digamma function (psi). z:{number|Complex}. returns {Complex} */
 Jmat.digamma = function(z) { return Jmat.Complex.digamma(Jmat.Complex.cast(z)); };
 /* Trigamma function. z:{number|Complex}. returns {Complex} */
@@ -934,7 +934,14 @@ Jmat.quaternionIn_ = function(v) {
 // Test if input is a BigInt
 Jmat.bigIntIn_ = function(v) {
   if(!v) return false;
-  if(typeof v == 'string' && v.length > 16 && v.indexOf('.') == -1 && v.indexOf('e') == -1 && v.indexOf('E') == -1) return true; //2^53 biggest integer has around 16 digits. Bigger can only be BigInt.
+  if(typeof v == 'string' && v.length > 16) {
+    var ok = true;
+    for(var i = 1; i < v.length && i < 17; i++) { // test for only digits (except first may be '-'). biggest JS integer (2^53) has around 16 digits, no need to check for more to exclude matrix/complex/...
+      var c = v.charCodeAt(i);
+      if(c < 48 || v > 57) { ok = false ; break; };
+    }
+    if(ok) return true;
+  }
   return v && (v instanceof Jmat.BigInt);
   // No test for array, that can already mean matrix
 };

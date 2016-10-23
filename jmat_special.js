@@ -490,7 +490,8 @@ Jmat.Complex.legendreq = function(nu, mu, z, opt_type) {
 ////////////////////////////////////////////////////////////////////////////////
 
 //using Stirling series
-//logarithm of the gamma function, and more specific branch of the log
+//natural logarithm of the gamma function, and more specific branch of the log
+//to use this for log2 of the factorial (common in computing theory), use e.g.: function log2fac(n) { return Jmat.loggamma(n + 1).re / Math.log(2); }
 // TODO: check if this small series is precise enough everywhere
 Jmat.Complex.loggamma = function(z) {
   //the result is way too imprecise if the real part of z is < 0, use the log of the reflection formula
