@@ -907,6 +907,8 @@ Jmat.rootfind_newton = function(f, df, z0, maxiter) { return Jmat.Complex.rootfi
 /* Newton's method, but without giving derivative (it is calculated like the secant method). f:{function(Complex):Complex}, z0:{number|Complex}, maxiter:{number} integer. returns {Complex} */
 Jmat.rootfind_newton_noderiv = function(f, z0, maxiter) { return Jmat.Complex.rootfind_newton_noderiv(f, Jmat.Complex.cast(z0), Jmat.Real.caststrict(maxiter)); };
 
+Jmat.polyroots = function(coeffs) { return Jmat.Complex.polyroots(Jmat.Complex.castArray(coeffs)); }
+
 ////////////////////////////////////////////////////////////////////////////////
 
 // Test if input is a matrix, this makes it decide e.g. whether to call the matrix-specific or complex number specific function if there is functionname collision

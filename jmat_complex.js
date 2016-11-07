@@ -92,11 +92,16 @@ Jmat.Complex.polar = function(r, a) {
 };
 
 // Casts the given number type to Jmat.Complex. If the given type is already of type Jmat.Complex, does not copy it but returns the input.
-// TODO: also support strings of the form '5+6i', and be able to parse them
 Jmat.Complex.cast = function(v) {
   if(v && v.re != undefined) return v;
   if(v == undefined) return Jmat.Complex(0);
   return Jmat.Complex(v);
+};
+
+Jmat.Complex.castArray = function(a) {
+  var result = [];
+  for (var i = 0; i < a.length; i++) result[i] = Jmat.Complex.cast(a[i]);
+  return result;
 };
 
 //aka clone

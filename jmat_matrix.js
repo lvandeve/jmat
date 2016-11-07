@@ -3416,4 +3416,19 @@ Jmat.Matrix.convolve = function(a, b, opt_grow) {
   }
 };
 
+// Finds roots of a polynomial given its coefficients sorted from the one belonging to x^0 to the one belonging to x^(n-1)
+// Returns n - 1 complex roots
+// This function is in jmat_matrix.js because it needs to calculate eigenvalues to do this. However, we add the function to Jmat.Complex because it really belongs there from user perspective.
+Jmat.Complex.polyroots = function(coeffs) {
+  var C = Jmat.Complex;
+  var M = Jmat.Matrix;
+  var v = coeffs[coeffs.length - 1].inv();
+  var m = coeffs.length - 1;
+  var matrix = M(m, m, 0); // companion matrix
+  for (var i = 1; i < m; i++) matrix.e[i][i - 1] = C(1);
+  for (var i = 0; i < m; i++) matrix.e[i][m - 1] = v.mul(coeffs[i]).neg();
+
+  return M.eigval(matrix);
+};
+
 
