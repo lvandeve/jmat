@@ -3422,6 +3422,7 @@ Jmat.Matrix.convolve = function(a, b, opt_grow) {
 Jmat.Complex.polyroots = function(coeffs) {
   var C = Jmat.Complex;
   var M = Jmat.Matrix;
+  if(coeffs.length <= 1) return []; // no roots for unexisting or horizontal function. We do not take into account the infinite roots for the function f(x)=0.
   var v = coeffs[coeffs.length - 1].inv();
   var m = coeffs.length - 1;
   var matrix = M(m, m, 0); // companion matrix
