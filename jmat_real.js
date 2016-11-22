@@ -1210,6 +1210,14 @@ Jmat.Real.dd = function(a) {
   return result;
 };
 
+Jmat.Real.degToRad = function(a) {
+  return Math.PI * 2 * a / 360;
+};
+
+Jmat.Real.radToDeg = function(a) {
+  return 360 * a / (Math.PI * 2);
+};
+
 // Like Math.round, but for fractional parts of 0.5, it is rounded to the nearest even value.
 Jmat.Real.round = function(x) {
   // return Math.round(x);

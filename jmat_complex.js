@@ -91,6 +91,12 @@ Jmat.Complex.polar = function(r, a) {
   return new Jmat.Complex(r * Math.cos(a), r * Math.sin(a));
 };
 
+// Create a new Jmat.Complex value, polar, angle in degrees
+Jmat.Complex.polarDeg = function(r, a) {
+  a = Jmat.Real.degToRad(a);
+  return new Jmat.Complex(r * Math.cos(a), r * Math.sin(a));
+};
+
 // Casts the given number type to Jmat.Complex. If the given type is already of type Jmat.Complex, does not copy it but returns the input.
 Jmat.Complex.cast = function(v) {
   if(v && v.re != undefined) return v;
@@ -118,19 +124,54 @@ Jmat.Complex.formatFloat_ = function(value, precision) {
 //debugstring
 Jmat.Complex.toString = function(value, opt_precision) {
   if(!value) return value == 0 ? 'invalid0' : ('' + value);
-  var re = (opt_precision ? Jmat.Complex.formatFloat_(value.re, opt_precision) : ('' + value.re));
-  var im = (opt_precision ? Jmat.Complex.formatFloat_(value.im, opt_precision) : ('' + value.im));
+  var vre = value.re;
+  var vim = value.im;
+  if(!opt_precision && Math.abs(vre) < 1e-15 && Math.abs(vim) > 0.1) vre = 0; // avoid something hard to read like "2.220446049250313e-16+1i" due to numerical imprecision
+  if(!opt_precision && Math.abs(vim) < 1e-15 && Math.abs(vre) > 0.1) vim = 0; // avoid something hard to read like "2.220446049250313e-16+1i" due to numerical imprecision
 
-  if(value.im == 0 || im == '0') return '' + re;
-  if(value.re == 0) return '' + im + 'i';
-  if(value.im < 0) return '' + re + im + 'i';
+  var re = (opt_precision ? Jmat.Complex.formatFloat_(vre, opt_precision) : ('' + vre));
+  var im = (opt_precision ? Jmat.Complex.formatFloat_(vim, opt_precision) : ('' + vim));
+  if(im == '1') im = '';
+  if(im == '-1') im = '-';
+
+  if(vim == 0 || im == '0') return '' + re;
+  if(vre == 0) return '' + im + 'i';
+  if(vim < 0) return '' + re + im + 'i';
   return '' + re + '+' + im + 'i';
 };
 Jmat.Complex.prototype.toString = function(opt_precision) {
   return Jmat.Complex.toString(this, opt_precision);
 };
 
+Jmat.Complex.toStringPolar = function(value, opt_precision) {
+  if(!value) return value == 0 ? 'invalid0' : ('' + value);
+  var r = (opt_precision ? Jmat.Complex.formatFloat_(value.abs(), opt_precision) : ('' + value.abs()));
+  var a = (opt_precision ? Jmat.Complex.formatFloat_(value.arg(), opt_precision) : ('' + value.arg()));
+
+  return '' + r + '∠' + a;
+};
+Jmat.Complex.prototype.toStringPolar = function(opt_precision) {
+  return Jmat.Complex.toStringPolar(this, opt_precision);
+};
+
+// Test out this rendering: var c = Complex.polarDeg(1, 45); var d = Complex(1); for(var i = 0; i < 10; i++) { console.log(d.toStringPolarDeg() + ' ' + d.toString()); d = d.mul(c); }
+Jmat.Complex.toStringPolarDeg = function(value, opt_precision) {
+  if(!value) return value == 0 ? 'invalid0' : ('' + value);
+  var arg = Jmat.Real.radToDeg(value.arg());
+  if(!opt_precision && Math.abs(arg - Math.round(arg)) < 1e-10) arg = Math.round(arg); // avoid something like "1∠89.99999999999999°" due to numerical imprecision
+
+
+  var r = (opt_precision ? Jmat.Complex.formatFloat_(value.abs(), opt_precision) : ('' + value.abs()));
+  var a = (opt_precision ? Jmat.Complex.formatFloat_(arg, opt_precision) : ('' + arg));
+
+  return '' + r + '∠' + a + '°';
+};
+Jmat.Complex.prototype.toStringPolarDeg = function(opt_precision) {
+  return Jmat.Complex.toStringPolarDeg(this, opt_precision);
+};
+
 // Parses strings of the form '5', '5+i', '5-2.3i', '1.25e-25+17.37e5i'
+// Cannot (yet) parse the polar forms.
 Jmat.Complex.parse = function(text) {
   var i = text.indexOf('i');
   if(i == -1) {
