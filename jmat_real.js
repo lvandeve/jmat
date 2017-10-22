@@ -911,6 +911,21 @@ Jmat.Real.root = function(x, y) {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+Jmat.Real.seed = undefined;
+
+// Uses Math.random by default, but for reproducible tests, set Jmat.Real.seed to a positive integer (max 31 bits)
+Jmat.Real.random = function() {
+  if (Jmat.Real.seed == undefined) {
+    return Math.random();
+  }
+
+  Jmat.Real.seed = (1103515245 * Jmat.Real.seed + 12345) & 2147483647;
+  return (Jmat.Real.seed >> 1) / 1073741823.0;
+};
+
+
+////////////////////////////////////////////////////////////////////////////////
+
 // Faddeeva function: w(z) = exp(-z^2)*erfc(-iz). Also known as Faddeyeva or w(z) (not to be confused with LambertW)
 // Returns complex result as an array [re, im], for complex input z = i*x + y. The result is real for pure imaginary input (arbitrary complex otherwise)
 // Note that Jmat.Real does not depend on Jmat.Complex so does not use that datatype to represent the complex number.

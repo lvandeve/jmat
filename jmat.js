@@ -940,7 +940,7 @@ Jmat.bigIntIn_ = function(v) {
     var ok = true;
     for(var i = 1; i < v.length && i < 17; i++) { // test for only digits (except first may be '-'). biggest JS integer (2^53) has around 16 digits, no need to check for more to exclude matrix/complex/...
       var c = v.charCodeAt(i);
-      if(c < 48 || v > 57) { ok = false ; break; };
+      if(c < 48 || c > 57) { ok = false ; break; };
     }
     if(ok) return true;
   }

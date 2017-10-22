@@ -125,10 +125,10 @@ Jmat.Matrix.make = function(a, b, var_arg) {
   // Tolerant to all kinds of nonexisting array
   // Also supports a 1D array representing an Nx1 2D array
   var softget = function(a, y, x) {
-    return (a && a[y] != undefined) ? Jmat.Complex.cast(a[y][x] == undefined ? a[y] : a[y][x]) : Jmat.Complex();
+    return (a && a[y] != undefined) ? Jmat.Complex.cast(Array.isArray(a[y]) ? a[y][x] : a[y]) : Jmat.Complex();
   };
   var softgetr = function(a, y, x) {
-    return (a && a[y] != undefined) ? Jmat.Real.cast(a[y][x] == undefined ? a[y] : a[y][x]) : 0;
+    return (a && a[y] != undefined) ? Jmat.Real.cast(Array.isArray(a[y]) ? a[y][x] : a[y]) : 0;
   };
   var softget2 = function(a, b, y, x) {
     return new Jmat.Complex(softgetr(a, y, x), softgetr(b, y, x)); // real from a, imag from b
@@ -2161,8 +2161,7 @@ Jmat.Matrix.qr = function(a) {
 Jmat.Matrix.eig11 = function(m) {
   if(m.w != 1 || m.h != 1) return null;
   var result = {};
-  result.l = new Jmat.Matrix(1, 1);
-  result.l.e[0][0] = Jmat.Complex(m.e[0][0]);
+  result.l = [Jmat.Complex(m.e[0][0])];
   result.v = new Jmat.Matrix(1, 1);
   result.v.e[0][0] = Jmat.Complex(1);
   return result;
@@ -2196,9 +2195,7 @@ Jmat.Matrix.eig22 = function(m) {
   var v22 = Jmat.Complex(1);
 
   var result = {};
-  result.l = new Jmat.Matrix(2, 1);
-  result.l.e[0][0] = l1;
-  result.l.e[1][0] = l2;
+  result.l = [l1, l2];
   result.v = new Jmat.Matrix(2, 2);
   result.v.e[0][0] = v11;
   result.v.e[1][0] = v12;
@@ -2296,7 +2293,7 @@ Jmat.Matrix.eigval = function(m) {
   return l;
 };
 
-// Returns the eigenvector matching the given eigenvalue of m as a column vector
+// Returns the eigenvector matching the given eigenvalue lambda of m as a column vector
 // m must be a square matrix, and lambda a correct eigenvalue of it
 // opt_normalize is how to normalize the eigenvector: 0: don't (length unspecified), 1: last element equals 1, 2: length 1. The default is "1".
 Jmat.Matrix.eigenVectorFor = function(m, lambda, opt_normalize) {
@@ -2304,21 +2301,37 @@ Jmat.Matrix.eigenVectorFor = function(m, lambda, opt_normalize) {
   if(m.w != m.h || m.w < 1) return null;
   var n = m.w;
   var normalize_mode = (opt_normalize == undefined) ? 1 : opt_normalize;
+  var res;
 
-  // Find eigenvectors by solving system of linear equations.
-  m = M.copy(m); //avoid changing user input
-  for(var i = 0; i < n; i++) m.e[i][i] = m.e[i][i].sub(lambda);
-  var f = M.zero(n, 1);
-  var g = M.solve(m, f, 0.01); // a very large epsilon is used... because the eigenvalues are numerically not precise enough to give the singular matrix they should
-  if(g) {
-    if(normalize_mode == 2) g = g.divc(M.norm(g));
-    if(normalize_mode == 1) if(!g.e[n - 1][0].eqr(0)) g = g.divc(g.e[n - 1][0]);
+  var a = M.copy(m); // m with lamda subtracted from diagonals
+  for(var i = 0; i < n; i++) a.e[i][i] = a.e[i][i].sub(lambda);
+
+  // Find eigenvectors by solving system of linear equations (homogenous).
+  res = M.solve(a, M.zero(n, 1), 0.01); // a very large epsilon is used... because the eigenvalues are numerically not precise enough to give the singular matrix they should
+
+  // Inverse iteration
+  // Does not seem to improve accuracy over using solve
+  // The accuracy seems to depend mostly on the accuracy of the SVD, which is used both by solve and the iteration below if there is no inverse.
+  // It could be used as a back-up when solve failed, but for now I'd rather return NaN to indicate the imprecision
+  /*if (!res) {
+    var ai = M.pseudoinverse(a);
+    res = M.col(m, 0);
+    for(var i = 0; i < 10; i++) {
+      res = ai.mul(res);
+      res = res.divc(M.norm(res));
+    }
+  }*/
+
+
+  if(res) {
+    if(normalize_mode == 2) res = res.divc(M.norm(res));
+    if(normalize_mode == 1) if(!res.e[n - 1][0].eqr(0)) res = res.divc(res.e[n - 1][0]);
   } else {
     // failed to find the corresponding eigenvectors, avoid crash, set values to NaN
-    g = M.zero(n, 1);
-    for(var i = 0; i < n; i++) g.e[i][0] = Jmat.Complex(NaN, NaN); // The eigenvectors are stored as column vectors
+    res = M.zero(n, 1);
+    for(var i = 0; i < n; i++) res.e[i][0] = Jmat.Complex(NaN, NaN); // The eigenvectors are stored as column vectors
   }
-  return g;
+  return res;
 };
 
 // Returns eigenvalues and eigenvectors of real symmetric matrix with the Jacobi eigenvalue algorithm, as { l: eigenvalues, v: eigenvectors }
@@ -2353,10 +2366,17 @@ Jmat.Matrix.jacobi_ = function(m, opt_epsilon, opt_normalize) {
 };
 
 // Returns the eigenvectors and eigenvalues of m as { l: eigenvalues, v: eigenvectors }
-// eigenvalues as n*1 column vector, eigenvectors as n*n matrix
-// for each column of v and corresponding eigenvalue: A*v = l*v (l represents lambda, A is m)
-// opt_normalize is how to normalize the eigenvectors: 0: don't (length unspecified), 1: last element equals 1, 2: length 1. The default is "1".
-// NOTE: the eigenvectors are to be read as columns of v, not rows.
+// l = eigenvalues as array of length n
+// v = eigenvectors as n*n matrix of column vectors
+// for each column of v and corresponding eigenvalue: m*v = l*v (with v an eigenvector and l its corresponding eigenvalue)
+// opt_normalize is how to normalize the eigenvectors. The default is "1".
+// *) 0: don't normalize, length unspecified, left at whichever length the internal algorithm produced
+// *) 1: last element equals 1
+// *) 2: euclidean length 1.
+// NOTES:
+// *) To convert eigenvalues to diagonal matrix, use Jmat.Matrix.arrayToDiag.
+// *) To convert them to column vector, use Jmat.Matrix.arrayToCol.
+// *) To extract an eigenvector, use Jmat.Matrix.col(v, i) with i zero indexed.
 Jmat.Matrix.eig = function(m, opt_normalize) {
   var M = Jmat.Matrix;
   if(m.w != m.h || m.w < 1) return null;
@@ -2392,7 +2412,7 @@ Jmat.Matrix.eig = function(m, opt_normalize) {
 Jmat.Matrix.evd = function(m) {
   var eig = Jmat.Matrix.eig(m);
 
-  return { v: eig.v, d: Jmat.Matrix.diag(eig.l) };
+  return { v: eig.v, d: Jmat.Matrix.arrayToDiag(eig.l) };
 };
 
 // TODO: Matrix.jordan, calculating jordan decomposition, jordan normal form, jordan canonical form, giving {v:V, j:J} with the generalized eigenvectors in V. (similar to Matrix.evd, but supports any matrix rather than only diagonizable ones)
@@ -2572,6 +2592,8 @@ Jmat.Matrix.zsvdc_ = function(x, ldx, n, p, s, e, u, ldu, v, ldv, work, job) {
       smm1,t1,test,ztest; // double
 
   var dr; //drotg result
+
+  if(!n || !p) return; // they could be NaN or undefined if somewhere earlier no valid Matrix object was given
 
   var dreal = function(z) { return z.re; };
   var cabs1 = function(z) { return Math.abs(z.re) + Math.abs(z.im); };
@@ -3165,19 +3187,20 @@ Jmat.Matrix.rref = function(a) {
 // generates a random matrix with some properties.
 // all parameters are optional.
 // properties: properties object similar to what "getProperties" returns. Not all are implemented though.
-//             Currently only 'real', 'integer', 'binary' and 'hermitian' are supported.
+//             Currently only 'real', 'integer', 'binary', 'hermitian' and 'square' are supported.
 //             Default is object {'real':true}. Pass "undefined" to get the default, or '{}' to get complex matrices.
 // h: number of rows. Default: random 2..12
-// w: number of columns. Default: random 2..12, or h if h is defined
+// w: number of columns. Default: random 2..12, or h if h is defined or the 'square' property is true
 // r0: lowest random value. Default: 0
 // r1: highest random value. Default: 1
 // s: sparseness: give value in range 0-1. Default: 1
-// e.g. Matrix.random(4, 4, 0, 10, 1, {'integer':true}).render_summary()
-//      Matrix.random(3, 3, -10, 10, 1, {'real':false,'hermitian':true}).render_summary()
+// e.g. Matrix.random({'integer':true}, 4, 4, 0, 10, 1).render_summary()
+//      Matrix.random({'real':false,'hermitian':true}, 3, 3, -10, 10, 1).render_summary()
 Jmat.Matrix.random = function(properties, h, w, r0, r1, s) {
   var C = Jmat.Complex;
-  w = w || h || Math.floor(Math.random() * 10 + 2);
-  h = h || Math.floor(Math.random() * 10 + 2);
+  var R = Jmat.Real;
+  w = w || h || Math.floor(R.random() * 10 + 2);
+  h = h || Math.floor(R.random() * 10 + 2);
   s = (s == undefined) ? 1 : s;
   r0 = (r0 == undefined) ?  0 : r0;
   r1 = (r1 == undefined) ?  1 : r1;
@@ -3186,10 +3209,11 @@ Jmat.Matrix.random = function(properties, h, w, r0, r1, s) {
   var integer = properties['integer'];
   var binary = properties['binary'];
   var hermitian = properties['hermitian'];
+  if(properties['square']) w = h;
   var f = function(real) {
-    if(s >= 1 || Math.random() < s) {
-      if (binary) return Math.random() > 0.5 ? C(1) : C(0);
-      var result = real ? C(Math.random() * (r1 - r0) + r0) : C.random(r0, r1);
+    if(s >= 1 || R.random() < s) {
+      if (binary) return R.random() > 0.5 ? C(1) : C(0);
+      var result = real ? C(R.random() * (r1 - r0) + r0) : C.random(r0, r1);
       return integer ? C(Math.floor(result.re)) : result;
     }
     return C(0);

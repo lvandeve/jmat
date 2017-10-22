@@ -142,16 +142,61 @@ Jmat.Test.testPolylog = function() {
   Jmat.Test.finalizeAccuracy(true);
 };
 
+Jmat.doEigenPrecisionBenchmark = function() {
+  var restore_seed = Jmat.Real.seed;
+  Jmat.Real.seed = 5;
+
+  var biggestError = 0;
+  var biggestErrorData = null;
+
+  var sumError = 0;
+  var numError = 0;
+
+  for (var i = 0; i < 100; i++) {
+    var m = M.random({'square':true, 'real':true});
+    var e = M.eig(m);
+
+    //console.log(Jmat.render(m));
+    //console.log(Jmat.render(e));
+
+    for (var j = 0; j < m.w; j++) {
+
+      var v = M.col(e.v, j);
+      var v2 = m.mul(v); // multiplied with matrix
+      var v3 = v.mulc(e.l[j]); // multiplied with eigenvalue. we expect this to be the same vector
+
+      var error = Jmat.dist(v2, v3);
+      //console.log('error: ' + error);
+
+      //console.log(Jmat.render(v2));
+      //console.log(Jmat.render(v3));
+
+      if(error > biggestError) {
+        biggestError = error;
+        biggestErrorData = {col: j, m: m, l: e.l, v: e.v};
+      }
+      sumError += error;
+      numError++;;
+    }
+  }
+
+  console.log('average error: ' + (sumError / numError) +
+              ', biggest error: ' + biggestError +
+              ', data: ' + Jmat.render(biggestErrorData));
+
+  Jmat.Real.seed = restore_seed;
+};
+
 // throws on fail, prints 'success' on success
 Jmat.doUnitTest = function(opt_verbose) {
-  // check that the test framework itself can actually fail
-  var thrown = false;
+  // check that the test framework itself can actually fail --> disabled because annoying when using "pause on exception"
+  /*var thrown = false;
   try {
     Jmat.Test.testFunction(3, 0, Jmat.add, 1, 1);
   } catch(error) {
     thrown = true; // this is expected
   }
-  if(!thrown) throw 'that should have thrown error!';
+  if(!thrown) throw 'that should have thrown error!';*/
 
   Jmat.Test.initAccuracy();
 
@@ -239,26 +284,26 @@ Jmat.doUnitTest = function(opt_verbose) {
                     [[16.8481, 0, 0],[0, 1.06837, 0],[0,0,0]],
                     [[0.479671, -0.776691, 0.408248],[0.572368, -0.0756865, -0.816497], [0.665064, 0.625318, 0.408248]],
                     1e-5, [[1,2,3],[4,5,6],[7,8,9]]);
-  Jmat.Test.testEIG([[1]], [[1]], 1e-5, [[1]]);
-  Jmat.Test.testEIG([[5.37228], [-0.372281]], [[0.457427, -1.45743],[1, 1]], 1e-5, [[1,2],[3,4]]);
-  Jmat.Test.testEIG([[16.1168], [-1.11684], [0]], [[0.283349, -1.28335, 1],[0.641675, -0.141675, -2], [1, 1, 1]], 1e-4, [[1,2,3],[4,5,6],[7,8,9]]); //wolfram|alpha only gave 4 digits
-  Jmat.Test.testEIG([[80.1273], [-5.15639], [-1.18974], [-0.781182]],
+  Jmat.Test.testEIG([1], [[1]], 1e-5, [[1]]);
+  Jmat.Test.testEIG([5.37228, -0.372281], [[0.457427, -1.45743],[1, 1]], 1e-5, [[1,2],[3,4]]);
+  Jmat.Test.testEIG([16.1168, -1.11684, 0], [[0.283349, -1.28335, 1],[0.641675, -0.141675, -2], [1, 1, 1]], 1e-4, [[1,2,3],[4,5,6],[7,8,9]]); //wolfram|alpha only gave 4 digits
+  Jmat.Test.testEIG([80.1273, -5.15639, -1.18974, -0.781182],
                     [[0.0562274,-0.277836,-0.258731,-0.767583],[0.274212,-0.449235,1.15276,1.77101],[0.615571,-0.559067,-1.92247,-2.08569],[1,1,1,1]],
                     1e-4,
                     [[0,1,2,3],[5,7,11,13],[17,19,23,29],[31,37,41,43]]);
-  Jmat.Test.testEIG([[-23.6091], ['11.3789+5.15137i'], ['11.3789-5.15137i'], [0.851391]],
+  Jmat.Test.testEIG([-23.6091, '11.3789+5.15137i', '11.3789-5.15137i', 0.851391],
                     [[0.100247,'-0.243-0.04689i','-0.243+0.04689i',82.8674],[-0.148667,'1.3376-0.39635i','1.33764+0.39635i',76.2564],[0.390964,'-0.4334-0.6958i','-0.4334+0.6958i', -1.35194],[1,1,1,1]],
                     1e-3,
                     [[0,1,2,-3],[-4,5,-6,7],[-8,9,10,-11],[-12,13,-14,-15]]);
-  Jmat.Test.testEIG([[3.38923], [1.85542], [0.755356]],
+  Jmat.Test.testEIG([3.38923, 1.85542, 0.755356],
                     [[0.268262/0.871621, -0.223801/0.470604, 0.936989/-0.137143], [0.410258/0.871621, -0.85349/0.470604, -0.321315/-0.137143], [1, 1, 1]],
                     1e-5,
                     [[1,0.5,0.5],[0.5,2,0.5],[0.5,0.5,3]]);
-  Jmat.Test.testEIG([[3.38923], [1.85542], [0.755356]],
+  Jmat.Test.testEIG([3.38923, 1.85542, 0.755356],
                     [[-0.871621/-0.268262,0.470604/-0.223801,-0.137143/0.936989],[-0.410258/-0.268262,-0.85349/-0.223801,-0.321315/0.936989],[1,1,1]],
                     1e-5,
                     [[3,0.5,0.5],[0.5,2,0.5],[0.5,0.5,1]]);
-  Jmat.Test.testEIG([[-2], [0], [0]],
+  Jmat.Test.testEIG([-2, 0, 0],
                     [[-1,0,0],[3,1,1],[1,0,0]],
                     1e-8,
                     [[-1,0,1],[3,0,-3],[1,0,-1]]);
