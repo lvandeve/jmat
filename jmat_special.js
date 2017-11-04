@@ -285,7 +285,7 @@ Jmat.Complex.hypergeometric2F1 = function(a, b, c, z) {
       // This if probably covers more cases than needed, but there are a lot of cases. Even gammaDiv22_ doesn't help out. E.g. if a,b,c are all 0.5, the limit is different than gammaDiv22_.
       if(t(a) || t(b) || t(b) || C.isInt(a.sub(b)) || t(c.sub(a)) || t(c.sub(b))) {
         // Twiddle to take the limit to avoid singularities (they cancel it out, but, finding exact formula here is too hard)
-        // TODO: improve this since this is very imprecise
+        // TODO: improve this since this is very imprecise (e.g. L'Hopital's rule if possible)
         a = a.addr(0.1e-7);
         b = b.subr(0.2e-7);
         c = c.addr(0.3e-7);

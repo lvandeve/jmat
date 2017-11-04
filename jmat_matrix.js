@@ -1395,7 +1395,6 @@ Jmat.Matrix.cholesky = function(a) {
 // LDL decomposition: similar to cholesky, but A = LDL* with D diagonal matrix and L unitriangular
 Jmat.Matrix.ldl = function(a) {
   var M = Jmat.Matrix;
-  var C = Jmat.Complex;
   if(!M.isHermitian(a)) return null;
 
   var l = M.identity(a.w);
