@@ -202,8 +202,8 @@ Jmat.Complex.PI = Jmat.Complex(Math.PI);
 Jmat.Complex.E = Jmat.Complex(Math.E);
 Jmat.Complex.SQRT2 = Jmat.Complex(Math.sqrt(2));
 Jmat.Complex.SQRTPI = Jmat.Complex(Math.sqrt(Math.PI));
-Jmat.Complex.INVSQRT2PI = Jmat.Complex(1 / Math.sqrt(2 * Math.PI)); //0.3989422804014327
-Jmat.Complex.EM = Jmat.Complex(Jmat.Real.EM); // Euler-Mascheroni constant
+Jmat.Complex.INVSQRT2PI = Jmat.Complex(Jmat.Real.INVSQRT2PI); //0.3989422804014327
+Jmat.Complex.EM = Jmat.Complex(Jmat.Real.EM); // Euler-Mascheroni constant, aka Euler's gamma
 Jmat.Complex.APERY = Jmat.Complex(Jmat.Real.APERY); // Apery's constant, zeta(3)
 
 Jmat.Complex.real = function(z) {
@@ -1033,6 +1033,7 @@ Jmat.Complex.calcCache_ = function(z, fun, cache, n) {
 //Inspired by Wikipedia, Lanczos approximation, precision is around 15 decimal places
 Jmat.Complex.gamma = function(z) {
   if(z.re == Infinity) return Jmat.Complex(Infinity);
+  if(z.re == -Infinity) return Jmat.Complex(NaN);
   if(Jmat.Complex.isNegativeIntOrZero(z)) return Jmat.Complex(Infinity, Infinity); // Undirected infinity
   if(z.im == 0) return Jmat.Complex(Jmat.Real.gamma(z.re));
 

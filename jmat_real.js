@@ -71,7 +71,8 @@ Jmat.Real.caststrict = function(v) {
 
 Jmat.Real.SQRT2 = Math.sqrt(2);
 Jmat.Real.SQRTPI = Math.sqrt(Math.PI); // gamma(0.5)
-Jmat.Real.EM = 0.57721566490153286060; // Euler-Mascheroni constant
+Jmat.Real.INVSQRT2PI = 1 / Math.sqrt(2 * Math.PI); //0.3989422804014327
+Jmat.Real.EM = 0.57721566490153286060; // Euler-Mascheroni constant, aka Euler's gamma
 Jmat.Real.APERY = 1.2020569; // Apery's constant, zeta(3)
 Jmat.Real.BIGGESTJSINT = 9007199254740992; // largest number that JS (float64) can represent as integer: 2^53, 0x20000000000000, 9007199254740992
 Jmat.Real.BIGGESTJSPRIME = 9007199254740881; // largest prime number that JS (float64) can represent as integer, that is, the biggest prime smaller than Jmat.Real.BIGGESTJSINT.
@@ -191,10 +192,13 @@ Jmat.Real.idiv = function(a, b) {
 Jmat.Real.gamma = function(z) {
   // Return immediately for some common values, to avoid filling the cache with those
   if(z == Infinity) return Infinity;
+  if(z == -Infinity) return NaN;
   if(Jmat.Real.useFactorialLoop_(z - 1)) {
     return Jmat.Real.factorial(z - 1); //that one uses memoization
   }
   if(z == 0.5) return Jmat.Real.SQRTPI;
+  if(z > 200) return Infinity; // too large to hold in double precision. Prevent returning NaN.
+
 
   // The internal function that doesn't do internal checks
   var gamma_ = function(z) {
@@ -1303,6 +1307,34 @@ Jmat.Real.hypot = function(x, y) {
 Jmat.Real.expm1 = function(x) {
   if(Math.abs(x) < 1e-5) return x + x * x / 2 + x * x * x / 6;
   else return Math.exp(x) - 1;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+// Automatically cache last value. Useful for parameters of statistical distributions that are often the same in repeated calls.
+// Cache must be an array (initially []), so that this function can modify it to set the necessary values.
+// Function fun is called with z.
+// n is cache size
+// if n is given, cache contains alternating: index, input0, result0, input1, result1, input2, result2, ... where index is circular pointer to fill in new cache values
+// if n is not given, cache contains: input, result
+Jmat.Real.calcCache_ = function(z, fun, cache, n) {
+  if(n) {
+    for(var i = 0; i < n; i++) if(z == cache[i * 2 + 1]) return cache[i * 2 + 2];
+    var index = cache[0] || 0;
+    index++;
+    if(index >= n) index = 0;
+    var result = fun(z);
+    cache[index * 2 + 1] = z;
+    cache[index * 2 + 2] = result;
+    cache[0] = index;
+    return result;
+  } else {
+    if(z == cache[0]) return cache[1];
+    var result = fun(z);
+    cache[0] = z;
+    cache[1] = result;
+    return result;
+  }
 };
 
 ////////////////////////////////////////////////////////////////////////////////

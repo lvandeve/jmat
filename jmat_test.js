@@ -74,7 +74,7 @@ Jmat.Test.testFunction = function(expected, epsilon, f, var_arg) {
   var result = f.apply(this, a);
   if(!Jmat.bigIntIn_(result)) {
     var e = Jmat.cheb(expected, result);
-    if(e > 0) {
+    if(epsilon != Infinity && e > 0) {
       if(e > Jmat.Test.accworst) Jmat.Test.accworst = e;
       Jmat.Test.accrep += (f.testName ? f.testName : 'unk') + '(' + var_arg + ') = ' + expected + ', got: ' + result + ', eps: ' + e + '\n';
     }
@@ -187,6 +187,151 @@ Jmat.doEigenPrecisionBenchmark = function() {
   Jmat.Real.seed = restore_seed;
 };
 
+Jmat.Test.doUnitTestLogGamma = function() {
+  var R = Jmat.Real;
+  var C = Jmat.Complex;
+  var eps = 1e-10;
+  Jmat.Test.testFunction(C('1.8989912736759002200831-0.8274647077730757440276i'), eps, C.loggamma, C('0.1+0.1i'));
+  Jmat.Test.testFunction(C('-7857.23612011+37585.1962512i'), eps, C.loggamma, C('0.01+5000i'));
+  Jmat.Test.testFunction(C('0.8023383351114638215-8.3060215023381284915i'), eps, C.loggamma, C('5-5i'));
+
+  Jmat.Test.testFunction(0, eps, R.loggamma, 1);
+  Jmat.Test.testFunction(2.25271265173, eps, R.loggamma, 0.1);
+  Jmat.Test.testFunction(0.572364942925, eps, R.loggamma, 0.5);
+  Jmat.Test.testFunction(6.63762397347e-02, eps, R.loggamma, 0.9);
+  Jmat.Test.testFunction(-0.0982718364218, eps, R.loggamma, 1.25);
+  Jmat.Test.testFunction(-0.0844011210205, eps, R.loggamma, 1.75);
+  Jmat.Test.testFunction(0, eps, R.loggamma, 2);
+  Jmat.Test.testFunction(0.693147180560, eps, R.loggamma, 3);
+  Jmat.Test.testFunction(3.17805383035, eps, R.loggamma, 5);
+  Jmat.Test.testFunction(1.28018274801e+01, eps, R.loggamma, 10);
+  Jmat.Test.testFunction(3.93398841872e+01, eps, R.loggamma, 20);
+  Jmat.Test.testFunction(3.59134205370e+02, eps, R.loggamma, 100);
+  Jmat.Test.testFunction(5.90522042321e+03, eps, R.loggamma, 1000);
+  Jmat.Test.testFunction(Infinity, eps, R.loggamma, Infinity);
+  Jmat.Test.testFunction(1.20247578639, eps, R.loggamma, -1.3);
+  Jmat.Test.testFunction(Infinity, eps, R.loggamma, -3);
+  Jmat.Test.testFunction(-1.30900668499, eps, R.loggamma, -3.5);
+  Jmat.Test.testFunction(-4.16245710210e+02, eps, R.loggamma, -111.5);
+};
+
+Jmat.Test.doUnitTestRealDistributions = function() {
+  var R = Jmat.Real;
+  var C = Jmat.Complex;
+  var T = Jmat.Test;
+  var that = this;
+  var testDistribution = function(expected_pdf, expected_cdf, precision, precision_qf, name, var_arg) {
+    var a = Array.prototype.slice.call(arguments).slice(5); /*var_arg*/
+    var pdf_f = R['pdf_' + name];
+    if(!pdf_f) pdf_f = R['pmf_' + name];
+    var cdf_f = R['cdf_' + name];
+    var qf_f = R['qf_' + name];
+
+    T.testFunction.apply(that, [expected_pdf, precision, pdf_f].concat(a));
+    T.testFunction.apply(that, [expected_cdf, precision, cdf_f].concat(a));
+    var expected_qf = a[0];
+    var qf_in = cdf_f.apply(that, a);
+    var amod = a.slice(0);
+    amod[0] = qf_in;
+    T.testFunction.apply(that, [expected_qf, precision_qf, qf_f].concat(amod));
+
+    // and now complex
+    for(var i = 0; i < a.length; i++) a[i] = C(a[i]);
+    expected_pdf = Complex(expected_pdf);
+    expected_cdf = Complex(expected_cdf);
+    pdf_f = C['pdf_' + name];
+    if(!pdf_f) pdf_f = C['pmf_' + name];
+    cdf_f = C['cdf_' + name];
+    qf_f = C['qf_' + name];
+
+    T.testFunction.apply(that, [expected_pdf, precision, pdf_f].concat(a));
+    T.testFunction.apply(that, [expected_cdf, precision, cdf_f].concat(a));
+    var expected_qf = a[0];
+    var qf_in = cdf_f.apply(that, a);
+    var amod = a.slice(0);
+    amod[0] = qf_in;
+    T.testFunction.apply(that, [expected_qf, precision_qf, qf_f].concat(amod));
+  }
+
+  var eps = 1e-10;
+  var eps_qf = 1e-5;
+
+  testDistribution(0.33333333333333, 0.33333333333333, eps, eps_qf, 'uniform', 2, 1, 4);
+  testDistribution(0, 0, eps, Infinity, 'uniform', -1, 0, 1); // qf can't know what x was here, so its eps disabled
+  testDistribution(0, 1, eps, Infinity, 'uniform', 5, 0, 2); // qf can't know what x was here, so its eps disabled
+
+  testDistribution(1.486719514734297707908e-6, 2.86651571879193911674e-7, eps, eps_qf, 'standardnormal', -5);
+  testDistribution(0.3520653267642994777747, 0.3085375387259868963623, eps, eps_qf, 'standardnormal', -0.5);
+  testDistribution(0.39894228040143267794, 0.5, eps, eps_qf, 'standardnormal', 0);
+  testDistribution(0.3520653267642994777747, 0.6914624612740131036377, eps, eps_qf, 'standardnormal', 0.5);
+  testDistribution(1.486719514734297707908E-6, 0.9999997133484281208061, eps, eps_qf, 'standardnormal', 5);
+
+  testDistribution(0.2515888184619954426786, 0.6305586598182363617272, eps, eps_qf, 'normal', 1, 0.5, 1.5);
+  testDistribution(0.0381387815460524085608, 0.3820885778110473626935, eps, eps_qf, 'normal', 5, 8, 10);
+  testDistribution(0.01713685920478073569636, 0.09680048458561033315201, eps, eps_qf, 'normal', -5, 8, 10);
+
+  testDistribution(0.2515888184619954426786, 0.3694413401817636382728, eps, eps_qf, 'lognormal', 1, 0.5, 1.5);
+  testDistribution(0.006505170494444215303193, 0.2613931832392658068243, eps, eps_qf, 'lognormal', 5, 8, 10);
+
+  testDistribution(0.1591549430919, 0.75, eps, eps_qf, 'cauchy', 1, 0, 1);
+  testDistribution(0.21220659078919, 0.5, eps, eps_qf, 'cauchy', 1.5, 1.5, 1.5);
+  testDistribution(0.07639437268411, 0.79516723530087, eps, eps_qf, 'cauchy', 2.5, 0.5, 1.5);
+
+  testDistribution(3.4633157382171e-4, 0.98949853491578, eps, eps_qf, 'studentt', 30.3, 1);
+  testDistribution(3.5830637408089E-5, 0.99945627926805, eps, eps_qf, 'studentt', 30.3, 2);
+  testDistribution(3.899041614152E-6, 0.99996051678271, eps, eps_qf, 'studentt', 30.3, 3);
+  testDistribution(4.647805715373E-7, 0.99999646651138, eps, eps_qf, 'studentt', 30.3, 4);
+  testDistribution(0.19245008972988, 0.78867513459481, eps, eps_qf, 'studentt', 1, 2);
+  testDistribution(1.10015649E-7, 0.99999998054293, eps, eps_qf, 'studentt', 5.5, 10000);
+  testDistribution(0.1176685042172, 0.87608177345685, eps, eps_qf, 'studentt', 1.5, 2.5);
+  testDistribution(0.1176685042172, 0.12391822654315, eps, eps_qf, 'studentt', -1.5, 2.5);
+
+  testDistribution(2.350110795843e-16, 5.198100275214e-17, eps, eps_qf, 'chi_square', 5, 50);
+  testDistribution(0.207553748710, 0.427593295529, eps, eps_qf, 'chi_square', 2, 3);
+  testDistribution(0.122041521349, 0.5841198130044, eps, eps_qf, 'chi_square', 5, 5);
+
+  testDistribution(0.196611933241, 0.731058578630, eps, eps_qf, 'logistic', 1, 0, 1);
+  testDistribution(3.105521163621e-6, 0.9999962733607, eps, eps_qf, 'logistic', 20, 5, 1.2);
+
+  testDistribution(0.180447044315, 0.142876539501, eps, eps_qf, 'gamma', 2, 4, 1);
+  testDistribution(0.096438800200, 0.554768248693, eps, eps_qf, 'gamma', 5.1, 1.7, 3.3);
+
+  testDistribution(1.536, 0.1808, eps, eps_qf, 'beta', 0.2, 2, 3);
+  testDistribution(0.16141880840106, 0.017820363993139, eps, eps_qf, 'beta', 0.77, 5, 0.1);
+
+  testDistribution(0.641336686303, 0.132305485692, eps, eps_qf, 'fisher', 0.2, 2.5, 1.5);
+  testDistribution(0.0044460064995, 0.97496898418, eps, eps_qf, 'fisher', 10, 1, 5);
+  testDistribution(4.0989816415e-6, 0.99982905242425, eps, eps_qf, 'fisher', 100, 1, 5);
+
+  testDistribution(1, 0, eps, eps_qf, 'weibull', 0, 1, 1);
+  testDistribution(0.367879441171, 0.6321205588, eps, eps_qf, 'weibull', 1, 1, 1);
+  testDistribution(Infinity, 0, eps, eps_qf, 'weibull', 0, 1, 0.5);
+  testDistribution(0.183939720585, 0.6321205588, eps, eps_qf, 'weibull', 1, 1, 0.5);
+
+  testDistribution(0.13533528323, 0.8646647167, eps, eps_qf, 'exponential', 2, 1);
+  testDistribution(0.066887171122, 0.632120558828, eps, eps_qf, 'exponential', 5.5, 1 / 5.5);
+
+  testDistribution(0.194700195767851, 0.610599608464297, eps, eps_qf, 'laplace', 0.5, 0, 2);
+  testDistribution(0.134064009207127, 0.335160023017819, eps, eps_qf, 'laplace', 0.5, 1.5, 2.5);
+
+  testDistribution(0.9, 0.9, eps, eps_qf, 'bernoulli', 0, 0.1);
+  testDistribution(0.1, 1, eps, eps_qf, 'bernoulli', 1, 0.1);
+  testDistribution(0.5, 0.5, eps, eps_qf, 'bernoulli', 0, 0.5);
+  testDistribution(0.5, 1, eps, eps_qf, 'bernoulli', 1, 0.5);
+  testDistribution(0.1, 0.1, eps, eps_qf, 'bernoulli', 0, 0.9);
+  testDistribution(0.9, 1, eps, eps_qf, 'bernoulli', 1, 0.9);
+
+  testDistribution(0.0014880348, 0.9998530974, eps, eps_qf, 'binomial', 5, 10, 0.1);
+  testDistribution(0.0014880348, 0.0016349374, eps, eps_qf, 'binomial', 5, 10, 0.9);
+  testDistribution(0.03125, 1, eps, eps_qf, 'binomial', 5, 5, 0.5);
+
+  testDistribution(0.121714452424092, 0.158597619825332, eps, eps_qf, 'poisson', 1, 3.3);
+  // precision for qf not tested below (by setting its eps to Infinity), it is low, partially because all high k makes the value very close to 1, so any tiny change in that value affects the inverse result enormously
+  testDistribution(0.175467369767851, 0.615960654833063, eps, Infinity, 'poisson', 5, 5);
+  testDistribution(1.0137771196303e-7, 0.999999989952234, eps, Infinity, 'poisson', 10, 1);
+  testDistribution(2.80684572494333e-108, 1, eps, Infinity, 'poisson', 100, 3.3);
+}
+
 // throws on fail, prints 'success' on success
 Jmat.doUnitTest = function(opt_verbose) {
   // check that the test framework itself can actually fail --> disabled because annoying when using "pause on exception"
@@ -224,6 +369,7 @@ Jmat.doUnitTest = function(opt_verbose) {
   Jmat.Test.testFunction('6.3618456410625559136428432181', 1e-12, Jmat.hypergeometric1F1, 1, 2, 3);
   Jmat.Test.testFunction('0.506370', 1e-5, Jmat.hypergeometric2F1, 0.5, 0.5, 0.5, -2.9);
   Jmat.Test.testFunction('0.493865', 1e-5, Jmat.hypergeometric2F1, 0.5, 0.5, 0.5, -3.1);
+  Jmat.Test.doUnitTestLogGamma();
 
   //other
   Jmat.Test.testFunction(3581, 0, Real.smallestPrimeFactor, 12830723);
@@ -260,6 +406,7 @@ Jmat.doUnitTest = function(opt_verbose) {
   // distributions
   Jmat.Test.testFunction(0.274997, 1e-2, Jmat.qf_chi_square, 0.4, 1); // This one is very imprecise currently :(
   Jmat.Test.testFunction(0.198964, 1e-6, Jmat.pdf_studentt, 0.5, 0.5); // This one is very imprecise currently :(
+  Jmat.Test.doUnitTestRealDistributions();
 
   // matrix basic operators
   Jmat.Test.testFunction([[6,8],[10,12]], eps, Jmat.add, [[1,2],[3,4]], [[5,6],[7,8]]);

@@ -29,7 +29,8 @@ THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 // REQUIRES: jmat_real.js, jmat_complex.js
 
 /*
-jmat_special.js extends Jmat.Real and Jmat.Complex with more functions. Has three categories of functions:
+jmat_special.js extends Jmat.Complex with more functions. Jmat.Real is extended with a few of those as well but usually with more limited range.
+There are three main categories of functions:
 1. special mathematical functions such as hypergeometric and polylog (very special ones, more basic "special" mathematical functions are in jmat_real.js and jmat_complex.js)
 2. numerical algorithms for complex functions such as root finding, integration, differentiation
 3. statistical distributions (pdf/pmf, cdf and qf of each)
@@ -489,33 +490,117 @@ Jmat.Complex.legendreq = function(nu, mu, z, opt_type) {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-//using Stirling series
-//natural logarithm of the gamma function, and more specific branch of the log
-//to use this for log2 of the factorial (common in computing theory), use e.g.: function log2fac(n) { return Jmat.loggamma(n + 1).re / Math.log(2); }
-// TODO: check if this small series is precise enough everywhere
+// natural logarithm of the gamma function, principle branch
+// for real input, the result matches log(gamma(z))
+// but for complex input, it uses a principle branch different than log, so loggamma(z) is not same as log(gamma(z)).
+// The real part of the output is exactly the same as log(gamma(z)) however, only the imaginary part differs.
 Jmat.Complex.loggamma = function(z) {
+  var C = Jmat.Complex;
+
+  if(z.eqr(1) || z.eqr(2)) return C(0);
+  if(z.re == Infinity) return C(Infinity);
+  if(z.re == -Infinity) return C(NaN);
+
   //the result is way too imprecise if the real part of z is < 0, use the log of the reflection formula
   // loggamma(z) = log(pi/sin(pi*z)) - loggamma(1 - z)
   if(z.re < 0) {
-    if(z.im == 0 && z.re == Math.floor(z.re)) return Jmat.Complex(NaN); // gamma does not exist here, so it shouldn't return bogus values
-    var l = Jmat.Complex.log(Jmat.Complex.PI.div(Jmat.Complex.sin(Jmat.Complex.PI.mul(z))));
+    if(z.im == 0 && z.re == Math.floor(z.re)) return C(Infinity);
+    var l = C.log(C.PI.div(C.sin(C.PI.mul(z))));
     // the complex sine goes out of bounds for example for (-4+120i), log(pi / sin(pi*z)) is very roughly approximated by log(2*pi*i) - i*z*pi*sign(z.im) (TODO: the approximation is not fully correct, e.g. for -160-116i)
-    if(Jmat.Complex.isInfOrNaN(l)) l = Jmat.Complex.log(Jmat.Complex.newi(2 * Math.PI)).sub(Jmat.Complex.newi(-Math.PI).mul(z.im > 0 ? z : z.neg()));
-    return l.sub(Jmat.Complex.loggamma(Jmat.Complex.ONE.sub(z)));
+    if(C.isInfOrNaN(l)) l = C.log(C.newi(2 * Math.PI)).sub(C.newi(-Math.PI).mul(z.im > 0 ? z : z.neg()));
+    return l.sub(C.loggamma(C.ONE.sub(z)));
   }
 
-  // The series below has a weird artefact for values near 0 with re > 0. Use actual log(gamma) for that
-  if(z.im < 1 && z.im > -1 && z.re < 1 && z.re >= 0) return Jmat.Complex.log(Jmat.Complex.gamma(z));
 
-  var result = Jmat.Complex(0.918938533205); //0.5 * ln(2pi)
-  result = result.add(Jmat.Complex.subr(z, 0.5).mul(Jmat.Complex.log(z)));
+  // The stirling series is imprecise for small values.
+  // So use the relation loggamma(z) = loggamma(z + 1) - ln(z)
+  // This will recursively call this function again til z.re is > 10.
+  // NOTE: I would love to be able to use log(gamma(z)) instead, but I don't know how to convert the result of that to the different branch of loggamma:
+  // loggamma(z) in terms of log(gamma(z)):
+  // for real positive z, they are equal
+  // for real negative z: loggamma(z) = log(gamma(z)) + 2*pi*i*ceil(x / 2 - 1)
+  // for complex z: loggamma(z) = ????
+  if(z.re < 10) {
+    var a = C.loggamma(z.addr(1));
+    a = a.sub(C.log(z));
+    return a;
+  }
+
+  // stirling series
+  var result = C(0.918938533205); //0.5 * ln(2pi)
+  result = result.add(C.subr(z, 0.5).mul(C.log(z)));
   result = result.sub(z);
   result = result.add(z.mulr(12).inv());
-  result = result.sub(Jmat.Complex.powr(z, 3).mulr(360).inv());
-  result = result.add(Jmat.Complex.powr(z, 5).mulr(1260).inv());
-  result = result.sub(Jmat.Complex.powr(z, 7).mulr(1680).inv());
-  result = result.add(Jmat.Complex.powr(z, 9).mulr(1188).inv());
+  result = result.sub(C.powr(z, 3).mulr(360).inv());
+  result = result.add(C.powr(z, 5).mulr(1260).inv());
+  result = result.sub(C.powr(z, 7).mulr(1680).inv());
+  result = result.add(C.powr(z, 9).mulr(1188).inv());
   return result;
+};
+
+//natural logarithm of the absolute value of the gamma function
+//NOTE: differs from Jmat.Complex.loggamma for negative real numbers whose truncated integer part is even, such as -4.5 or -22.5 (values where the gamma function is negative): the imaginary part is removed, log of absolute value is taken instead.
+//to use this for log2 of the factorial, use e.g.: function log2fac(n) { return Jmat.Real.loggamma(n + 1) / Math.log(2); }
+Jmat.Real.loggamma = function(z) {
+  //the result is way too imprecise if z is < 0, use the log of the reflection formula
+  // loggamma(z) = log(pi/sin(pi*z)) - loggamma(1 - z)
+  if(z < 0) {
+    if(z == Math.floor(z)) return Infinity;
+    var l = Math.log(Math.PI / Math.abs((Math.sin(Math.PI * z))));
+    return l - Jmat.Real.loggamma(1 - z);
+  }
+
+  if(z == 1 || z == 2) return 0;
+  if(z == Infinity) return Infinity;
+  if(z == -Infinity) return NaN;
+
+  // The series below has a weird artefact for values near 0 and > 0. Use actual log(gamma) for that
+  if(z < 1 && z >= 0) return Math.log(Math.abs(Jmat.Real.gamma(z)));
+
+  // We also get more precision still from the real formula for roughly |z| < 20
+  if(z > -20 && z < 20) return Math.log(Math.abs(Real.gamma(z)));
+
+  // stirling series
+  var result = 0.918938533204672669540968854562; //0.5 * ln(2pi)
+  result += (z - 0.5) * Math.log(z);
+  result -= z;
+  result += 1.0 / (z * 12);
+  var z3 = z * z * z;
+  var z5 = z3 * z * z;
+  var z7 = z5 * z * z;
+  var z9 = z7 * z * z;
+  result -= 1.0 / (z3 * 360);
+  result += 1.0 / (z5 * 1260);
+  result -= 1.0 / (z7 * 1680);
+  result += 1.0 / (z9 * 1188);
+  return result;
+
+  // Some other approximations for illustration only. They work worse.
+
+  // Should approximate it in theory, but does not work well numerically
+  /*var result = z * Math.log(z) - z + 0.5 * Math.log(2 * Math.PI / z);
+  for(var i = 1; i < 8; i++) {
+    result += Jmat.Real.bernoulli[2 * i] / (2 * i * (2 * i - 1) * Math.pow(z, (i * 2 - 1)));
+  }*/
+
+  /*var result = z * Math.log(z) - z + 0.5 * Math.log(2 * Math.PI / z);
+  var a = [1, 1, 59, 29, 533, 1577, 280361, 69311, 36226519, 7178335, 64766889203, 32128227179, 459253205417, 325788932161, 2311165698322609];
+  var b = [12, 12, 360, 60, 280, 168, 5040, 180, 11880, 264, 240240, 10920, 13104, 720, 367200];
+  var zz = 1;
+  for(var i = 0; i < a.length; i++) {
+    zz *= (z + i + 1);
+    result += a[i] / (b[i] * zz);
+  }
+  return result;*/
+
+  /*var ln2pi = 1.83787706640934533908193770912;
+  var result = 0.5 * (ln2pi - Math.log(z)) + z * (Math.log(z + 1 / (12 * z - 0.1 / z)) - 1);
+  return result;*/
+
+  /*var ln2pi = 1.83787706640934533908193770912;
+  var result = ln2pi - Math.log(z) + z * (2 * Math.log(z) + Math.log(z * Jmat.Real.sinh(1 / z) + 1 / (810 * z * z * z * z * z * z)) - 2);
+  return result / 2;*/
+
 };
 
 //Inverse of the gamma function (not the reciproke, the inverse or "arc" function)
@@ -649,6 +734,27 @@ Jmat.Complex.incgamma_lower = function(s, z) {
   return result;
 };
 
+// lower incomplete gamma function
+// lowercase gamma(s, x)
+Jmat.Real.incgamma_lower = function(s, z) {
+  // series expansion - has some problems with division through zero
+  // sum_k=0.oo ((-1)^k / k!) * (z^(s+k) / (s + k))
+  var result = 0;
+  var kk = 1;
+  var zz = Math.pow(z, s);
+  var sign = 1;
+  for(var k = 0; k < 30; k++) {
+    if(k > 0) {
+      kk = kk / k;
+      sign = -sign;
+      zz = zz * z;
+    }
+    //result = result.add(Jmat.Complex(sign * kk).mul(zz).div(s.addr(k)));
+    result += sign * kk * zz / (s + k);
+  }
+  return result;
+};
+
 // upper incomplete gamma function
 // uppercase GAMMA(s, x)
 Jmat.Complex.incgamma_upper = function(s, z) {
@@ -658,6 +764,17 @@ Jmat.Complex.incgamma_upper = function(s, z) {
   }
 
   return Jmat.Complex.gamma(s).sub(Jmat.Complex.incgamma_lower(s, z));
+};
+
+// upper incomplete gamma function
+// uppercase GAMMA(s, x)
+Jmat.Real.incgamma_upper = function(s, z) {
+  // For negative integer s, gamma, and lower incomplete gamma, are not defined. But the upper is.
+  if(Jmat.Real.isNegativeIntOrZero(s)) {
+    s += 1e-7; //twiddle it a bit for negative integers, so that formula in terms of lower gamma sort of works... TODO: use better approximation
+  }
+
+  return Jmat.Real.gamma(s) - Jmat.Complex.incgamma_lower(s, z);
 };
 
 Jmat.Complex.gamma_p_cache_ = []; // cache used because a is often constant between gamma_p calls
@@ -671,6 +788,13 @@ Jmat.Complex.gamma_p = function(a, z) {
   return Jmat.Complex.incgamma_lower(a, z).div(g);
 };
 
+Jmat.Real.gamma_p_cache_ = [];
+Jmat.Real.gamma_p = function(a, z) {
+  if(Jmat.Real.isNegativeIntOrZero(a)) return 1;
+  var g = Jmat.Real.calcCache_(a, Jmat.Real.gamma, Jmat.Real.gamma_p_cache_); // gamma(a)
+  return Jmat.Real.incgamma_lower(a, z) / g;
+};
+
 // regularized upper incomplete gamma function (upper gamma_regularized, regularized_gamma)
 // Q(a, x) = 1 - P(a, x) = GAMMA(a, z) / GAMMA(a)
 // Note: the derivative of this function is: -(e^(-z) * z^(a-1))/GAMMA(a)
@@ -679,46 +803,73 @@ Jmat.Complex.gamma_q = function(a, z) {
   return Jmat.Complex.ONE.sub(Jmat.Complex.gamma_p(a, z));
 };
 
-// One possible approximation series for inverse gamma P. Valid for real values with p in range 0-1 and positive a. Possibly more.
-Jmat.Complex.gamma_p_inv_series_1_ = function(a, p) {
-  var a1 = a.inc();
-  var a1a = a1.mul(a1);
-  var a2 = a.addr(2);
-  var a2a = a2.mul(a2);
-  var aa = a.mul(a);
-  var aaa = aa.mul(a);
-  var aaaa = aaa.mul(a);
-  var a3 = a.addr(3);
-  var a4 = a.addr(4);
-
-  var c = [0, 1];
-  c[2] = a.inc().inv();
-  c[3] = a.mulr(3).addr(5).div(a1a.mul(a2).mulr(2));
-  c[4] = aa.mulr(8).add(a.mulr(33)).addr(31).div(a1a.mul(a1).mul(a2).mul(a3).mulr(3));
-  c[5] = aaaa.mulr(125).add(aaa.mulr(1179)).add(aa.mulr(3971)).add(a.mulr(5661)).addr(2888).div(a1a.mul(a1a).mul(a2a).mul(a3).mul(a4).mulr(24));
-
-  var r = p.mul(Jmat.Complex.gamma(a1)).pow(a.inv());
-
-  return Jmat.Complex.powerSeries(c, c.length, Jmat.Complex.ZERO, r);
+Jmat.Real.gamma_q = function(a, z) {
+  if(Jmat.Real.isNegativeIntOrZero(a)) return 0;
+  return 1 - Jmat.Real.gamma_p(a, z);
 };
 
 // Inverse regularized gamma P
-// Finds z for p == gamma_p(a, z)
+// Finds z such that p == gamma_p(a, z)
 // This is an *approximation* of inverse of incomplete regularized gamma (P) - it works for real values with p in range 0-1 and positive a. Good enough for qf of chi square distribution
 Jmat.Complex.gamma_p_inv = function(a, p) {
   // Return NaN for unsupported values to prevent bogus results
   if(!Jmat.Complex.isReal(p) || !Jmat.Complex.isReal(a) || p.re < 0 || p.re > 1 || a.re < 0) return Jmat.Complex(NaN);
 
   // TODO: more complete support of the entire complex domain
-  return Jmat.Complex.gamma_p_inv_series_1_(a, p);
+  return Jmat.Complex(Jmat.Real.gamma_p_inv(a.re, p.re));
+};
+
+Jmat.Real.gamma_p_inv = function(a, p) {
+  // Return NaN for unsupported values to prevent bogus results
+  if(p < 0 || p > 1 || a < 0) return NaN;
+
+  // One possible approximation series for inverse gamma P. Valid for real values
+  // with p in range 0-1 and positive a
+  var a1 = a + 1;
+  var a1a = a1 * a1;
+  var a2 = a + 2;
+  var a2a = a2 * a2;
+  var aa = a * a;
+  var aaa = aa * a;
+  var aaaa = aaa * a;
+  var a3 = a + 3;
+  var a4 = a + 4;
+
+  var c = [0, 1];
+  c[2] = 1 / (a + 1);
+  c[3] = (3 * a + 5) / (2 * a1a * a2);
+  c[4] = (8 * aa + 33 * a + 31) / (3 * a1a * a1 * a2 * a3);
+  c[5] = (125 * aaaa + 1179 * aaa + 3971 * aa + 5661 * a + 2888) / (24 * a1a * a1a * a2a * a3 * a4);
+
+  var r = Math.pow(p * Jmat.Real.gamma(a1), 1 / a);
+
+  // use the approximation as starting value for a few newton iterations, which will improve precision
+  var starting_value = Jmat.Real.powerSeries(c, c.length, 0, r);
+
+  var f = function(z) {
+    return Jmat.Real.gamma_p(a, z);
+  };
+
+  var ga = Jmat.Real.gamma(a);
+  var df = function(z) {
+    return Math.exp(-z) * Math.pow(z, a - 1) / ga; // derivative of gamma_p w.r.t. z
+  };
+
+  return Jmat.Real.finvert_newton(p, f, df, starting_value, 4);
 };
 
 //inverse of gamma_q, but in a instead of in z
-//unfortunately very inaccurate. E.g. gamma_q(n, 0.4) returns 0.999... for nearly all n > 4. So anything near that range could give a wide variety of responses.
-Jmat.Complex.gamma_q_inva = function(p, z) {
+//finds a such that q == gamma_q(a, z)
+Jmat.Complex.gamma_q_inva = function(q, z) {
   // This is really not stable and reliable. I need better rootfinding methods and start values.
-  return Jmat.Complex.rootfind_bisection(Jmat.Complex(0), Jmat.Complex(100), function(x) {
-    return Jmat.Complex.gamma_q(x, z).sub(p);
+  return Jmat.Complex.rootfind_bisection(Jmat.Complex(0), Jmat.Complex(100), function(a) {
+    return Jmat.Complex.gamma_q(a, z).sub(q);
+  });
+};
+
+Jmat.Real.gamma_q_inva = function(q, z) {
+  return Jmat.Real.rootfind_bisection(0, 100, function(a) {
+    return Jmat.Real.gamma_q(a, z) - q;
   });
 };
 
@@ -755,6 +906,8 @@ Jmat.Complex.gammaDiv_ = function(x, y) {
     }
   }
 
+  // TODO: consider using loggamma here, will be advantage especially if x and y big but near eachother
+  // need to figure out where in complex plane one vs the other is most precise first though
   return C.gamma(x).div(C.gamma(y));
 };
 
@@ -851,6 +1004,117 @@ Jmat.Complex.loggammaDiv2_ = function(a, b, c, d) {
   }
 };
 
+// Calculates gamma(x) / gamma(y), and can cancel out negative integer arguments if both are nonpositive integers in some cases.
+// That is useful for functions like beta, binomial, hypergeometric, ...
+// Uses the formula gamma(a)/gamma(b) = (-1)^(a-b) * gamma(-b+1) / gamma(-a+1) if necessary
+// It is also optimized to use for loops if x and y are nearby integers, ...
+Jmat.Real.gammaDiv_ = function(x, y) {
+  var R = Jmat.Real;
+  if(x == y) return 1;
+
+  if(R.isInfOrNaN(x) || R.isInfOrNaN(y)) return NaN;
+
+  if(R.isNegativeIntOrZero(y) && (x.re > 0 || !R.isInt(x))) return 0; // division of non-infinity through infinity
+
+  if(R.isNegativeIntOrZero(x) && R.isNegativeIntOrZero(y)) {
+    var sign = R.isOdd(x - y) ? -1 : 1;
+    return R.gammaDiv_(1 - y, 1 - x) * sign;
+  }
+
+  if(x > 10 && y > 10) return Math.exp(R.loggamma(x) - R.loggamma(y));
+
+  return R.gamma(x) / R.gamma(y);
+};
+
+// Similar to Jmat.Real.gammaDiv_, but takes 3 arguments and cancels out more if possible. Returns gamma(a) / (gamma(b) * gamma(c))
+Jmat.Real.gammaDiv12_ = function(a, b, c) {
+  var R = Jmat.Real;
+  // Try to combine two negative-integer-ones to have the errors cancel out
+  if(R.isNegativeIntOrZero(b)) {
+    if(R.isNegativeIntOrZero(c) && (a > 0 || !R.isInt(a))) return 0; // division of non-infinity through infinity
+    return R.gammaDiv_(a, b) / R.gamma(c);
+  } else {
+    return R.gammaDiv_(a, c) / R.gamma(b);
+  }
+};
+
+// Similar to Jmat.Real.gammaDiv_, but takes 3 arguments and cancels out more if possible. Returns (gamma(a) * gamma(b)) / gamma(c)
+Jmat.Real.gammaDiv21_ = function(a, b, c) {
+  var R = Jmat.Real;
+  // Try to combine two negative-integer-ones to have the errors cancel out
+  if(R.isNegativeIntOrZero(a)) {
+    return R.gammaDiv_(a, c) * R.gamma(b);
+  } else {
+    return R.gammaDiv_(b, c) * R.gamma(a);
+  }
+};
+
+// Similar to Jmat.Real.gammaDiv_, but takes 4 arguments and cancels out more if possible. Returns (gamma(a) * gamma(b)) / (gamma(c) * gamma(d))
+Jmat.Real.gammaDiv22_ = function(a, b, c, d) {
+  var R = Jmat.Real;
+  // Try to combine two negative-integer-ones to have the errors cancel out
+  if(R.isNegativeIntOrZero(a) == R.isNegativeIntOrZero(c)) {
+    return R.gammaDiv_(a, c) * R.gammaDiv_(b, d);
+  } else {
+    return R.gammaDiv_(a, d) * R.gammaDiv_(b, c);
+  }
+};
+
+// Calculates log(gamma(x) / gamma(y)) = loggamma(x) - loggamma(y), and can cancel out negative integer arguments if both are negative integers in some cases. That is useful for functions like beta, binomial, ...
+// Uses the formula gamma(a)/gamma(b) = (-1)^(a-b) * gamma(-b+1) / gamma(-a+1) if necessary
+Jmat.Real.loggammaDiv_ = function(x, y) {
+  var R = Jmat.Real;
+  if(x == y) return 0; // For the "combined" function, this is correct even for negative integers...
+
+  if(R.isInfOrNaN(x) || R.isInfOrNaN(y)) return NaN;
+
+  if(R.isNegativeIntOrZero(y) && (x > 0 || !R.isInt(x))) return -Infinity; // division of non-infinity through infinity ==> log(0)
+
+  if(R.isInt(x) && R.isInt(y)) {
+    if(x <= 0 && y <= 0) {
+      // sign ignored, we return log of abs value of gamma for Jmat.Real.
+      return R.loggammaDiv_(1 - y, 1 - x);
+    }
+  }
+
+  return R.loggamma(x) - R.loggamma(y);
+};
+
+// Similar to Jmat.Real.loggammaDiv_, but takes 3 arguments and cancels out more if possible. Returns loggamma(a) - (loggamma(b) + loggamma(c))
+Jmat.Real.loggammaDiv12_ = function(a, b, c) {
+  var R = Jmat.Real;
+  // Try to combine two negative-integer-ones to have the errors cancel out
+  if(R.isNegativeIntOrZero(b)) {
+    if(R.isNegativeIntOrZero(c) && (a > 0 || !R.isInt(a))) return Jmat.Complex(-Infinity); // division of non-infinity through infinity ==> log(0)
+    return R.loggammaDiv_(a, b) - R.loggamma(c);
+  } else {
+    return R.loggammaDiv_(a, c) - R.loggamma(b);
+  }
+};
+
+// Similar to Jmat.Real.loggammaDiv_, but takes 3 arguments and cancels out more if possible. Returns (loggamma(a) + loggamma(b)) - loggamma(c)
+Jmat.Real.loggammaDiv21_ = function(a, b, c) {
+  var R = Jmat.Real;
+  // Try to combine two negative-integer-ones to have the errors cancel out
+  if(R.isNegativeIntOrZero(a)) {
+    return R.loggammaDiv_(a, c) + R.loggamma(b);
+  } else {
+    return R.loggammaDiv_(b, c) + R.loggamma(a);
+  }
+};
+
+// Similar to Jmat.Real.loggammaDiv_, but takes 4 arguments and cancels out more if possible. Returns (loggamma(a) + loggamma(b)) - (loggamma(c) + loggamma(d))
+// To have only 3 values, set a, b, c or d to 1 (it will be fast for that)
+Jmat.Real.loggammaDiv2_ = function(a, b, c, d) {
+  var R = Jmat.Real;
+  // Try to combine two negative-integer-ones to have the errors cancel out
+  if(R.isNegativeIntOrZero(a) == R.isNegativeIntOrZero(c)) {
+    return R.loggammaDiv_(a, c) + R.loggammaDiv_(b, d);
+  } else {
+    return R.loggammaDiv_(a, d) + R.loggammaDiv_(b, c);
+  }
+};
+
 // n! / (n-p)!
 Jmat.Complex.permutation = function(n, p) {
   // gammaDiv_ is already optimized for integers near each other etc...
@@ -868,6 +1132,20 @@ Jmat.Complex.binomial = function(n, p) {
   var result = Jmat.Complex.gammaDiv12_(n.inc(), p.inc(), n.sub(p).inc());
   // Round to integer if large result, it sometimes gets numerically a bit off.
   if(result.re > 100 && Jmat.Complex.isPositiveInt(n) && Jmat.Complex.isPositiveInt(p) && n.re > p.re) result = Jmat.Complex.round(result);
+  return result;
+};
+
+Jmat.Real.binomial = function(n, p) {
+  if(Jmat.Real.isPositiveIntOrZero(n) && Jmat.Real.isPositiveIntOrZero(p) && p <= n && n < 30) {
+    return Jmat.Real.pascal_triangle(n, p);
+  }
+
+  // gammaDiv_ is already optimized for integers near each other etc...
+  var result = Jmat.Real.gammaDiv12_(n + 1, p + 1, n - p + 1);
+  // Round to integer if large result, it sometimes gets numerically a bit off.
+  if(result > 100 && Jmat.Real.isPositiveInt(n) && Jmat.Real.isPositiveInt(p) && n > p) {
+    result = Math.round(result);
+  }
   return result;
 };
 
@@ -909,6 +1187,18 @@ Jmat.Complex.beta = function(x, y) {
     return Jmat.Complex.exp(Jmat.Complex.loggammaDiv21_(x, y, x.add(y)));
   }
 };
+
+Jmat.Real.beta = function(x, y) {
+  // definition: beta(x, y) = gamma(x)*gamma(y) / gamma(x+y)
+
+  if(x < 50 && x > -50 && y < 50 && y > -50) {
+    // gamma rather than loggamma more precise here (TODO: verify this)
+    return Jmat.Real.gammaDiv21_(x, y, x + y);
+  } else {
+    return Math.exp(Jmat.Real.loggammaDiv21_(x, y, x + y));
+  }
+};
+
 
 // Incomplete beta function
 // B_x(a, b)
@@ -956,28 +1246,119 @@ Jmat.Complex.incbeta = function(x, a, b) {
   }*/
 };
 
+// Incomplete beta function
+// B_x(a, b)
+// Only works for x in range 0-1 (use Jmat.Complex.incbeta to go beyond it)
+Jmat.Real.incbeta = function(x, a, b) {
+  return Jmat.Real.beta_i(x, a, b) * Jmat.Real.beta(a, b);
+};
+
 // Regularized incomplete beta: (incomplete beta / beta)
 // I_x(a, b)
 Jmat.Complex.beta_i = function(x, a, b) {
   if(Jmat.Complex.isNegativeIntOrZero(a) && !Jmat.Complex.isNegativeIntOrZero(b)) return Jmat.Complex(1);
   if(Jmat.Complex.isNegativeIntOrZero(b) && !Jmat.Complex.isNegativeIntOrZero(a)) return Jmat.Complex(0);
   if(Jmat.Complex.isNegativeIntOrZero(b.add(a)) && x.eqr(1)) return Jmat.Complex(1);
+
+  // it seems to converge properly when x.re is in range 0..1 (its imaginary part can be anything, even large)
+  // it sometimes also converges for smaller or larger x.re, but not always, so use the "incbeta * beta" formula for those.
+  if(x.re > 0 && x.re < 1) {
+    // continued fraction (http://functions.wolfram.com/06.21.10.0001.01)
+    // modified Lentz's algorithm for evaluating continued fractions
+    var tiny = Jmat.Complex(1e-30);
+    var r = a.add(b).mul(x).div(a.inc()).neg();
+    //var d = 1 + r; if(d == 0) d = tiny;
+    var d = r.inc(); if(d.eqr(0)) d = tiny;
+    d = d.inv();
+    var c = Jmat.Complex(1);
+    var cf = d;
+    for(var k = 1; k < 30; k++) {
+      // r(2*k)
+      r = b.subr(k).mulr(k).mul(x).div(a.addr(2 * k - 1).mul(a.addr(2 * k)));
+      d = r.mul(d).inc(); if(d.eqr(0)) d = tiny;
+      d = d.inv();
+      c = r.div(c).inc(); if(c.eqr(0)) c = tiny;
+      cf = cf.mul(c).mul(d);
+
+      // r(2*k + 1)
+      r = a.addr(k).mul(a.add(b).addr(k)).mul(x).div(a.addr(2 * k).mul(a.addr(2 * k + 1))).neg();
+      d = r.mul(d).inc(); if(d.eqr(0)) d = tiny;
+      d = d.inv();
+      c = r.div(c).inc(); if(c.eqr(0)) c = tiny;
+      cf = cf.mul(c).mul(d);
+
+      if(Jmat.Complex.nearr(d.mul(c),  1, 1e-15)) break; // converged
+    }
+
+    return x.pow(a).mul(x.rsub(1).pow(b)).div(a.mul(Jmat.Complex.beta(a, b))).mul(cf);
+  }
+
+
   return Jmat.Complex.incbeta(x, a, b).div(Jmat.Complex.beta(a, b));
 };
 
+// Regularized incomplete beta: (incomplete beta / beta)
+// I_x(a, b)
+// Only works for x in range 0-1 (use Jmat.Complex.beta_i to go beyond it)
+Jmat.Real.beta_i = function(x, a, b) {
+  if(Jmat.Real.isNegativeIntOrZero(a) && !Jmat.Real.isNegativeIntOrZero(b)) return 1;
+  if(Jmat.Real.isNegativeIntOrZero(b) && !Jmat.Real.isNegativeIntOrZero(a)) return 0;
+  if(Jmat.Real.isNegativeIntOrZero(b + a) && x == 1) return 1;
+  if(x > (a + 1) / (a + b + 2)) return 1 - Jmat.Real.beta_i(1 - x, b, a);
+
+  // continued fraction (http://functions.wolfram.com/06.21.10.0001.01)
+  // modified Lentz's algorithm for evaluating continued fractions
+  var tiny = 1e-30;
+  var r = -(a + b) * x / (a + 1);
+  var d = 1 + r; if(d == 0) d = tiny;
+  d = 1 / d;
+  var c = 1;
+  var cf = d;
+  for(var k = 1; k < 30; k++) {
+    // r(2*k)
+    r = k * (b - k) * x / ((a + 2 * k - 1) * (a + 2 * k));
+    d = 1 + r * d; if(d == 0) d = tiny;
+    d = 1 / d;
+    c = 1 + r / c; if(c == 0) c = tiny;
+    cf *= c * d;
+
+    // r(2*k + 1)
+    r = -(a + k) * (a + b + k) * x / ((a + 2 * k) * (a + 2 * k + 1));
+    d = 1 + r * d; if(d == 0) d = tiny;
+    d = 1 / d;
+    c = 1 + r / c; if(c == 0) c = tiny;
+    cf *= c * d;
+
+    if(Math.abs(d * c - 1) < 1e-15) break; // converged
+  }
+
+  return Math.pow(x, a) * Math.pow(1 - x, b) / (a * Jmat.Real.beta(a, b)) * cf;
+};
+
 // Inverse of regularized incomplete beta: I_x^-1(a, b)
+// Only supported for real x in range 0-1 and real positive a, b.
 Jmat.Complex.beta_i_inv = function(x, a, b) {
-  if(!(Jmat.Complex.isPositiveOrZero(x) && Jmat.Complex.isPositiveOrZero(a) && Jmat.Complex.isPositiveOrZero(b))) return Jmat.Complex(NaN);
+  if(x.im != 0 || a.im != 0 || b.im != 0) return Jmat.Complex(NaN);
+  return Jmat.Complex(Jmat.Real.beta_i_inv(x.re, a.re, b.re));
+};
 
-  var bab = Jmat.Complex.beta(a, b);
-  var x2 = Jmat.Complex.ZERO;
-  var a2 = Jmat.Complex.ZERO;
-  var b2 = Jmat.Complex.ONE;
+// Inverse of regularized incomplete beta: I_x^-1(a, b)
+// Only supported for x in range 0-1 and positive a, b
+Jmat.Real.beta_i_inv = function(x, a, b) {
+  if(x < 0 || x > 1) return NaN;
+  if(a < 0 || b < 0) return NaN;
 
-  while(!Jmat.Complex.near(a2, b2, 1e-6)) {
-    x2 = a2.add(b2).divr(2);
-    if(Jmat.Complex.incbeta(x2, a, b).div(bab).re > x.re) b2 = x2;
-    else a2 = x2;
+  var x2;
+  var low = 0;
+  var high = 1;
+
+  // Binary search over a function that itself is a loop, so, this is slow.
+  for(var i = 0; i < 60; i++) {
+    x2 = (low + high) / 2;
+    var f = Jmat.Real.beta_i(x2, a, b);
+    if(f > x) high = x2;
+    else low = x2;
+    if (Jmat.Real.near(low, high, 1e-15)) break;
   }
   return x2;
 };
@@ -2465,7 +2846,7 @@ Jmat.Complex.trilog = function(z) {
 };
 
 // Bernoulli numbers B_m. Only supports a hardcoded first few dozens.
-Jmat.Complex.bernoulli = [
+Jmat.Real.bernoulli = [
     1, -1/2, 1/6, 0, //0-3
     -1/30, 0, 1/42, 0, //4-7
     -1/30, 0, 5/66, 0, //8-11
@@ -2475,9 +2856,10 @@ Jmat.Complex.bernoulli = [
     -23749461029/2730, 0, 8615841276005/6, 0, //24-27
     -7709321041217/870, 0, 2577687858367/14322, 0 //28-31
 ];
+Jmat.Complex.bernoulli = Jmat.Real.bernoulli;
 
 // Stieltjes constants. Only supports a hardcoded first few dozens.
-Jmat.Complex.stieltjes = [
+Jmat.Real.stieltjes = [
   0.577215664901532861, -0.0728158454836767249, -0.00969036319287231848, 0.00205383442030334587,
   0.00232537006546730006, 0.000793323817301062702, -0.000238769345430199610, -0.000527289567057751046,
   -0.000352123353803039509, -0.0000343947744180880482, 0.000205332814909064795, 0.000270184439543903527,
@@ -2487,9 +2869,10 @@ Jmat.Complex.stieltjes = [
   -0.00158851127890356156, -0.00107459195273848882, 0.000656803518637154432, 0.00347783691361853821,
   0.00640006853170062946, 0.00737115177047223913, 0.00355772885557316095, -0.00751332599781522893
 ];
+Jmat.Complex.stieltjes = Jmat.Real.stieltjes;
 
 // Stieltjes constants times (-1)^n / n!, this is for calculating riemann zeta. Only supports a hardcoded first few dozens (0-31).
-Jmat.Complex.stieltjes_zeta = [
+Jmat.Real.stieltjes_zeta = [
   0.577215664901532861, 0.0728158454836767249, -0.00484518159643615924, -0.000342305736717224311,
   0.0000968904193944708357, -6.61103181084218918e-6, -3.31624090875277236e-7, 1.04620945844791874e-7,
   -8.73321810027379736e-9, 9.47827778276235895e-11, 5.65842192760870797e-11, -6.76868986351369666e-12,
@@ -2499,6 +2882,7 @@ Jmat.Complex.stieltjes_zeta = [
   -2.56026331031881494e-27, 6.92784089530466712e-29, 1.62860755048558674e-30, -3.19393756115325558e-31,
   2.09915158936342553e-32, -8.33674529544144048e-34, 1.34125937721921867e-35, 9.13714389129817200e-37
 ];
+Jmat.Complex.stieltjes_zeta = Jmat.Real.stieltjes_zeta;
 
 // This is really a last resort, very inaccurate and slow
 // Welcome to the land of randomness and bad results.
@@ -3590,9 +3974,18 @@ Jmat.Complex.chi = function(z) {
 
 Jmat.Complex.erf_inv = function(z) {
   var C = Jmat.Complex;
+  if(z.re < 0) return C.erf_inv(z.neg()).neg(); // it approximates better for positive values, use odd function property
+  if(z.im < 0) return C.erf_inv(z.conj()).conj();
+
   if (z.im != 0 && Math.abs(z.re) > 1) {
     //this branch is taken for large complex numbers because the implementation below doesn't work well on those. This one isn't much better btw, but slightly less bad for those cases.
     //TODO: is incorrect on many complex numbers!! e.g. erf_inv(erf(5 + 5i)) gives way wrong result
+    //      --> actually that may be because there are multiple solutions.
+    //      --> Complex.erf_inv(Complex.erf(Complex('5-0.5i'))): 4.977177459291039+0.11697739515514316i
+    //      --> Complex.erf(Complex('4.977177459291039+0.11697739515514316i')): 0.9999999999992643+1.822438077076769e-12
+    //      --> Complex.erf(Complex('5-0.5i')): 0.9999999999992643+1.82243807707677e-12
+    //      so probably fine. Test in this order instead: Complex.erf(Complex.erf_inv(Complex('5'))), Complex.erf(Complex.erf_inv(Complex('1+i'))), ...
+
     //var zzpi = z.mul(z).mulr(Math.PI);
     //return zzpi.mulr(34807/182476800.0).addr(4369/5806080.0).mul(zzpi).addr(127/40320.0).mul(zzpi).addr(7/480.0).mul(zzpi).addr(1/12.0).mul(zzpi).addr(1).mul(z).mul(C.SQRTPI).mulr(0.5);
 
@@ -3639,6 +4032,10 @@ Jmat.Complex.erf_inv = function(z) {
       r = r.div(y.mulr(erf_inv_d_[2]).addr(erf_inv_d_[1]).mul(y).addr(erf_inv_d_[0]));
     }
 
+    // A few newton iterations to improve this approximation
+    r = r.sub((C.erf(r).sub(z)).div(C.exp(r.mul(r).neg()).mulr(2.0 / Jmat.Real.SQRTPI)));
+    r = r.sub((C.erf(r).sub(z)).div(C.exp(r.mul(r).neg()).mulr(2.0 / Jmat.Real.SQRTPI)));
+
     return r;
   }
 };
@@ -3646,6 +4043,42 @@ Jmat.Complex.erf_inv = function(z) {
 // inverse complementary error function.
 Jmat.Complex.erfc_inv = function(z) {
   return Jmat.Complex.erf_inv(Jmat.Complex.ONE.sub(z));
+};
+
+Jmat.Real.erf_inv = function(z) {
+  var R = Jmat.Real;
+  if (z == 0) return 0;
+  if (z < 0) return -R.erf_inv(-z); // it approximates better for positive values, use odd function property
+  if (z == 1) return Infinity;
+  if (z == -1) return -Infinity;
+  if (z < -1 || z > 1) return NaN;
+
+  var erf_inv_a_ = [0.886226899, -1.645349621, 0.914624893, -0.140543331];
+  var erf_inv_b_ = [1, -2.118377725, 1.442710462, -0.329097515, 0.012229801];
+  var erf_inv_c_ = [-1.970840454, -1.62490649, 3.429567803, 1.641345311];
+  var erf_inv_d_ = [1, 3.543889200, 1.637067800];
+
+  var a = Math.abs(z);
+  if (a <= 0.7) {
+    var z2 = z * z;
+    var r = z * (((z2 * erf_inv_a_[3] + erf_inv_a_[2]) * z2 + erf_inv_a_[1]) * z2 + erf_inv_a_[0]);
+    r = r / ((((z2 * erf_inv_b_[4] + erf_inv_b_[3]) * z2 + erf_inv_b_[2]) * z2 + erf_inv_b_[1]) * z2 + erf_inv_b_[0]);
+  } else {
+    var y = Math.sqrt(-Math.log((1 - z) / 2));
+    var r = ((y * erf_inv_c_[3] + erf_inv_c_[2]) * y + erf_inv_c_[1]) * y + erf_inv_c_[0];
+    r = r / ((y * erf_inv_d_[2] + erf_inv_d_[1]) * y + erf_inv_d_[0]);
+  }
+
+  // A few newton iterations to improve this approximation
+  r -= (R.erf(r) - z) / ((2.0 / R.SQRTPI) * Math.exp(-r * r));
+  r -= (R.erf(r) - z) / ((2.0 / R.SQRTPI) * Math.exp(-r * r));
+
+  return r;
+};
+
+// inverse complementary error function.
+Jmat.Real.erfc_inv = function(z) {
+  return Jmat.Real.erf_inv(1 - z);
 };
 
 // Fresnel integral S(z)
@@ -3706,27 +4139,40 @@ Jmat.Complex.minkowski = function(z) {
 //valuex and valuey are allowed to be anything (real) and to have function value with the same sign.
 //if no zero is found, it returns NaN
 Jmat.Complex.rootfind_bisection = function(valuex, valuey, f, maxit, prec) {
+  if(valuex.im != 0 || valuey.im != 0) return NaN;
+
+  var r = Jmat.Real.rootfind_bisection(valuex.re, valuey.re, function(x) {
+    var y = f(Complex(x));
+    if(y.im != 0) return NaN;
+    return y.re;
+  }, maxit, prec);
+
+  return Jmat.Complex(r);
+};
+
+Jmat.Real.rootfind_bisection = function(valuex, valuey, f, maxit, prec) {
   var steps = (maxit == undefined ? 256 : maxit);
   var precision = (prec == undefined ? 0.000000001 : prec); //for 'near'
-  var x = valuex.re;
-  var y = valuey.re;
+  var x = valuex;
+  var y = valuey;
   if(y < x) {
     var temp = x;
     x = y;
     y = temp;
   }
 
-  if(y - x == Infinity) return Jmat.Complex(NaN);
+  if(y - x == Infinity) return NaN;
 
   //find a positive and a negative value
   var p = NaN;
   var n = NaN;
   var lastp = 0;
   var lastn = 0;
-  for(var i = 0; i < steps; i++) {
-    var z = x + i * (y - x) / steps; //exclude the leftmost point by adding precision. Otherwise annoying things can occur.
-    var fz = f(Jmat.Complex(z)).re;
-    if(Jmat.Real.near(fz, 0, precision)) return Jmat.Complex(z);
+  for(var i = 0; i <= steps; i++) {
+    var z = x + i * (y - x) / steps;
+    if(i == steps) z = valuey;
+    var fz = f(z);
+    if(Jmat.Real.near(fz, 0, precision)) return z;
 
     if(fz > lastp) {
       p = z;
@@ -3742,21 +4188,24 @@ Jmat.Complex.rootfind_bisection = function(valuex, valuey, f, maxit, prec) {
   }
 
   if(n != n || p != p) {
-    return Jmat.Complex(NaN);
+    return NaN;
   }
 
-  for(;;) {
-    var z = (n + p) / 2;
-    var fz = f(Jmat.Complex(z)).re;
-    if(Jmat.Real.near(fz, 0, precision)) {
-      return Jmat.Complex(z);
-    }
+  var z;
+  for(var i = 0; i < 100; i++) {
+    z = (n + p) / 2;
+    var fz = f(z);
+    if(Jmat.Real.near(fz, 0, precision)) return z;
 
     if(fz > 0) p = z;
     if(fz < 0) n = z;
 
     if(Jmat.Real.near(n, p, precision)) {
-      return Jmat.Complex(NaN); //not found
+      // we won't find it anymore in our range, something went wrong
+      // e.g. function not numerically smooth in super numerically fine intervals
+      // an example: f(z) is supposed to be <0 for z<5, >0 for z>5, and 0 at z=5. f(z) behaves like that almost all the time, except for 4.999999996699858 it returns 3.5060843117662444e-13 instead of something positive, thereby ruining the intervals.
+      // so break and return the result we have anyway, the function itself is not precise enough for our desired precision, but we should still return what we have, functions precision trumps our desired precision
+      return z;
     }
   }
 };
@@ -3885,6 +4334,11 @@ Jmat.Real.rootfind_newton2 = function(fdf, z0, maxiter) {
 //Newton-Raphson. Finds a root (zero) given function f, its derivative df, and an initial value z0
 Jmat.Real.rootfind_newton = function(f, df, z0, maxiter) {
   return Jmat.Real.rootfind_newton2(function(t) { return [f(t), df(t)]}, z0, maxiter);
+};
+
+//find result of inverse function using the newton method
+Jmat.Real.finvert_newton = function(z, f, df, z0, maxiter) {
+  return Jmat.Real.rootfind_newton(function(x) { return f(x) - z; }, df, z0, maxiter);
 };
 
 //Newton-Raphson. Finds a complex root (zero) given function f, its derivative df, and an initial value z0
@@ -4340,6 +4794,17 @@ Jmat.Complex.powerSeries = function(coeff, n, z0, z) {
   return result;
 };
 
+// n is max coeff.length. Sum is from 0..n-1
+Jmat.Real.powerSeries = function(coeff, n, z0, z) {
+  var result = 0;
+  var zz = 1;
+  for(var i = 0; i < n; i++) {
+    result += zz * coeff[i];
+    zz *= (z - z0);
+  }
+  return result;
+};
+
 
 ////////////////////////////////////////////////////////////////////////////////
 ////////////////////////////////////////////////////////////////////////////////
@@ -4347,8 +4812,10 @@ Jmat.Complex.powerSeries = function(coeff, n, z0, z) {
 ////////////////////////////////////////////////////////////////////////////////
 ////////////////////////////////////////////////////////////////////////////////
 ////////////////////////////////////////////////////////////////////////////////
-// Statistical Distributions
+// Statistical Distributions, Complex
 ////////////////////////////////////////////////////////////////////////////////
+
+// NOTE: Real versions are further below, easier to use for typical statistics
 
 /*
 For each distribution, the following function prefixes are available:
@@ -4358,10 +4825,6 @@ pmf = probability mass function for discrete distributions
 cdf = cumulative distribution function, integral of the pdf
 qf = quantile function, the inverse function of cdf
 */
-
-
-// TODO: add characteristic functions cf_
-// TODO: Pareto distribution
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -4426,13 +4889,14 @@ Jmat.Complex.pdf_lognormal = function(x, mu, sigma) {
 };
 
 Jmat.Complex.cdf_lognormal = function(x, mu, sigma) {
+  if(x.eqr(0)) return Jmat.Complex(0);
   var a = Jmat.Complex.log(x).sub(mu).div(Jmat.Complex.SQRT2.mul(sigma));
   return Jmat.Complex.erf(a).addr(1).mulr(0.5);
 };
 
 Jmat.Complex.qf_lognormal = function(x, mu, sigma) {
-  var a = Jmat.Complex.log(x).sub(mu).div(Jmat.Complex.SQRT2.mul(sigma));
-  return Jmat.Complex.erf(a).addr(1).mulr(0.5);
+  var e = Jmat.Complex.erf_inv(x.subr(0.5).mulr(2));
+  return Jmat.Complex.exp(Jmat.Complex.SQRT2.mul(sigma).mul(e).add(mu));
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -4449,13 +4913,17 @@ Jmat.Complex.cdf_cauchy = function(x, x0, gamma) {
 };
 
 Jmat.Complex.qf_cauchy = function(x, x0, gamma) {
-  return x0.add(gamma.mul(Jmat.Complex.tan(x.subr(0.5).divr(Math.PI))));
+  return x0.add(gamma.mul(Jmat.Complex.tan(x.subr(0.5).mulr(Math.PI))));
 };
 
 ////////////////////////////////////////////////////////////////////////////////
 
 Jmat.Complex.pdf_studentt_cache_ = []; // cache used because nu is often constant between calls
-Jmat.Complex.pdf_studentt_cachefun_ = function(nu) { var nu2 = nu.inc().divr(2); return Jmat.Complex.gammaDiv_(nu2, nu.divr(2)); };
+Jmat.Complex.pdf_studentt_cachefun_ = function(nu) {
+  var nu2 = nu.inc().divr(2);
+  //if(nu.re < 20) return Jmat.Real.gammaDiv_(nu2, nu / 2.0);
+  return Jmat.Complex.exp(Jmat.Complex.loggammaDiv_(nu2, nu.divr(2)));
+};
 
 // nu = degrees of freedom
 Jmat.Complex.pdf_studentt = function(x, nu) {
@@ -4495,13 +4963,21 @@ Jmat.Complex.cdf_studentt = function(x, nu) {
     return Jmat.Complex.cdf_standardnormal(x);
   }
 
+  if(x.eqr(0)) {
+    return Jmat.Complex(0.5);
+  } else if(x.re > 0) {
+    return Jmat.Complex.beta_i(nu.div(nu.add(x.mul(x))), nu.mulr(0.5), Jmat.Complex(0.5)).mulr(0.5).rsub(1);
+  } else if(x < 0) {
+    return Jmat.Complex.cdf_studentt(x.neg(), nu).rsub(1);
+  }
+
   // METHOD A: in terms of incomplete beta (probably slightly faster than with hypergeometric)
-  if(x.eqr(0)) return Jmat.Complex(0.5);
+  /*if(x.eqr(0)) return Jmat.Complex(0.5);
   var g = Jmat.Complex.calcCache_(nu, Jmat.Complex.pdf_studentt_cachefun_, Jmat.Complex.pdf_studentt_cache_);
   var b = Jmat.Complex.incbeta(x.mul(x).div(nu).neg(), Jmat.Complex(0.5), Jmat.Complex.ONE.sub(nu).mulr(0.5));
   var n = Jmat.Complex.I.mul(x).mul(b);
   var d = Jmat.Complex(x.abs()).mulr(2).mul(Jmat.Complex.SQRTPI);
-  return Jmat.Complex(0.5).sub(g.mul(n).div(d));
+  return Jmat.Complex(0.5).sub(g.mul(n).div(d));*/
 
   // METHOD B: in terms of hypergeometric
   /*var nu2 = nu.inc().divr(2);
@@ -4514,7 +4990,7 @@ Jmat.Complex.cdf_studentt = function(x, nu) {
 };
 
 //aka "tinv", t inverse cumulative distribution function
-Jmat.Complex.qf_studentt= function(x, nu) {
+Jmat.Complex.qf_studentt = function(x, nu) {
   // test in console:
   // function testInvStudentt(x, nu) { return Jmat.Complex.qf_studentt(Jmat.Complex.cdf_studentt(Jmat.Complex(x), Jmat.Complex(nu)), Jmat.Complex(nu)).re; }
   // testInvStudentt(0.5,1.5)
@@ -4536,7 +5012,7 @@ Jmat.Complex.qf_studentt= function(x, nu) {
   }
 
   // Formula for student t inverse CDF in terms of inverse regularized beta function.
-  // Works for real x in range 0-1. Extension to complex plane is fully of numerical problems here, so not supported.
+  // Works for real x in range 0-1.
   if(Jmat.Real.near(x.im, 0, 1e-15)) x = Jmat.Complex(x.re);
   if(Jmat.Real.near(nu.im, 0, 1e-15)) nu = Jmat.Complex(nu.re);
   if(Jmat.Complex.isPositive(nu) && Jmat.Complex.isPositive(x) && x.re < 1) {
@@ -4717,6 +5193,8 @@ Jmat.Complex.qf_laplace = function(x, mu, b) {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+//same as binomial distribution with n=1, so k must be 0 or 1.
+
 //p in range 0-1, k integer 0 or 1
 Jmat.Complex.pmf_bernoulli = function(k, p) {
   if(k.eqr(0)) return p.rsub(1);
@@ -4730,9 +5208,10 @@ Jmat.Complex.cdf_bernoulli = function(k, p) {
   return p.rsub(1); //1 - p
 };
 
-Jmat.Complex.qf_bernoulli = function(k, p) {
-  if(k.re < 1-p.re) return Jmat.Complex.ZERO;
-  else return Jmat.Complex.ONE;
+Jmat.Complex.qf_bernoulli = function(b, p) {
+  if(b.eqr(0)) return Jmat.Complex.ZERO;
+  if(b.eqr(1)) return Jmat.Complex.ONE;
+  return Jmat.Complex.ZERO;; // the "1 - p" case
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -4743,8 +5222,9 @@ Jmat.Complex.pmf_binomial = function(k, n, p) {
   return b.mul(p.pow(k)).mul(p.rsub(1).pow(n.sub(k)));
 };
 
+// probability that amount of successes <= k
 Jmat.Complex.cdf_binomial = function(k, n, p) {
-  return Jmat.Complex.beta_i(p, n.sub(k), k.addr(1));
+  return Jmat.Complex.beta_i(p.rsub(1), n.sub(k), k.addr(1));
 };
 
 // inverse of cdf_binomial in k. Works only for integer result in range 0-n
@@ -4752,7 +5232,7 @@ Jmat.Complex.qf_binomial = function(k, n, p) {
   if(p.eqr(0)) return Jmat.Complex.ZERO;
   if(p.eqr(1)) return n;
   var C = Jmat.Complex;
-  var result = Jmat.Complex.rootfind_bisection(C(0), n, function(z) {
+  var result = Jmat.Complex.rootfind_bisection(C(0), n.addr(0.1), function(z) {
     return Jmat.Complex.cdf_binomial(z, n, p).sub(k);
   }, 100, 1e-14);
   return Jmat.Complex.round(result);  // Binomial pmf/cdf takes integer k, so qf, which is inverse of cdf in k, is expected to return integer.
@@ -4769,12 +5249,476 @@ Jmat.Complex.pmf_poisson = function(k, lambda) {
   return a.mul(c).div(b);
 };
 
+// probability that x <= k
 Jmat.Complex.cdf_poisson = function(k, lambda) {
   return Jmat.Complex.gamma_q(k.addr(1), lambda);
 };
 
-// TODO: make way more accurate
-// Does not work well.
-Jmat.Complex.qf_poisson = function(k, lambda) {
-  return Jmat.Complex.gamma_q_inva(lambda, k).subr(1);
+Jmat.Complex.qf_poisson = function(p, lambda) {
+  // TODO: improve accuraccy of qf_poisson. For high k result is always near 1, so not much wiggle room there, but even for k=1 we have only 5 or so digits of precision...
+  return Jmat.Complex.gamma_q_inva(p, lambda).subr(1);
+};
+
+////////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////
+// Statistical Distributions, Real
+////////////////////////////////////////////////////////////////////////////////
+
+
+/*
+For each distribution, the following function prefixes are available:
+
+pdf = probability density function for continuous distributions
+pmf = probability mass function for discrete distributions
+cdf = cumulative distribution function, integral of the pdf
+qf = quantile function, the inverse function of cdf
+*/
+
+
+// TODO: add characteristic functions cf_
+// TODO: more distributions: Pareto, hypergeometric, von mises, ...
+
+////////////////////////////////////////////////////////////////////////////////
+
+Jmat.Real.pdf_uniform = function(x, a, b) {
+  if(x >= a && x <= b) return 1.0 / (b - a);
+  return 0;
+};
+
+Jmat.Real.cdf_uniform = function(x, a, b) {
+  if(x < a) return 0;
+  if(x < b) return (x - a) / (b - a);
+  return 1;
+};
+
+Jmat.Real.qf_uniform = function(x, a, b) {
+  var r = a + x * (b - a);
+  if(r >= a && r <= b) return r;
+  return NaN;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+//aka small phi
+Jmat.Real.pdf_standardnormal = function(x) {
+  return Math.exp(-0.5 * x * x) * (Jmat.Real.INVSQRT2PI);
+};
+
+//aka capital PHI
+Jmat.Real.cdf_standardnormal = function(x) {
+  return 0.5 * (Jmat.Real.erf(x / (Jmat.Real.SQRT2)) + 1);
+};
+
+//aka the probit function
+Jmat.Real.qf_standardnormal = function(x) {
+  // return Jmat.Complex.erf_inv(x.mulr(2).subr(1)).mul(Jmat.Complex.SQRT2);
+  return Jmat.Real.erf_inv(x * 2 - 1) * Jmat.Real.SQRT2;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+Jmat.Real.pdf_normal = function(x, mu, sigma) {
+  var a = Jmat.Real.INVSQRT2PI / sigma;
+  var b = (x - mu) * (x - mu) / (2 * sigma * sigma);
+  return a * Math.exp(-b);
+};
+
+Jmat.Real.cdf_normal = function(x, mu, sigma) {
+  var a = (x - mu) / (Math.abs(sigma) * (Jmat.Real.SQRT2)); // (x-mu) / sqrt(2*sigma^2)
+  return 0.5 * (Jmat.Real.erf(a) + 1);
+};
+
+Jmat.Real.qf_normal = function(x, mu, sigma) {
+  return mu + sigma * Jmat.Real.qf_standardnormal(x);
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+Jmat.Real.pdf_lognormal = function(x, mu, sigma) {
+  // (1 / (x * sqrt(2*pi) * sigma)) * exp(- (ln(x) - mu)^2 / (2*sigma^2))
+  var a = Jmat.Real.INVSQRT2PI / (sigma * x);
+  var b = Math.log(x) - mu;
+  return a * Math.exp(-b * b / (2 * sigma * sigma));
+};
+
+Jmat.Real.cdf_lognormal = function(x, mu, sigma) {
+  if(x == 0) return 0;
+  var a = (Math.log(x) - mu) / (Jmat.Real.SQRT2 * sigma);
+  return 0.5 * (Jmat.Real.erf(a) + 1);
+};
+
+Jmat.Real.qf_lognormal = function(x, mu, sigma) {
+  var e = Jmat.Real.erf_inv((x - 0.5) * 2);
+  return Math.exp(Jmat.Real.SQRT2 * sigma * e + mu);
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+//gamma = scale parameter (HWHM)
+Jmat.Real.pdf_cauchy = function(x, x0, gamma) {
+  var x2 = x - x0;
+  var d = Math.PI * (x2 * x2 + gamma * gamma);
+  return gamma / d;
+};
+
+Jmat.Real.cdf_cauchy = function(x, x0, gamma) {
+  //return Jmat.Real.atan(x.sub(x0).div(gamma)).divr(Math.PI).addr(0.5);
+  return Math.atan((x - x0) / gamma) / Math.PI + 0.5;
+};
+
+Jmat.Real.qf_cauchy = function(x, x0, gamma) {
+  //return x0.add(gamma.mul(Jmat.Real.tan(x.subr(0.5).divr(Math.PI))));
+  return x0 + gamma * (Math.tan((x - 0.5) * Math.PI));
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+Jmat.Real.pdf_studentt_cache_ = []; // cache used because nu is often constant between calls
+Jmat.Real.pdf_studentt_cachefun_ = function(nu) {
+  var nu2 = (nu + 1) / 2.0;
+  //if(nu < 20) return Jmat.Real.gammaDiv_(nu2, nu / 2.0);
+  return Math.exp(Jmat.Real.loggammaDiv_(nu2, nu / 2.0));
+};
+
+// nu = degrees of freedom
+Jmat.Real.pdf_studentt = function(x, nu) {
+  if(nu == 1) {
+    return 1.0 / ((x * x + 1) * Math.PI); // cauchy distribution
+  }
+  if(nu == 2) {
+    return Math.pow(x * x + 2, - 3 / 2);
+  }
+  if(nu == 3) {
+    var sqrt3x6 = 10.392304845413264; //6 * sqrt(3)
+    var x2 = x * x + 3;
+    return sqrt3x6 / (x2 * x2 * Math.PI);
+  }
+  if(nu == Infinity) {
+    return Jmat.Real.pdf_standardnormal(x);
+  }
+
+  var nu2 = (nu + 1) / 2;
+  var g = Jmat.Real.calcCache_(nu, Jmat.Real.pdf_studentt_cachefun_, Jmat.Real.pdf_studentt_cache_);
+  //var s = Jmat.Real.sqrt(Jmat.Real.PI.mul(nu)).inv();
+  var s = 1.0 / Math.sqrt(Math.PI * nu);
+  var gs = g * s;
+  if(isNaN(gs) && nu > 100) gs = Jmat.Real(Jmat.Real.INVSQRT2PI); //this is what it is for nu = +Infinity
+
+  var a = x * x / nu + 1;
+  return gs * Math.pow(a, -nu2);
+};
+
+Jmat.Real.cdf_studentt = function(x, nu) {
+  if(nu == 1) {
+    return Math.atan(x) / Math.PI + 0.5; // cauchy distribution
+  }
+  if(nu == 2) {
+    return x / (2 * Math.sqrt(x * x + 2)) + 0.5;
+  }
+  if(nu == Infinity) {
+    return Jmat.Real.cdf_standardnormal(x);
+  }
+
+  if(x == 0) {
+    return 0.5;
+  } else if(x > 0) {
+    return 1.0 - 0.5 * Jmat.Real.beta_i(nu/(nu+x*x), nu/2.0, 0.5);
+  } else if(x < 0) {
+    return 1.0 - Jmat.Real.cdf_studentt(-x, nu);
+  }
+};
+
+//aka "tinv", t inverse cumulative distribution function
+Jmat.Real.qf_studentt = function(x, nu) {
+  // test in console:
+  // function testInvStudentt(x, nu) { return Jmat.Real.qf_studentt(Jmat.Real.cdf_studentt(Jmat.Real(x), Jmat.Real(nu)), Jmat.Real(nu)); }
+  // testInvStudentt(0.5,1.5)
+  if(nu == 1) {
+    return Math.tan(Math.PI * (x - 0.5)); // cauchy distribution
+  }
+  if(nu == 2) {
+    var a = 4 * x * (1 - x);
+    return 2 * (x - 0.5) * Math.sqrt(2 / a);
+  }
+  if(nu == 4) {
+    var a = 4 * x * (1 - x);
+    var as = Math.sqrt(a);
+    var q = Math.cos(Math.acos(as) / 3) / as;
+    return 2 * Math.sign(x - 0.5) * Math.sqrt(q - 1);
+  }
+  if(nu == Infinity) {
+    return Jmat.Real.qf_standardnormal(x);
+  }
+
+  // Formula for student t inverse CDF in terms of inverse regularized beta function.
+  // Works for x in range 0-1.
+  if(nu < 0 || x < 0 || x > 1) return NaN;
+
+  if(x < 0.5) {
+    var i = Jmat.Real.beta_i_inv(2 * x, nu / 2, 0.5);
+    return -Math.sqrt(nu * (1.0 / i - 1));
+  } else {
+    var i = Jmat.Real.beta_i_inv((1 - x) * 2, nu / 2, 0.5);
+    return Math.sqrt(nu * (1.0 / i - 1));
+  }
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+//k = degrees of freedom
+Jmat.Real.pdf_chi_square = function(x, k) {
+  var k2 = k / 2;
+  var a = Math.pow(2, k2);
+  var g = Jmat.Real.isNegativeInt(k2) ? Infinity : Jmat.Real.gamma(k2);
+  var b = Math.pow(x, k2 - 1) * Math.exp(-0.5 * x);
+  var result = b / (a * g);
+  if (isNaN(result) && k > 200) return 0;
+  return result;
+};
+
+Jmat.Real.cdf_chi_square = function(x, k) {
+  var result = Jmat.Real.gamma_p(0.5 * k, 0.5 * x);
+  if (isNaN(result) && k > 200) return 0;
+  return result;
+};
+
+// aka "cinv". x is in range 0-1
+Jmat.Real.qf_chi_square = function(x, k) {
+  // Does NOT work with '0' as starting value - and not with '0.5' either. '1' seems to be the best for the range of operation (x = 0..1)
+  // TODO: not very precise for higher k such as k=5. Fix this.
+  // E.g. should be: k=1,x=0.4: 0.274997, k=0.5&x=0.5: 0.087347000000, k=5&x=0.8:7.28928
+
+  return Jmat.Real.gamma_p_inv(0.5 * k, x) * 2;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+// mu = location, s = scale
+Jmat.Real.pdf_logistic = function(x, mu, s) {
+  var e = Math.exp((mu - x) / s);
+  var ee = e + 1;
+  return e / (s * ee * ee);
+};
+
+Jmat.Real.cdf_logistic = function(x, mu, s) {
+  //return Jmat.Real.tanh(x.sub(mu).div(s).divr(2)).mulr(1/2).addr(1/2);
+  return Jmat.Real.tanh(0.5 * (x - mu) / s) * 0.5 + 0.5;
+};
+
+// Note: the *derivative* of this is the logit function s/(x*(1-x))
+Jmat.Real.qf_logistic = function(x, mu, s) {
+  var xx = x / (1 - x);
+  //return mu.add(s.mul(Math.log(xx)));
+  return mu + s * Math.log(xx);
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+Jmat.Real.pdf_gamma_cache_ = [];
+
+// k = shape, theta = scale
+Jmat.Real.pdf_gamma = function(x, k, theta) {
+  var xk = Math.pow(x, k - 1);
+  var e = Math.exp(-x / theta);
+  var t = Math.pow(theta, k);
+  var g = Jmat.Real.calcCache_(k, Jmat.Real.gamma, Jmat.Real.pdf_gamma_cache_); // gamma(k)
+  return xk * e / (t * g);
+};
+
+Jmat.Real.cdf_gamma = function(x, k, theta) {
+  return Jmat.Real.gamma_p(k, x / theta);
+};
+
+Jmat.Real.qf_gamma = function(x, k, theta) {
+  return Jmat.Real.gamma_p_inv(k, x) * theta;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+Jmat.Real.pdf_beta = function(x, alpha, beta) {
+  var xa = Math.pow(x, alpha - 1);
+  var xb = Math.pow(1 - x, beta - 1)
+  var b = Jmat.Real.beta(alpha, beta);
+  return xa * xb / b;
+};
+
+Jmat.Real.cdf_beta = function(x, alpha, beta) {
+  return Jmat.Real.beta_i(x, alpha, beta);
+};
+
+Jmat.Real.qf_beta = function(x, alpha, beta) {
+  return Jmat.Real.beta_i_inv(x, alpha, beta);
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+// Fisher-Snedecor F distribution
+// d1 and d2 are the degrees of freedom parameters
+// TODO: gives NaN for x = 0, it probably should give 0 instead?
+Jmat.Real.pdf_fisher = function(x, d1, d2) {
+  var a = Math.pow(d1 * x, d1) * Math.pow(d2, d2);
+  var b = Math.pow(d1 * x + d2, d1 + d2);
+  var c = x * Jmat.Real.beta(0.5 * d1, 0.5 * d2);
+  return Jmat.Real.sqrt(a / b) / c;
+};
+
+Jmat.Real.cdf_fisher = function(x, d1, d2) {
+  var a = d1 * x / (d1 * x + d2);
+  return Jmat.Real.beta_i(a, 0.5 * d1, 0.5 * d2);
+};
+
+// aka "finv"
+Jmat.Real.qf_fisher = function(x, d1, d2) {
+  var a = Jmat.Real.beta_i_inv(x, 0.5 * d1, 0.5 * d2);
+  var b = 1 - a;
+  return d2 * a / (d1 * b);
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+Jmat.Real.pdf_weibull = function(x, lambda, k) {
+  var a = k / lambda;
+  var b = Math.pow(x / lambda, k - 1);
+  var c = -Math.pow(x / lambda, k);
+  return a * b * Math.exp(c);
+};
+
+Jmat.Real.cdf_weibull = function(x, lambda, k) {
+  var c = -Math.pow(x /lambda, k);
+  return 1 - Math.exp(c);
+};
+
+Jmat.Real.qf_weibull = function(x, lambda, k) {
+  var a = 1 - x;
+  var b = Math.pow(-Math.log(a), 1 / k);
+  return lambda * b;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+Jmat.Real.pdf_exponential = function(x, lambda) {
+  if(x < 0) return 0;
+  return lambda * Math.exp(-x * lambda);
+};
+
+Jmat.Real.cdf_exponential = function(x, lambda) {
+  if(x < 0) return 0;
+  return 1 - Math.exp(-x * lambda);
+};
+
+Jmat.Real.qf_exponential = function(x, lambda) {
+  return -Math.log(1 - x) / lambda;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+// aka "double exponential"
+Jmat.Real.pdf_laplace = function(x, mu, b) {
+  // 1/2b * exp(-|x-mu|/b)
+  var e = Math.exp(-Math.abs(x - mu) / b);
+  return e / (2 * b);
+};
+
+Jmat.Real.cdf_laplace = function(x, mu, b) {
+  // 1/2b * exp(-|x-mu|/b)
+  var e = Math.exp(-Math.abs(x - mu) / b);
+  var s = Math.sign(x - mu);
+  return (1 - e) * s * 0.5 + 0.5;
+};
+
+Jmat.Real.qf_laplace = function(x, mu, b) {
+  var l = Math.log(1 - 2 * Math.abs(x - 0.5));
+  var s = Math.sign(x - 0.5);
+  return mu - b * s * l;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+//same as binomial distribution with n=1, so k must be 0 or 1.
+
+//p in range 0-1, k integer 0 or 1
+Jmat.Real.pmf_bernoulli = function(k, p) {
+  if(k == 0) return 1 - p;
+  if(k == 1) return p;
+  //outside of definition but let's return something continuous...
+  return Math.pow(p, k) * Math.pow(1 - p, 1 - k);
+};
+
+Jmat.Real.cdf_bernoulli = function(k, p) {
+  if(k < 0) return 0;
+  if(k >= 1) return 1;
+  return 1 - p;
+};
+
+Jmat.Real.qf_bernoulli = function(b, p) {
+  if(b == 0) return 0;
+  if(b == 1) return 1;
+  return 0; // the "1 - p" case
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+// returns probability of getting exactly k successes out of n trials with probability p each (p in range 0.0-1.0, k and n integers)
+Jmat.Real.pmf_binomial = function(k, n, p) {
+  var b = Jmat.Real.binomial(n, k);
+  return b * Math.pow(p, k) * Math.pow(1 - p, n - k);
+};
+
+// probability that amount of successes <= k
+Jmat.Real.cdf_binomial = function(k, n, p) {
+  return Jmat.Real.beta_i(1 - p, n - k, k + 1);
+};
+
+// inverse of cdf_binomial in k. Works only for integer result in range 0-n
+Jmat.Real.qf_binomial = function(k, n, p) {
+  if(p == 0) return 0;
+  if(p == 1) return n;
+  var result = Jmat.Real.rootfind_bisection(0, n + 0.1, function(z) {
+    return Jmat.Real.cdf_binomial(z, n, p) - k;
+  }, 100, 1e-14);
+  return Jmat.Real.round(result);  // Binomial pmf/cdf takes integer k, so qf, which is inverse of cdf in k, is expected to return integer.
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+//Poisson distribution, with k integer
+
+Jmat.Real.pmf_poisson = function(k, lambda) {
+  var a = Math.pow(lambda, k);
+  var b = Jmat.Real.factorial(k);
+  var c = Math.exp(-lambda);
+  return a * c / b;
+};
+
+// probability that x <= k
+Jmat.Real.cdf_poisson = function(k, lambda) {
+  return Jmat.Real.gamma_q(k + 1, lambda);
+};
+
+Jmat.Real.qf_poisson = function(p, lambda) {
+  // TODO: improve accuraccy of qf_poisson. For high k result is always near 1, so not much wiggle room there, but even for k=1 we have only 5 or so digits of precision...
+  return Jmat.Real.gamma_q_inva(p, lambda) - 1;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////
+////////////////////////////////////////////////////////////////////////////////
+
+// Statistics functions derived from the distributions for Real
+
+// tails must be 1 or 2, other values make no real life sense
+Jmat.Real.tdist = function(x, nu, tails) {
+  return tails * (1.0 - Jmat.Real.cdf_studentt(Math.abs(x), nu));
+};
+
+// returns p-value for given pearson correlation with n samples
+Jmat.Real.corr_to_pvalue = function(corr, n) {
+  if(n < 3) return 1.0; // actually invalid
+  var t = corr * Math.sqrt((n - 2) / (1 - corr * corr));
+  return Jmat.Real.tdist(t, n - 2, 2);
 };
