@@ -354,7 +354,6 @@ Jmat.Complex.generalized_hypergeometric_ = function(a, b, z) {
   // TODO: equal elements in a and b cancel out. Sort the arrays and check that. If the arrays are equal, it's the same as 0F0
   // TODO: if a contains more zeros than b, the result is always 1
   // TODO: return NaN or so ("unsupported") if diverging. Note that for a.length > b.length, even if in theory it only converges for 0, it returns practical values for tiny values like 1e-4, so give no NaN there.
-
   var r = z;
   for(var i = 0; i < a.length; i++) r = r.mul(a[i]);
   for(var i = 0; i < b.length; i++) r = r.div(b[i]);
@@ -1461,7 +1460,7 @@ Jmat.Complex.bessel1big_ = function(z) {
   var a = [0.1171875,-0.144195556640625, 0.6765925884246826,-0.6883914268109947e1,
            0.1215978918765359e3, -0.3302272294480852e4, 0.1276412726461746e6, -0.6656367718817688e7,
            0.4502786003050393e9, -0.3833857520742790e11, 0.4011838599133198e13, -0.5060568503314727e15];
-  var b = [-0.1025390625,.2775764465332031, -0.1993531733751297e1,0.2724882731126854e2,
+  var b = [-0.1025390625,0.2775764465332031, -0.1993531733751297e1,0.2724882731126854e2,
            -0.6038440767050702e3, 0.1971837591223663e5, -0.8902978767070678e6, 0.5310411010968522e8,
            -0.4043620325107754e10, 0.3827011346598605e12, -0.4406481417852278e14, 0.6065091351222699e16];
   var za = z.abs();
@@ -1719,7 +1718,7 @@ Jmat.Complex.besselj_large_nu_ = function(nu, z) {
   var a = C.bessel_sqrt2piz_(nu).divr(2);
   var b = C.E.mul(z).div(nu).divr(2);
   return a.mul(b.pow(nu));
-}
+};
 
 // Bessel function of the first kind
 // Works fine unless both |z| and |nu| are high. Returns NaN if it could not calculate a result with the current algorithms
@@ -2613,10 +2612,12 @@ Jmat.Complex.lerchphi_binomial_table_s_ = undefined;
 Jmat.Complex.lerchphi_binomial_table_var_ = undefined;
 Jmat.Complex.lerchphi_binomial_table_ = undefined;
 
+// TODO: use opt_var! It's a boolean indicating alternate branch. See comment in Jmat.Complex.lerchphi.
 Jmat.Complex.lerchphi_binomial_series_ = function(z, s, a, opt_var) {
   var C = Jmat.Complex;
   var N = 30;
-  if(!C.lerchphi_binomial_table_ || !C.lerchphi_binomial_table_a_.eq(a) || !C.lerchphi_binomial_table_s_.eq(s) || C.lerchphi_binomial_table_var_ != !!opt_var) {
+  if(!C.lerchphi_binomial_table_ || !C.lerchphi_binomial_table_a_.eq(a) ||
+     !C.lerchphi_binomial_table_s_.eq(s) || C.lerchphi_binomial_table_var_ != !!opt_var) {
     C.lerchphi_binomial_table_ = C.lerchphi_generate_binomial_table_(s, a, N);
     C.lerchphi_binomial_table_a_ = a;
     C.lerchphi_binomial_table_s_ = s;
@@ -3334,8 +3335,9 @@ Jmat.Complex.ellipticrj = function(x, y, z, p) {
 
   var sum = C(0);
   var fac = C(1);
+  var a;
   for(;;) {
-    var a = x.add(y).add(z).add(p).add(p).divr(5);
+    a = x.add(y).add(z).add(p).add(p).divr(5);
     ex = x.div(a).rsub(1);
     ey = y.div(a).rsub(1);
     ez = z.div(a).rsub(1);
@@ -3542,7 +3544,7 @@ Jmat.Real.tetration_loop_ = function(a, b, num, l) {
     if(i > 1000) return NaN; //avoid infinite loop
   }
   return result;
-}
+};
 
 // Tetration
 // Returns experimental (not mathematically correct) results unless x is an integer or Infinity
@@ -4020,15 +4022,16 @@ Jmat.Complex.erf_inv = function(z) {
     var erf_inv_c_ = [-1.970840454, -1.62490649, 3.429567803, 1.641345311];
     var erf_inv_d_ = [1, 3.543889200, 1.637067800];
 
+    var r;
     var a = z.abs();
     if (a <= 0.7) {
       var z2 = z.mul(z);
-      var r = z.mul(z2.mulr(erf_inv_a_[3]).addr(erf_inv_a_[2]).mul(z2).addr(erf_inv_a_[1]).mul(z2).addr(erf_inv_a_[0]));
+      r = z.mul(z2.mulr(erf_inv_a_[3]).addr(erf_inv_a_[2]).mul(z2).addr(erf_inv_a_[1]).mul(z2).addr(erf_inv_a_[0]));
       r = r.div(z2.mulr(erf_inv_b_[4]).addr(erf_inv_b_[3]).mul(z2).addr(erf_inv_b_[2]).mul(z2).addr(erf_inv_b_[1]).mul(z2).addr(erf_inv_b_[0]));
     }
     else {
       var y = C.sqrt(C.log(C.ONE.sub(z).divr(2)).neg());
-      var r = y.mulr(erf_inv_c_[3]).addr(erf_inv_c_[2]).mul(y).addr(erf_inv_c_[1]).mul(y).addr(erf_inv_c_[0]);
+      r = y.mulr(erf_inv_c_[3]).addr(erf_inv_c_[2]).mul(y).addr(erf_inv_c_[1]).mul(y).addr(erf_inv_c_[0]);
       r = r.div(y.mulr(erf_inv_d_[2]).addr(erf_inv_d_[1]).mul(y).addr(erf_inv_d_[0]));
     }
 
@@ -4057,15 +4060,16 @@ Jmat.Real.erf_inv = function(z) {
   var erf_inv_b_ = [1, -2.118377725, 1.442710462, -0.329097515, 0.012229801];
   var erf_inv_c_ = [-1.970840454, -1.62490649, 3.429567803, 1.641345311];
   var erf_inv_d_ = [1, 3.543889200, 1.637067800];
+  var r;
 
   var a = Math.abs(z);
   if (a <= 0.7) {
     var z2 = z * z;
-    var r = z * (((z2 * erf_inv_a_[3] + erf_inv_a_[2]) * z2 + erf_inv_a_[1]) * z2 + erf_inv_a_[0]);
+    r = z * (((z2 * erf_inv_a_[3] + erf_inv_a_[2]) * z2 + erf_inv_a_[1]) * z2 + erf_inv_a_[0]);
     r = r / ((((z2 * erf_inv_b_[4] + erf_inv_b_[3]) * z2 + erf_inv_b_[2]) * z2 + erf_inv_b_[1]) * z2 + erf_inv_b_[0]);
   } else {
     var y = Math.sqrt(-Math.log((1 - z) / 2));
-    var r = ((y * erf_inv_c_[3] + erf_inv_c_[2]) * y + erf_inv_c_[1]) * y + erf_inv_c_[0];
+    r = ((y * erf_inv_c_[3] + erf_inv_c_[2]) * y + erf_inv_c_[1]) * y + erf_inv_c_[0];
     r = r / ((y * erf_inv_d_[2] + erf_inv_d_[1]) * y + erf_inv_d_[0]);
   }
 
@@ -4113,8 +4117,8 @@ Jmat.Real.minkowski = function(x) {
     m = p + r; if((m < 0) != (p < 0)) break; //sum overflowed
     n = q + s; if(n < 0) break; //sum overflowed
 
-    if(x < m / n) r = m, s = n;
-    else y += d, p = m, q = n;
+    if(x < m / n) { r = m; s = n; }
+    else { y += d; p = m; q = n; }
   }
   return y + d; //final round-off
 };
@@ -4333,7 +4337,7 @@ Jmat.Real.rootfind_newton2 = function(fdf, z0, maxiter) {
 
 //Newton-Raphson. Finds a root (zero) given function f, its derivative df, and an initial value z0
 Jmat.Real.rootfind_newton = function(f, df, z0, maxiter) {
-  return Jmat.Real.rootfind_newton2(function(t) { return [f(t), df(t)]}, z0, maxiter);
+  return Jmat.Real.rootfind_newton2(function(t) { return [f(t), df(t)];}, z0, maxiter);
 };
 
 //find result of inverse function using the newton method
@@ -5211,7 +5215,7 @@ Jmat.Complex.cdf_bernoulli = function(k, p) {
 Jmat.Complex.qf_bernoulli = function(b, p) {
   if(b.eqr(0)) return Jmat.Complex.ZERO;
   if(b.eqr(1)) return Jmat.Complex.ONE;
-  return Jmat.Complex.ZERO;; // the "1 - p" case
+  return Jmat.Complex.ZERO; // the "1 - p" case
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -5541,7 +5545,7 @@ Jmat.Real.qf_gamma = function(x, k, theta) {
 
 Jmat.Real.pdf_beta = function(x, alpha, beta) {
   var xa = Math.pow(x, alpha - 1);
-  var xb = Math.pow(1 - x, beta - 1)
+  var xb = Math.pow(1 - x, beta - 1);
   var b = Jmat.Real.beta(alpha, beta);
   return xa * xb / b;
 };

@@ -1584,7 +1584,7 @@ Jmat.BigInt.factorize = function(a) {
       return f(qs); // it's a factor, but not necessarily a prime one, so recurse
     }
     return B(0); // Not found
-  }
+  };
 
   for(;;) {
     var b = f(a);
@@ -2441,10 +2441,11 @@ Jmat.BigInt.enrichFunction_ = function(object, fname, numb, type) {
   var f = ((type == 2) ? Jmat.BigInt.prototype[fname] : Jmat.BigInt[fname]);
   var f2 = function() {
     var format = Jmat.BigInt.getFormat(arguments[0]);
+    var args = Array.prototype.slice.call(arguments);
     for(var i = 0; i < numb; i++) {
-      arguments[i] = Jmat.BigInt.cast(arguments[i]);
+      args[i] = Jmat.BigInt.cast(arguments[i]);
     }
-    var res = f.apply(this, arguments);
+    var res = f.apply(this, args);
     if(type == 1) return Jmat.BigInt.toFormat(res, format);
     return res;
   };

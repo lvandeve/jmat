@@ -347,10 +347,10 @@ Jmat.Quaternion.to2x2 = function(q) {
 
 // Convert from 2x2 matrix to quaternion (matrix as 2D array or object with array in e field (Jmat.Matrix))
 Jmat.Quaternion.from2x2 = function(m) {
-  var e = m.e ? m.e : m
+  var e = m.e ? m.e : m;
   var e0 = e[0][0];
   var e1 = e[0][1];
-  return new Jmat.Quaternion(e0.re, e0.im, e1.re, e1.im)
+  return new Jmat.Quaternion(e0.re, e0.im, e1.re, e1.im);
 };
 
 // Convert to 4x4 matrix representation (as 2D array, can be given to Jmat.Matrix ctor)
@@ -363,7 +363,7 @@ Jmat.Quaternion.to4x4 = function(q) {
 
 // Convert from 4x4 matrix to quaternion (matrix as 2D array or object with array in e field (Jmat.Matrix))
 Jmat.Quaternion.from4x4 = function(m) {
-  var e = m.e ? m.e : m
+  var e = m.e ? m.e : m;
   return new Jmat.Quaternion(e[0][0].re, e[0][1].re, e[0][2].re, e[0][3].re);
 };
 

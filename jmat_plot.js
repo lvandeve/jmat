@@ -303,7 +303,7 @@ Jmat.Plot.makeAlignedText = function(parent, text, width, x, y, alignx, aligny, 
 //returns the text element
 // if width is given (> 0), it is multiline text. Else it is single line text
 Jmat.Plot.makeCenteredText = function(parent, text, width, x, y, fontSize) {
-  return Jmat.Plot.makeAlignedText(parent, text, width, x, y, 1, 1, fontSize)
+  return Jmat.Plot.makeAlignedText(parent, text, width, x, y, 1, 1, fontSize);
 };
 
 Jmat.Plot.useHTML5canvas_ = true;
@@ -659,14 +659,14 @@ Jmat.Plot.plot2D_ = function(fun, params, parent, label, xlabel, ylabel) {
       if(s == Math.floor(s)) {
         params.xshift += 0.5;
         params.yshift += 0.5;
-      };
+      }
       Jmat.stopPlotting();
       plotfun();
-    }
+    };
     d.style.color = '#ddd';
 
     Jmat.Plot.plot2DNonBlocking_(fun, size, steps, params, div);
-  }
+  };
   plotfun();
 };
 

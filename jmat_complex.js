@@ -31,6 +31,11 @@ THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 /*
 Jmat.Complex: arithmetic on complex numbers
 
+NOTE: treat Complex numbers as immutable unless you know nothing else refers to it. That is,
+      do not assign to .re and .im directly unless you created the instance yourself. Otherwise you
+      could be altering a global mathematical constant like pi, or a value that is shared by
+      different matrices, etc...
+
 Overview of some functionality:
 -elementary arithmetic: Complex.add, Complex.sub, Complex.mul, Complex.div
 -mathematical functions: Complex.pow, Complex.exp, Complex.sqrt, Complex.log, Complex.cos, Complex.cosh, Complex.acos, ...
@@ -395,7 +400,7 @@ Jmat.Complex.bitneg = function(x) {
   //imaginary part not bit-negated on purpose: otherwise it appears when bit-inverting real number, which is in 99.9% of the cases not wanted
   //instead negated, to follow the formula -(x + 1)
   //result.im = ~x.im;
-  result.im = -x.im
+  result.im = -x.im;
   return result;
 };
 
@@ -1219,7 +1224,7 @@ Jmat.Complex.erf = function(z) {
   var a = Jmat.Complex.exp(z.mul(z).neg()); // If abs of z is very large, and |im| > |re|, then this becomes some NaN or Infinity. That is ok, erf is also some unrepresentable huge value there.
   var result;
   if (z.re >= 0) result = Jmat.Complex.ONE.sub(a.mul(Jmat.Complex.faddeeva(z.mul(Jmat.Complex.I))));
-  else return result = a.mul(Jmat.Complex.faddeeva(z.mul(Jmat.Complex.I.neg()))).sub(Jmat.Complex.ONE);
+  else result = a.mul(Jmat.Complex.faddeeva(z.mul(Jmat.Complex.I.neg()))).sub(Jmat.Complex.ONE);
   // fix numerical imprecisions in case something is known to be exactly zero
   if(z.re == 0) result.re = 0; // pure imaginary input must give pure imaginary output, but due to subtracting from 1 it may be near-zero
   return result;

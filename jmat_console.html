@@ -154,7 +154,7 @@ function getLocalStorage() {
 window.onbeforeunload = setLocalStorage;
 getLocalStorage();
 
-B = Jmat.BigInt;
+B = Jmat.BigIntC || Jmat.BigInt;
 C = Jmat.Complex;
 Q = Jmat.Quaternion;
 M = Jmat.Matrix;

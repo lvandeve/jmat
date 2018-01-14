@@ -36,14 +36,14 @@ Jmat.Test = function() {
 };
 
 Jmat.Test.expectTrue = function(value, opt_message) {
-  var message = opt_message ? ('fail: ' + opt_message) : 'fail';
+  var message = opt_message ? ('fail: ' + opt_message) : 'fail: expected true';
   if (!value) throw message;
-}
+};
 
 Jmat.Test.expectFalse = function(value, opt_message) {
-  var message = opt_message ? ('fail: ' + opt_message) : 'fail';
+  var message = opt_message ? ('fail: ' + opt_message) : 'fail: expected false';
   if (value) throw message;
-}
+};
 
 // Works both for Complex or Matrix objects.
 // Precision is number of decimal digits that should match
@@ -176,7 +176,7 @@ Jmat.doEigenPrecisionBenchmark = function() {
         biggestErrorData = {col: j, m: m, l: e.l, v: e.v};
       }
       sumError += error;
-      numError++;;
+      numError++;
     }
   }
 
@@ -251,7 +251,7 @@ Jmat.Test.doUnitTestRealDistributions = function() {
     var amod = a.slice(0);
     amod[0] = qf_in;
     T.testFunction.apply(that, [expected_qf, precision_qf, qf_f].concat(amod));
-  }
+  };
 
   var eps = 1e-10;
   var eps_qf = 1e-5;
@@ -330,7 +330,7 @@ Jmat.Test.doUnitTestRealDistributions = function() {
   testDistribution(0.175467369767851, 0.615960654833063, eps, Infinity, 'poisson', 5, 5);
   testDistribution(1.0137771196303e-7, 0.999999989952234, eps, Infinity, 'poisson', 10, 1);
   testDistribution(2.80684572494333e-108, 1, eps, Infinity, 'poisson', 100, 3.3);
-}
+};
 
 // throws on fail, prints 'success' on success
 Jmat.doUnitTest = function(opt_verbose) {
@@ -455,6 +455,7 @@ Jmat.doUnitTest = function(opt_verbose) {
                     1e-8,
                     [[-1,0,1],[3,0,-3],[1,0,-1]]);
   Jmat.Test.expectNear(Jmat.Matrix([[0.5],[-1],[0.5]]), Jmat.Matrix.solve(Jmat.Matrix([[0,1,2],[3,5,7],[11,13,17]]), Jmat.Matrix([[0],[0],[1]])), eps);
+  Jmat.Test.expectNear(Jmat.Matrix([[-23.0/36,-1.0/6,11.0/36],[-1.0/18,0,1.0/18],[19.0/36,1.0/6,-7.0/36]]), Jmat.Matrix.pseudoinverse(Jmat.Matrix([[1,2,3],[4,5,6],[7,8,9]])), eps);
 
   // matrix parsing
   Jmat.Test.testFunction([[1,2],[3,4]], eps, Jmat.Matrix.parse, '[[1,2],[3,4]]');
@@ -499,6 +500,11 @@ Jmat.doUnitTest = function(opt_verbose) {
 
   Jmat.Test.expectNear(vec01.transpose(), Jmat.Matrix.make([[0,1]]), eps);
   Jmat.Test.expectNear(vec01.transpose(), Jmat.Matrix.subrow(Jmat.Matrix.make([[2,0],[0,1]]), 0), eps);
+
+  // matrix properties
+  Jmat.Test.expectTrue(Jmat.Matrix.isOrthogonal(Jmat.Matrix.make([[1,0],[0,1]])));
+  Jmat.Test.expectTrue(Jmat.Matrix.isOrthogonal(Jmat.Matrix.make([[0.8,-0.6],[0.6,0.8]])));
+  Jmat.Test.expectFalse(Jmat.Matrix.isOrthogonal(Jmat.Matrix.make([[1,2],[3,4]])));
 
   Jmat.Test.finalizeAccuracy(opt_verbose);
   console.log('success');

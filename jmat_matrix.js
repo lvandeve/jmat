@@ -34,17 +34,22 @@ Jmat.Matrix: matrix and vector math
 NOTE: Many routines assume an epsilon of 1e-15, considering values smaller than this to be zero
 NOTE: There are also a few matrix algorithms in jmat_real.js. Those work on 2D arrays of real numbers,
       while here we work on a custom object with complex numbers.
+NOTE: treat Complex numbers and Matrices as immutable unless you know nothing else refers to it. That is,
+      do not assign to .re, .im, .e, .w and .h directly unless you created the instance yourself. Otherwise you
+      could be altering a global mathematical constant like pi, or a value that is shared by
+      different matrices, etc...
 
 Overview of some functionality:
--decompositions: Matrix.lu, Matrix.qr, Matrix.svd, Matrix.evd, Matrix.cholesky, Matrix.ldl
+-elementary operators: Matrix.add, Matrix.sub, Matrix.mul, Matrix.div, Matrix.leftdiv, Matrix.mulc, Matrix.mulr, ...
+-decompositions: Matrix.lu, Matrix.qr, Matrix.svd, Matrix.polar, Matrix.evd, Matrix.cholesky, Matrix.ldl
 -inverse: Matrix.inv, Matrix.pseudoinverse
 -solve: Matrix.solve, Matrix.rref
 -eigen: Matrix.eig, Matrix.eig11, Matrix.eig22
 -fourier transform: Matrix.fft, Matrix.ifft
 -vectors: Matrix.cross, Matrix.dot
--elementary operators: Matrix.add, Matrix.sub, Matrix.mul, Matrix.div, Matrix.leftdiv, Matrix.mulc, Matrix.mulr, ...
 -special functions: Matrix.exp, Matrix.sin, Matrix.cos, Matrix.log, Matrix.sqrt, Matrix.powc
 -matrix operators: Matrix.transpose, Matrix.conj, Matrix.tranjugate
+-multiply with transposed shortcuts: Matrix.mulT, Matrix.mulTG
 -determinants and minors: Matrix.determinant, Matrix.minor, Matrix.cofactor, Matrix.adj
 -norms and ranks: Matrix.norm, Matrix.maxrownorm, Matrix.maxcolnorm, Matrix.norm2, Matrix.conditionNumber, Matrix.rank, Matrix.trace
 -tests: Matrix.isReal, Matrix.isNaN, Matrix.isInfOrNaN, Matrix.eq, Matrix.near
@@ -454,6 +459,22 @@ Jmat.Matrix.n3mul_ = function(a, b) {
   return result;
 };
 
+// the iterative O(n^3) multiplication algorithm of a with transpose of b
+// thanks to b being transposed, this function is cache friendly for both a and b.
+Jmat.Matrix.n3mul_transpose_ = function(a, b) {
+  if(a.w != b.w) return null; // mathematically invalid
+  var result = new Jmat.Matrix(a.h, b.h);
+
+  for(var y = 0; y < a.h; y++) {
+    for(var x = 0; x < b.h; x++) {
+      var e = Jmat.Complex(0);
+      for(var z = 0; z < a.w; z++) e = e.add(a.e[y][z].mul(b.e[x][z]));
+      result.e[y][x] = e;
+    }
+  }
+  return result;
+};
+
 // Strassen matrix multiplication algorithm
 // Measurably faster in JS for 400x400 matrices and higher
 Jmat.Matrix.strassen_ = function(a, b) {
@@ -520,6 +541,26 @@ Jmat.Matrix.mul = function(a, b) {
 };
 Jmat.Matrix.prototype.mul = function(b) {
   return Jmat.Matrix.mul(this, b);
+};
+
+// Multiply a with transpose of b. Can be more efficient than transposing b yourself and calling regular mul.
+Jmat.Matrix.mulT = function(a, b) {
+  var m = Math.min(a.w, Math.min(a.h, b.h));
+  if(m < 500) return Jmat.Matrix.n3mul_transpose_(a, b);
+  // TODO: implement a strassen_ function that operates on transposed b directly to have the speed advantage
+  return Jmat.Matrix.strassen_(a, b.transpose());
+};
+Jmat.Matrix.prototype.mulT = function(b) {
+  return Jmat.Matrix.mulT(this, b);
+};
+
+// Multiply a with tranjugate (conjugate transpose) of b. Can be more efficient than tranjugating b yourself and calling regular mul.
+Jmat.Matrix.mulTG = function(a, b) {
+  // TODO: do direct implementation to have even less copying...
+  return Jmat.Matrix.mulT(a, b.conj());
+};
+Jmat.Matrix.prototype.mulTG = function(b) {
+  return Jmat.Matrix.mulTG(this, b);
 };
 
 // mulScalar (c from complex number)
@@ -927,7 +968,7 @@ Jmat.Matrix.isOrthogonal = function(a, opt_epsilon) {
   if (!Jmat.Matrix.isSquare(a)) return false;
   //if (!Jmat.Matrix.isReal(a)) return false; // Not sure if to be strict with this check or not...
 
-  var aa = a.mul(a.transpose());
+  var aa = a.mulT(a);
   return Jmat.Matrix.isIdentity(aa, epsilon);
 };
 
@@ -936,7 +977,7 @@ Jmat.Matrix.isUnitary = function(a, opt_epsilon) {
   var epsilon = (opt_epsilon == undefined) ? 1e-15 : opt_epsilon;
   if (!Jmat.Matrix.isSquare(a)) return false;
 
-  var aa = a.mul(a.transjugate());
+  var aa = a.mulTG(a);
   return Jmat.Matrix.isIdentity(aa, epsilon);
 };
 
@@ -1225,19 +1266,107 @@ Jmat.Matrix.prototype.render_summary = function() {
   return Jmat.Matrix.render_summary(this);
 };
 
-// TODO: functions like isSymmetric, isHermitian, isDiagonal, ...
-
 ////////////////////////////////////////////////////////////////////////////////
 
-Jmat.Matrix.transpose = function(a) {
-  var result = new Jmat.Matrix(a.w, a.h); //arguments inverted (ctor takes height first)
+/*
+benchmark Jmat.Matrix.transpose_naive_ vs Jmat.Matrix.transpose_cache_friendly_:
 
+
+console.log('generating random matrix');
+//var a = Matrix.random(1000, 1000);
+//var a = Matrix.random(4000, 250);
+var a = Matrix.random(250, 4000);
+
+var dummy = 0;
+
+console.log('benchmarking cache friendly');
+var m = a;
+var t00 = new Date().getTime();
+for(var n = 0; ; n++) {
+  var t = Matrix.transpose_cache_friendly_(m);
+  dummy += t.e[0][0].re;
+  m = t;
+  var t01 = new Date().getTime();
+  if(t01 - t00 > 4000) {
+    var runs_s = (n + 1) / (t01 - t00) * 1000;
+    console.log('cache friendly: ' + runs_s + ' runs per s (' + (n + 1) + ' in ' + (t01 - t00) + 'ms)');
+    break;
+  }
+}
+
+console.log('benchmarking naive');
+var m = a;
+var t00 = new Date().getTime();
+for(var n = 0; ; n++) {
+  var t = Matrix.transpose_naive_(m);
+  dummy += t.e[0][0].re;
+  m = t;
+  var t01 = new Date().getTime();
+  if(t01 - t00 > 4000) {
+    var runs_s = (n + 1) / (t01 - t00) * 1000;
+    console.log('naive: ' + runs_s + ' runs per s (' + (n + 1) + ' in ' + (t01 - t00) + 'ms)');
+    break;
+  }
+}
+
+console.log('verifying');
+//var v0 = Matrix.transpose_naive_(a);
+var v1 = Matrix.transpose_cache_friendly_(a);
+for(var y = 0; y < a.h; y++) {
+  for(var x = 0; x < a.w; x++) {
+    //if(a.e[y][x] != v0.e[x][y]) throw 'invalid naive';
+    if(a.e[y][x] != v1.e[x][y]) throw 'invalid cache friendly';
+  }
+}
+console.log('ok');
+*/
+
+Jmat.Matrix.transpose_naive_ = function(a) {
+  var result = new Jmat.Matrix(a.w, a.h); //arguments inverted (ctor takes height first)
   for(var y = 0; y < a.h; y++) {
     for(var x = 0; x < a.w; x++) {
       result.e[x][y] = a.e[y][x];
     }
   }
   return result;
+};
+
+Jmat.Matrix.transpose_cache_friendly_ = function(a) {
+  var result = new Jmat.Matrix(a.w, a.h); //arguments inverted (ctor takes height first)
+  var stack = [[0, 0, a.w, a.h]];
+  while(stack.length > 0) {
+    var coords = stack.pop();
+    var x0 = coords[0];
+    var y0 = coords[1];
+    var x1 = coords[2];
+    var y1 = coords[3];
+    var dx = x1 - x0;
+    var dy = y1 - y0;
+    if(dx >= dy && dx > 16) {
+      stack.push([(x0 + x1) >> 1, y0, x1, y1]);
+      stack.push([x0, y0, (x0 + x1) >> 1, y1]);
+    } else if(dy > 16) {
+      stack.push([x0, (y0 + y1) >> 1, x1, y1]);
+      stack.push([x0, y0, x1, (y0 + y1) >> 1]);
+    } else {
+      for(var y = y0; y < y1; y++) {
+        for(var x = x0; x < x1; x++) {
+          result.e[x][y] = a.e[y][x];
+        }
+      }
+    }
+  }
+  return result;
+};
+
+Jmat.Matrix.transpose = function(a) {
+  if(a.w * a.h > 250000) {
+    // In JavaScript, the effect of cache friendlyness is not that visible for transpose
+    // (in Chrome as of 2018) except slightly for matrices above 500x500.
+    return Jmat.Matrix.transpose_cache_friendly_(a);
+  } else {
+    return Jmat.Matrix.transpose_naive_(a);
+  }
 };
 Jmat.Matrix.prototype.transpose = function() {
   return Jmat.Matrix.transpose(this);
@@ -1538,26 +1667,32 @@ Jmat.Matrix.adj = function(a) {
 };
 
 // Inverse of a matrix
-Jmat.Matrix.inv = function(a) {
+// opt_epsilon is optional, default value: 1e-15.
+// The smaller opt_epsilon is, the more likely a numerical problem with not detecting singular a (and hence returning bogus result) can happen
+// The higher opt_epsilon, the more robust, but it may then not work on valid matrices with very small determinant
+Jmat.Matrix.inv = function(a, opt_epsilon) {
   if(a.w != a.h) return null; //square matrices only
+  var epsilon = opt_epsilon || 1e-15;
+
+  var det = Jmat.Matrix.determinant(a);
+  if(det.abs() < epsilon) return null; // probably singular
 
   //Cramer's rule
-  return Jmat.Matrix.mulc(Jmat.Matrix.adj(a), Jmat.Complex.inv(Jmat.Matrix.determinant(a)));
+  return Jmat.Matrix.mulc(Jmat.Matrix.adj(a), Jmat.Complex.inv(det));
 };
 
 //forced pseudoinverse (does not try regular inverse first)
 Jmat.Matrix.pseudoinverse_ = function(a) {
   //TODO: instead of formula below, easier ways are available for scalars, vectors, lin. indep. rows/columns, ...
-
   var svd = Jmat.Matrix.svd(a);
   var n = Math.min(svd.s.w, svd.s.h);
   var tolerance = 1e-15; // choose this such that e.g. the pseudoinverse of [[1,2],[1,2]] returns [[0.1,0.2],[0.1,0.2]] - if the tolerance is too small, some near zero gets inverted and the result very wrong (depends on the svd algorithm used of course)
   // Invert all the elements of s, except those that are zero (with some tolerance due to numerical problems)
   // Each element of s should be real, and it only has elements on the diagonal
-  for(var i = 0; i < n; i++) svd.s.e[i][i] = (Math.abs(svd.s.e[i][i].re) < tolerance) ? svd.s.e[i][i] : Jmat.Complex.inv(svd.s.e[i][i]);
-  svd.s = Jmat.Matrix.transpose(svd.s);
-
-  return Jmat.Matrix.mul(Jmat.Matrix.mul(svd.v, svd.s), Jmat.Matrix.transjugate(svd.u));
+  for(var i = 0; i < n; i++) {
+    svd.s.e[i][i] = (Math.abs(svd.s.e[i][i].re) < tolerance) ? svd.s.e[i][i] : Jmat.Complex.inv(svd.s.e[i][i]);
+  }
+  return svd.v.mulT(svd.s).mulTG(svd.u);
 };
 
 //Moore-Penrose pseudoinverse: one unique solution for any matrix
@@ -1569,9 +1704,12 @@ Jmat.Matrix.pseudoinverse = function(a) {
   result.toString() + ' | ' + orig.toString();
   */
 
-  //first try if regular inverse works, if so that is more accurate and faster
-  var result = Jmat.Matrix.inv(a);
-  if(Jmat.Matrix.isValid(result)) return result;
+  //first try if regular inverse works (but with a quite large epsilon to be sure it's stable),
+  //if so that is more accurate and faster
+  if(a.w == a.h) {
+    var result = Jmat.Matrix.inv(a, 1e-10);
+    if(Jmat.Matrix.isValid(result)) return result;
+  }
 
   return Jmat.Matrix.pseudoinverse_(a);
 };
@@ -2054,7 +2192,6 @@ Jmat.Matrix.givensPost_ = function(m, i, j, c, s) {
 // do householder reflections to bring a to similar a in upper hessenberg form
 Jmat.Matrix.toHessenberg = function(a) {
   var M = Jmat.Matrix;
-  var T = M.transjugate;
   if(a.h != a.w) return null;
   var real = Jmat.Matrix.isReal(a);
   var r = M.copy(a);
@@ -2065,11 +2202,11 @@ Jmat.Matrix.toHessenberg = function(a) {
     var tau = vt[1];
 
     var rs = M.submatrix(r, k + 1, r.h, k, r.w);
-    rs = rs.sub(v.mul(T(v)).mul(rs).mulc(tau));
+    rs = rs.sub(v.mulTG(v).mul(rs).mulc(tau));
     r = M.insert(r, rs, k + 1, k);
 
     rs = M.submatrix(r, 0, r.h, k + 1, r.w);
-    rs = rs.sub(rs.mul(v).mul(T(v)).mulc(tau));
+    rs = rs.sub(rs.mul(v).mulTG(v).mulc(tau));
     r = M.insert(r, rs, 0, k + 1);
   }
   //ensure the elements are really zero
@@ -2102,7 +2239,6 @@ Jmat.Matrix.qr_hessenberg_ = function(a) {
 
 Jmat.Matrix.qr_general_ = function(a) {
   var M = Jmat.Matrix;
-  var T = M.transjugate;
   var real = Jmat.Matrix.isReal(a);
   var h = a.h;
   var w = a.w;
@@ -2120,7 +2256,7 @@ Jmat.Matrix.qr_general_ = function(a) {
 
     // Calculate R: it is A left-multiplied by all the householder matrices
     var rs = M.submatrix(r, k, h, k, w);
-    rs = rs.sub(v[k].mul(T(v[k])).mul(rs).mulc(taus[k]));
+    rs = rs.sub(v[k].mulTG(v[k]).mul(rs).mulc(taus[k]));
     r = M.insert(r, rs, k, k);
   }
 
@@ -2128,7 +2264,7 @@ Jmat.Matrix.qr_general_ = function(a) {
   var q = M.identity(h, h);
   for(var k = w - 1; k >= 0; k--) {
     var qs = M.submatrix(q, k, h, 0, h);
-    qs = qs.sub(v[k].mul(T(v[k])).mul(qs).mulc(taus[k]));
+    qs = qs.sub(v[k].mulTG(v[k]).mul(qs).mulc(taus[k]));
     q = M.insert(q, qs, k, 0);
   }
 
@@ -2474,8 +2610,7 @@ Jmat.Matrix.arrayToRow = function(a) {
 
 // converts an array of complex values or regular JS numbers, to a diagonal matrix
 Jmat.Matrix.arrayToDiag = function(a) {
-  //var r = Jmat.Matrix.zero(a.length, a.length);
-  var r = new Jmat.Matrix(a.length, a.length);
+  var r = Jmat.Matrix.zero(a.length, a.length);
   for(var i = 0; i < a.length; i++) r.e[i][i] = Jmat.Complex.cast(a[i]);
   return r;
 };
@@ -3024,6 +3159,15 @@ Jmat.Matrix.svd = function(m) {
   return result;
 };
 
+// Polar decomposition, M = UP with U=unitary, P=positive-semidefinite Hermitian
+Jmat.Matrix.polar = function(m) {
+  var M = Jmat.Matrix;
+  var svd = M.svd(m);
+  var u = svd.u.mulTG(svd.v);
+  var p = svd.v.mul(svd.s).mulTG(svd.v);
+  return {u: u, p: p};
+};
+
 // equals
 Jmat.Matrix.eq = function(a, b) {
   if(a.w != b.w || a.h != b.h) return false;
@@ -3185,17 +3329,17 @@ Jmat.Matrix.rref = function(a) {
 
 // generates a random matrix with some properties.
 // all parameters are optional.
+// h: number of rows. Default or if 0: random 2..12
+// w: number of columns. Default or if 0: random 2..12, or h if h is defined or the 'square' property is true
 // properties: properties object similar to what "getProperties" returns. Not all are implemented though.
 //             Currently only 'real', 'integer', 'binary', 'hermitian' and 'square' are supported.
 //             Default is object {'real':true}. Pass "undefined" to get the default, or '{}' to get complex matrices.
-// h: number of rows. Default: random 2..12
-// w: number of columns. Default: random 2..12, or h if h is defined or the 'square' property is true
 // r0: lowest random value. Default: 0
 // r1: highest random value. Default: 1
 // s: sparseness: give value in range 0-1. Default: 1
-// e.g. Matrix.random({'integer':true}, 4, 4, 0, 10, 1).render_summary()
-//      Matrix.random({'real':false,'hermitian':true}, 3, 3, -10, 10, 1).render_summary()
-Jmat.Matrix.random = function(properties, h, w, r0, r1, s) {
+// e.g. Matrix.random(4, 4, {'integer':true}, 0, 10, 1).render_summary()
+//      Matrix.random(3, 3, {'real':false,'hermitian':true}, -10, 10, 1).render_summary()
+Jmat.Matrix.random = function(h, w, properties, r0, r1, s) {
   var C = Jmat.Complex;
   var R = Jmat.Real;
   w = w || h || Math.floor(R.random() * 10 + 2);

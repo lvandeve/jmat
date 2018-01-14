@@ -388,8 +388,9 @@ Jmat.Real.isPrimeMillerRabin_ = function(n) {
 
   var witness = function(n, s, d, a) {
     var x = modpow(a, d, n);
+    var y;
     while(s) {
-      var y = modmul(x, x, n); //(x * x) % n;
+      y = modmul(x, x, n); //(x * x) % n;
       if(y == 1 && x != 1 && x != n - 1) return false;
       x = y;
       s--;
@@ -886,7 +887,7 @@ Jmat.Real.clz32 = Math['clz32'] || function(x) {
     result++;
   }
   return 32 - result;
-}
+};
 
 //NOTE: floating point version. For integer log2 use ilog2,
 //because e.g. on 8 this gives 2.9999999999999996 (official Math.log2 too)
@@ -966,7 +967,7 @@ Jmat.Real.faddeeva = function(x, y) {
   if(y < 0 && rho2 >= 0.292 * 0.292) {
     // For large negative pure imaginary values starting at -26.64, the code
     // starts returning NaN. Return Infinity instead (it is large positive overflow).
-    if(x == 0 && y < -26.64) return [Infinity, 0]
+    if(x == 0 && y < -26.64) return [Infinity, 0];
 
     var e = cexp(y * y - x * x, -2 * x * y); // exp(-z*z)
     var f = R.faddeeva(-x, -y);
@@ -1242,7 +1243,7 @@ Jmat.Real.round = function(x) {
   // return Math.round(x);
   var l = Math.floor(x);
   var f = x - l;
-  if(f == 0.5) return (l % 2 == 0) ? l : (l + 1)
+  if(f == 0.5) return (l % 2 == 0) ? l : (l + 1);
   return (f < 0.5) ? l : (l + 1);
 };
 
@@ -1473,6 +1474,25 @@ Jmat.Real.matrix_mul = function(a, b) {
   return result;
 };
 
+// Multiply a with transpose of b. Can be more efficient than transposing b yourself and calling regular mul.
+Jmat.Real.matrix_mulT = function(a, b) {
+  // TODO: add strassen algorithm
+  var m = a.length;
+  var n = a[0].length;
+  var p = b.length;
+  if(n != b[0].length) return undefined;
+  var result = [];
+  for (var y = 0; y < m; y++) result[y] = [];
+  for (var x = 0; x < p; x++) {
+    for (var y = 0; y < m; y++) {
+      var e = 0;
+      for (var z = 0; z < n; z++) e += a[y][z] * b[x][z];
+      result[y][x] = e;
+    }
+  }
+  return result;
+};
+
 Jmat.Real.matrix_mulr = function(a, v) {
   var r = [];
   for(var y = 0; y < a.length; y++) {
@@ -1495,7 +1515,60 @@ Jmat.Real.matrix_divr = function(a, v) {
   return r;
 };
 
-Jmat.Real.matrix_transpose = function(m) {
+
+
+/*
+benchmark Jmat.Real.matrix_transpose_naive_ vs Jmat.Real.matrix_transpose_cache_friendly_:
+
+
+console.log('generating random matrix');
+var a = Real.matrix_random(250, 4000);
+
+var dummy = 0;
+
+console.log('benchmarking cache friendly');
+var m = a;
+var t00 = new Date().getTime();
+for(var n = 0; ; n++) {
+  var t = Real.matrix_transpose_cache_friendly_(m);
+  dummy += t[0][0];
+  m = t;
+  var t01 = new Date().getTime();
+  if(t01 - t00 > 4000) {
+    var runs_s = (n + 1) / (t01 - t00) * 1000;
+    console.log('cache friendly: ' + runs_s + ' runs per s (' + (n + 1) + ' in ' + (t01 - t00) + 'ms)');
+    break;
+  }
+}
+
+console.log('benchmarking naive');
+var m = a;
+var t00 = new Date().getTime();
+for(var n = 0; ; n++) {
+  var t = Real.matrix_transpose_naive_(m);
+  dummy += t[0][0];
+  m = t;
+  var t01 = new Date().getTime();
+  if(t01 - t00 > 4000) {
+    var runs_s = (n + 1) / (t01 - t00) * 1000;
+    console.log('naive: ' + runs_s + ' runs per s (' + (n + 1) + ' in ' + (t01 - t00) + 'ms)');
+    break;
+  }
+}
+
+console.log('verifying');
+//var v0 = Real.matrix_transpose_naive_(a);
+var v1 = Real.matrix_transpose_cache_friendly_(a);
+for(var y = 0; y < a.h; y++) {
+  for(var x = 0; x < a.w; x++) {
+    //if(a[y][x] != v0[x][y]) throw 'invalid naive';
+    if(a[y][x] != v1[x][y]) throw 'invalid cache friendly';
+  }
+}
+console.log('ok');
+*/
+
+Jmat.Real.matrix_transpose_naive_ = function(m) {
   var result = [];
   for(var y = 0; y < m[0].length; y++) {
     result[y] = [];
@@ -1504,6 +1577,45 @@ Jmat.Real.matrix_transpose = function(m) {
     }
   }
   return result;
+};
+
+Jmat.Real.matrix_transpose_cache_friendly_ = function(m) {
+  var result = [];
+  for(var y = 0; y < m[0].length; y++) result[y] = [];
+  var stack = [[0, 0, m[0].length, m.length]];
+  while(stack.length > 0) {
+    var coords = stack.pop();
+    var x0 = coords[0];
+    var y0 = coords[1];
+    var x1 = coords[2];
+    var y1 = coords[3];
+    var dx = x1 - x0;
+    var dy = y1 - y0;
+    if(dx >= dy && dx > 16) {
+      stack.push([(x0 + x1) >> 1, y0, x1, y1]);
+      stack.push([x0, y0, (x0 + x1) >> 1, y1]);
+    } else if(dy > 16) {
+      stack.push([x0, (y0 + y1) >> 1, x1, y1]);
+      stack.push([x0, y0, x1, (y0 + y1) >> 1]);
+    } else {
+      for(var y = y0; y < y1; y++) {
+        for(var x = x0; x < x1; x++) {
+          result[x][y] = m[y][x];
+        }
+      }
+    }
+  }
+  return result;
+};
+
+Jmat.Real.matrix_transpose = function(m) {
+  if(m.length * m[0].length > 250000) {
+    // In JavaScript, the effect of cache friendlyness is not that visible for transpose
+    // (in Chrome as of 2018) except slightly for matrices above 500x500.
+    return Jmat.Real.matrix_transpose_cache_friendly_(m);
+  } else {
+    return Jmat.Real.matrix_transpose_naive_(m);
+  }
 };
 
 // Bring a to reduced row echelon form, in-place (modifies the input object)
@@ -1652,6 +1764,17 @@ Jmat.Real.matrix_jacobi = function(a, v, n, opt_epsilon) {
       }
     }
   }
+};
+
+Jmat.Real.matrix_random = function(h, w) {
+  var result = [];
+  for(var y = 0; y < h; y++) {
+    result[y] = [];
+    for(var x = 0; x < w; x++) {
+      result[y][x] = Jmat.Real.random();
+    }
+  }
+  return result;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
