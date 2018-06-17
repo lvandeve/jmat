@@ -494,47 +494,7 @@ Jmat.Complex.legendreq = function(nu, mu, z, opt_type) {
 // but for complex input, it uses a principle branch different than log, so loggamma(z) is not same as log(gamma(z)).
 // The real part of the output is exactly the same as log(gamma(z)) however, only the imaginary part differs.
 Jmat.Complex.loggamma = function(z) {
-  var C = Jmat.Complex;
-
-  if(z.eqr(1) || z.eqr(2)) return C(0);
-  if(z.re == Infinity) return C(Infinity);
-  if(z.re == -Infinity) return C(NaN);
-
-  //the result is way too imprecise if the real part of z is < 0, use the log of the reflection formula
-  // loggamma(z) = log(pi/sin(pi*z)) - loggamma(1 - z)
-  if(z.re < 0) {
-    if(z.im == 0 && z.re == Math.floor(z.re)) return C(Infinity);
-    var l = C.log(C.PI.div(C.sin(C.PI.mul(z))));
-    // the complex sine goes out of bounds for example for (-4+120i), log(pi / sin(pi*z)) is very roughly approximated by log(2*pi*i) - i*z*pi*sign(z.im) (TODO: the approximation is not fully correct, e.g. for -160-116i)
-    if(C.isInfOrNaN(l)) l = C.log(C.newi(2 * Math.PI)).sub(C.newi(-Math.PI).mul(z.im > 0 ? z : z.neg()));
-    return l.sub(C.loggamma(C.ONE.sub(z)));
-  }
-
-
-  // The stirling series is imprecise for small values.
-  // So use the relation loggamma(z) = loggamma(z + 1) - ln(z)
-  // This will recursively call this function again til z.re is > 10.
-  // NOTE: I would love to be able to use log(gamma(z)) instead, but I don't know how to convert the result of that to the different branch of loggamma:
-  // loggamma(z) in terms of log(gamma(z)):
-  // for real positive z, they are equal
-  // for real negative z: loggamma(z) = log(gamma(z)) + 2*pi*i*ceil(x / 2 - 1)
-  // for complex z: loggamma(z) = ????
-  if(z.re < 10) {
-    var a = C.loggamma(z.addr(1));
-    a = a.sub(C.log(z));
-    return a;
-  }
-
-  // stirling series
-  var result = C(0.918938533205); //0.5 * ln(2pi)
-  result = result.add(C.subr(z, 0.5).mul(C.log(z)));
-  result = result.sub(z);
-  result = result.add(z.mulr(12).inv());
-  result = result.sub(C.powr(z, 3).mulr(360).inv());
-  result = result.add(C.powr(z, 5).mulr(1260).inv());
-  result = result.sub(C.powr(z, 7).mulr(1680).inv());
-  result = result.add(C.powr(z, 9).mulr(1188).inv());
-  return result;
+  return Jmat.Complex.loggamma_(z); // the actual implementation is currently in jmat_complex.js
 };
 
 //natural logarithm of the absolute value of the gamma function

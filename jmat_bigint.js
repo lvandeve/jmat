@@ -59,7 +59,7 @@ All parameters are optional.
 */
 Jmat.BigInt = function(a, b, minus) {
   if(this instanceof Jmat.BigInt) {
-    this.a = a || []; // least significant in rightmost element
+    this.a = a || []; // least significant in element with *highest* index (TODO: swap this to become little endian?)
     this.radix = b || Jmat.BigInt.ARRAYBASE_;
     this.minus = minus || false; //if true, represents negative integer
   } else {
@@ -172,8 +172,9 @@ Jmat.BigInt.convertArrayBase = function(s, from, to, opt_powrcache_) {
   if(s.length > 8 && to == 10 && Jmat.Real.isPOT(from)) {
     // Using larger to-bases for the non-linear algos gives huge speedup.
     // TODO: do this for all such to-bases rather than hardcoded for 10.
-    var a = Jmat.BigInt.convertArrayBase(s, from, 1000000);
-    return Jmat.BigInt.convertArrayBase(a, 1000000, 10);
+    // NOTE: does not work with correctly with 1000000000 (1,000,000,000), do not use (e.g. result of factorial(50) will go wrong).
+    var a = Jmat.BigInt.convertArrayBase(s, from, 100000000);
+    return Jmat.BigInt.convertArrayBase(a, 100000000, 10);
   }
   var R = Jmat.Real;
   var B = Jmat.BigInt;
@@ -1163,25 +1164,76 @@ Jmat.BigInt.perfectpow = function(a, opt_next, opt_base, opt_k) {
   return [bestpow, bestbase, B(besti)];
 };
 
-// Multiplies a list of numbers recursively, to end up with factors of more equal size, ending with large factors that take advantage of sub-quadratic multiplication.
-// That is faster than just multiplying the list serially. Optimized for roughly sorted list (pairs value from begin with end etc...).
+
+////////////////////////////////////////////////////////////////////////////////
+// This is only there for the mulmany function.
+Jmat.PriorityQueue_ = function(comparefun) {
+  this.nodes = []; // binary heap
+  this.comparefun = comparefun;
+};
+Jmat.PriorityQueue_.prototype.push = function(value) {
+  this.nodes.push(value);
+  // move up
+  var i = this.size() - 1;
+  while (i > 0 && this.comparefun(this.nodes[i], this.nodes[this.getParent(i)])) {
+    this.swap(i, this.getParent(i));
+    i = this.getParent(i);
+  }
+};
+Jmat.PriorityQueue_.prototype.pop = function() {
+  var result = this.nodes[0];
+  this.nodes[0] = this.nodes[this.size() - 1];
+  this.nodes.pop();
+  // move down
+  var i = 0;
+  var num = (this.size() >> 1);
+  while(i < num) {
+    var left = this.getLeft(i);
+    var right = this.getRight(i);
+    var child = (right < this.size() && this.comparefun(this.nodes[right], this.nodes[left])) ? right : left;
+    if(!this.comparefun(this.nodes[child], this.nodes[i])) break;
+    this.swap(i, child);
+    i = child;
+  }
+  return result;
+};
+Jmat.PriorityQueue_.prototype.size = function() { return this.nodes.length; };
+Jmat.PriorityQueue_.prototype.getParent = function(i) { return ((i + 1) >> 1) - 1; };
+Jmat.PriorityQueue_.prototype.getLeft = function(i) { return (i << 1) + 1; };
+Jmat.PriorityQueue_.prototype.getRight = function(i) { return (i + 1) << 1; };
+Jmat.PriorityQueue_.prototype.swap = function(i, j) {
+  var tmp = this.nodes[i];
+  this.nodes[i] = this.nodes[j];
+  this.nodes[j] = tmp;
+};
+////////////////////////////////////////////////////////////////////////////////
+
+
+// Multiplies a list of numbers. Faster than multiplying the list serially, because
+// it chooses an order such that always pairs of smallest numbers get multiplied first,
+// ending with the largest factors that take advantage of sub-quadratic multiplication last.
 Jmat.BigInt.mulmany_ = function(a) {
   if(a.length == 0) return Jmat.BigInt.ONE;
-  while(a.length > 1) {
-    var h = Math.floor(a.length / 2);
-    var r = [];
-    for(var i = 0; i < h; i++) {
-      r.push(a[i].mul(a[a.length - i - 1]));
-    }
-    if(a.length % 2 == 1) r.push(a[h]);
-    a = r;
-  }
 
-  return a[0];
+  var pq = new Jmat.PriorityQueue_(function(a, b) {
+    if(a.a.length == b.a.length) return a.a[0] < b.a[0];
+    return a.a.length < b.a.length;
+  });
+  for(var i = 0; i < a.length; i++) {
+    // this can in theory faster with better pq type but costs little time compared to the bigint multiplications
+    pq.push(a[i]);
+  }
+  while(pq.size() >= 2) {
+    var a = pq.pop();
+    var b = pq.pop();
+    var c = a.mul(b);
+    pq.push(c);
+  }
+  return pq.pop();
 };
 
 
-// Can calculate factorial of 100000 in 30 seconds. The result has 1.5 million bits, and printing it in decimal then takes another minute or so.
+// Can calculate factorial of values such as 100000 surprisingly fast for being javascript (tens of seconds).
 Jmat.BigInt.factorial = function(a) {
   var B = Jmat.BigInt;
   var b = a.toInt(); //if a does not fit in regular JS number, the result is unreasonably huge anyway.
@@ -1206,7 +1258,7 @@ Jmat.BigInt.factorial = function(a) {
     f[i] = B.powr(B(p), pw);
   }
 
-
+  // this mulmany is the slowest part of this algorithm
   return B.mulmany_(f);
 };
 
@@ -1217,6 +1269,7 @@ Jmat.BigInt.primorial = function(a) {
   if(b == Infinity) return undefined;
 
   var primes = Jmat.Real.eratosthenes(b);
+  for(var i = 0; i < primes.length; i++) primes[i] = B(primes[i]);
   return B.mulmany_(primes);
 };
 

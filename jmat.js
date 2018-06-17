@@ -778,6 +778,7 @@ Jmat.isPrime = function(x) { return Jmat.Complex.isPrime(Jmat.Complex.cast(x)); 
 Jmat.smallestPrimeFactor = function(x) { return Jmat.Complex(Jmat.Real.smallestPrimeFactor(Jmat.Real.cast(x))); };
 /* Factorize into prime factors, returned as array. x:{number|Complex} integer. returns {Array.<Complex>} */
 Jmat.factorize = function(n) {
+  if(Jmat.bigIntIn_(n)) return Jmat.BigInt.factorize(Jmat.BigInt.cast(n));
   var res = Jmat.Real.factorize(Jmat.Real.caststrict(n));
   for(var i = 0; i < res.length; i++) res[i] = Jmat.Complex(res[i]); // Convert to Jmat.Complex objects to be consistent with other Jmat functions. Just use Jmat.Real.factorize instead to have simple JS numbers.
   return res;

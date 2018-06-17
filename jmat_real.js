@@ -116,6 +116,10 @@ Jmat.Real.isPOT = function(x) {
   return x != 0 && (x & (x - 1)) == 0;
 };
 
+Jmat.Real.isInf = function(x) {
+  return x == Infinity || x == -Infinity;
+};
+
 //isnanorinf isinfornan
 Jmat.Real.isInfOrNaN = function(x) {
   return x == Infinity || x == -Infinity || isNaN(x);

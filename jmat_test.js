@@ -64,7 +64,7 @@ Jmat.Test.expectNear = function(e, a, precision) {
 };
 
 Jmat.Test.accrep = ''; // accuracy report string
-Jmat.Test.accworst = 0; // worst accuracy seen
+Jmat.Test.accworst = 0; // worst accuracy seen (only when high accuracy was asked)
 
 // Expect that the result of the mathematical function f with the arguments of var_arg, is near the expected result. Some numerical intolerance is allowed.
 // The name must be given to report about accuracy.
@@ -75,7 +75,7 @@ Jmat.Test.testFunction = function(expected, epsilon, f, var_arg) {
   if(!Jmat.bigIntIn_(result)) {
     var e = Jmat.cheb(expected, result);
     if(epsilon != Infinity && e > 0) {
-      if(e > Jmat.Test.accworst) Jmat.Test.accworst = e;
+      if(e > Jmat.Test.accworst && epsilon <= 1e-9) Jmat.Test.accworst = e;
       Jmat.Test.accrep += (f.testName ? f.testName : 'unk') + '(' + var_arg + ') = ' + expected + ', got: ' + result + ', eps: ' + e + '\n';
     }
   }
@@ -361,6 +361,7 @@ Jmat.doUnitTest = function(opt_verbose) {
   // special functions
   Jmat.Test.testFunction(24, eps, Jmat.gamma, 5);
   Jmat.Test.testFunction('-0.15494982830181-0.498015668118356i', eps, Jmat.gamma, 'i');
+  Jmat.Test.testFunction('2.800722377241248654661858084e13-6.451888966042054262091999e13i', 1e-7, Jmat.gamma, '140+540i');
   Jmat.Test.testFunction('0.9303796037430951+0.0389361908951213i', 1e-5, Jmat.erf, '5+5i');
   Jmat.Test.testFunction('0.2074861066333588576972787235', 1e-9, Jmat.besselj, '10', '10');
   Jmat.Test.testFunction('0.2068008998147143416959879887', 1e-9, Jmat.besselj, '10.1', '10.1');
@@ -369,6 +370,12 @@ Jmat.doUnitTest = function(opt_verbose) {
   Jmat.Test.testFunction('6.3618456410625559136428432181', 1e-12, Jmat.hypergeometric1F1, 1, 2, 3);
   Jmat.Test.testFunction('0.506370', 1e-5, Jmat.hypergeometric2F1, 0.5, 0.5, 0.5, -2.9);
   Jmat.Test.testFunction('0.493865', 1e-5, Jmat.hypergeometric2F1, 0.5, 0.5, 0.5, -3.1);
+  Jmat.Test.testFunction('1.4867086954626-3.412072256668i', eps, Jmat.loggamma, '-0.75+0.1i');
+  Jmat.Test.testFunction('1.5757045971-3.14159265358979i', eps, Jmat.loggamma, '-0.75');
+  Jmat.Test.testFunction('1.366431761236976-6.283185307179586i', eps, Jmat.loggamma, '-1.25');
+  Jmat.Test.testFunction('1.0160888092144-6.283185307179586i', eps, Jmat.loggamma, '-1.75');
+  Jmat.Test.testFunction('359.134205369575', eps, Jmat.loggamma, '100');
+  Jmat.Test.testFunction('315.0780445994933-473.32107821888i', eps, Jmat.loggamma, '100-100i');
   Jmat.Test.doUnitTestLogGamma();
 
   //other
@@ -480,7 +487,11 @@ Jmat.doUnitTest = function(opt_verbose) {
   Jmat.Test.testFunction('20000000000', 0, BigInt.sqrt, '400000000000000000000');
   Jmat.Test.testFunction('5', 0, BigInt.log2, '63');
   Jmat.Test.testFunction('6', 0, BigInt.log2, '64');
+  Jmat.Test.testFunction('25852016738884976640000', 0, BigInt.factorial, 23);
   Jmat.Test.testFunction('30414093201713378043612608166064768844377641568960512000000000000', 0, BigInt.factorial, 50);
+  Jmat.Test.testFunction('96192759682482119853328425949563698712343813919172976158104477319333745612481875498805879175589072651261284189679678167647067832320000000000000000000000',
+                         0, BigInt.factorial, 97);
+  Jmat.Test.testFunction('2305567963945518424753102147331756070', 0, BigInt.primorial, 97);
   Jmat.Test.expectTrue(BigInt.log2(BigInt.fromInt(63, 2)).toString() == '5');
   Jmat.Test.expectTrue(BigInt.log2(BigInt.fromInt(64, 2)).toString() == '6');
   Jmat.Test.expectTrue(BigInt.log2(BigInt.fromInt(63, 4)).toString() == '5');

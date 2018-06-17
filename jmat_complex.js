@@ -52,7 +52,14 @@ Serves as both the actual object used as complex number, and namespace for most
 complex mathematical functions.
 
 The only sad thing is that Javascript doesn't support operator overloading
-and nice expressions like a + b have to become a.add(b) instead.
+and nice expressions like a + b have to become a.add(b) instead
+
+Infinity/NaN in re and/or im is used as follows (work in progress, this convention is not yet implemented by all functions):
+ - (Infinity,Infinity) means: undirected infinity (idem if any is -Infinity)
+ - (Infinity,0), (0,Infinity), (-Infinity,0) and (0,-Infinity) are directed infinities in those 90 degree directions
+ - other directed angles are not yet implemented (TODO: planned to use nonzero second number in some way)
+ - infinities can mean either overflow or actual mathematical infinity, the distinction is not indicated.
+ - any NaN in either re or im means the entire complex value should be considered NaN
 
 When used as factory function, makes it easy to construct values, e.g. if you
 set C = Jmat.Complex, you can create real value 1 with C(1), or a complex value
@@ -68,8 +75,6 @@ Jmat.Complex = function(re, im) {
     return Jmat.Complex.make(re, im); // This supports several argument types
   }
 };
-
-// TODO: define a bit better which combinations of Infinity/Nan/... in re and im mean what (E.g. re and im both Infinity means "undirected infinity", already used by gamma function but by nothing else)
 
 // Create a new Jmat.Complex value. Copies Jmat.Complex if a Jmat.Complex is given as first argument
 // with 0 arguments, creates zero value. With a and b numbers, creates complex number from it. With a Jmat.Complex object, copies it.
@@ -207,6 +212,7 @@ Jmat.Complex.PI = Jmat.Complex(Math.PI);
 Jmat.Complex.E = Jmat.Complex(Math.E);
 Jmat.Complex.SQRT2 = Jmat.Complex(Math.sqrt(2));
 Jmat.Complex.SQRTPI = Jmat.Complex(Math.sqrt(Math.PI));
+Jmat.Complex.LOGPI = Jmat.Complex(Math.log(Math.PI));
 Jmat.Complex.INVSQRT2PI = Jmat.Complex(Jmat.Real.INVSQRT2PI); //0.3989422804014327
 Jmat.Complex.EM = Jmat.Complex(Jmat.Real.EM); // Euler-Mascheroni constant, aka Euler's gamma
 Jmat.Complex.APERY = Jmat.Complex(Jmat.Real.APERY); // Apery's constant, zeta(3)
@@ -244,11 +250,23 @@ Jmat.Complex.prototype.sub = function(y) {
 Jmat.Complex.mul = function(x, y) {
   if(x.im == 0 && y.im == 0) {
     return new Jmat.Complex(x.re * y.re, 0);
-  } else {
-    var re = x.re * y.re - x.im * y.im;
-    var im = x.im * y.re + x.re * y.im;
-    return new Jmat.Complex(re, im);
   }
+
+  if(Jmat.Complex.isInfOrNaN(x) || Jmat.Complex.isInfOrNaN(y)) {
+    if(Jmat.Complex.isNaN(x) || Jmat.Complex.isNaN(y)) {
+      return new Jmat.Complex(NaN, NaN);
+    }
+    if((Jmat.Real.isInf(x.re) && Jmat.Real.isInf(x.im)) ||
+        Jmat.Real.isInf(y.re) && Jmat.Real.isInf(y.im)) {
+      // undirected infinity
+      return new Jmat.Complex(Infinity, Infinity);
+    }
+    // TODO: also support the directed infinities
+  }
+
+  var re = x.re * y.re - x.im * y.im;
+  var im = x.im * y.re + x.re * y.im;
+  return new Jmat.Complex(re, im);
 };
 Jmat.Complex.prototype.mul = function(y) {
   return Jmat.Complex.mul(this, y);
@@ -636,12 +654,12 @@ Jmat.Complex.isNaN = function(z) {
 
 //is infinite
 Jmat.Complex.isInf = function(z) {
-  return Math.abs(z.re) == Infinity || Math.abs(z.im) == Infinity;
+  return z.re == Infinity || z.re == -Infinity || z.im == Infinity || z.im == -Infinity;
 };
 
 //isnanorinf isinfornan
 Jmat.Complex.isInfOrNaN = function(z) {
-  return !z || Jmat.Real.isInfOrNaN(z.re) || Jmat.Real.isInfOrNaN(z.im);
+  return Jmat.Complex.isNaN(z) || Jmat.Complex.isInf(z);
 };
 
 //real and strictly positive
@@ -1035,45 +1053,124 @@ Jmat.Complex.calcCache_ = function(z, fun, cache, n) {
   }
 };
 
-//Inspired by Wikipedia, Lanczos approximation, precision is around 15 decimal places
-Jmat.Complex.gamma = function(z) {
-  if(z.re == Infinity) return Jmat.Complex(Infinity);
-  if(z.re == -Infinity) return Jmat.Complex(NaN);
-  if(Jmat.Complex.isNegativeIntOrZero(z)) return Jmat.Complex(Infinity, Infinity); // Undirected infinity
-  if(z.im == 0) return Jmat.Complex(Jmat.Real.gamma(z.re));
+// Private here, only publically exposed in jmat_special.js, see documentation there.
+// It is only here for use by gamma (which arguably could also be moved to jmat_special.js)
+// Even though the result of loggamma(x) is different than log(gamma(x)), the exp of both is the same
+// so can be used by gamma.
+Jmat.Complex.loggamma_ = function(z) {
+  var C = Jmat.Complex;
 
-  // The internal function that doesn't do internal checks
-  var gamma_ = function(z) {
-    if(z.re < 0.5) {
-      // Use the reflection formula, because, the approximation below is not accurate
-      // for values around -6.5+0.1i
-      // gamma(1-z)*gamma(z) = pi/sin(pi*z)
-      var result = Jmat.Complex.PI.div(Jmat.Complex.sin(Jmat.Complex.PI.mul(z))).div(gamma_(Jmat.Complex.ONE.sub(z)));
-      if(Jmat.Complex.isNaN(result)) result = Jmat.Complex(0); // For those values that it can't calculate, it's 0 on the negative side of the complex plane.
+  if(z.eqr(1) || z.eqr(2)) return C(0);
+  if(z.re == Infinity) return C(Infinity);
+  if(z.re == -Infinity) return C(NaN);
+
+  //the result is way too imprecise if the real part of z is < 0, use the reflection formula
+  //(which is slightly more complicated for loggamma than for regular gamma)
+  if(z.re < 0) {
+    if(z.im == 0 && z.re == Math.floor(z.re)) return C(Infinity);
+
+    if(z.im > 110 || z.im < -110) {
+      // the complex sine goes out of bounds for example for (-4+120i), log(pi / sin(pi*z)) is very roughly approximated by log(2*pi*i) - i*z*pi*sign(z.im)
+      var l = C.log(C.newi(2 * Math.PI)).sub(C.newi(-Math.PI).mul(z.im > 0 ? z : z.neg()));
+      return l.sub(C.loggamma_(C.ONE.sub(z)));
+    } else {
+      // formula for loggamma(-z) with the special branch: loggamma(-z) = log(pi)-log(-z)-log(sin(pi*z))+2*i*pi*((2*z.re+1)/4)*(z.im == 0 ? -sign(z.re) : sign(z.im))
+      // the last part with the signs is only needed for z.re < 0.5
+      // it doesn't work if (2*z.re+1)/4 is integer
+      if(z.re < -0.5 && Jmat.Real.isInt((2 * z.re + 1) / 4)) {
+        // to fix, there is another formula for loggamma(1+z), and 1+z won't make that value integer
+        // loggamma(z) = loggamma(z + 1) - log(z)
+        return C.loggamma_(z.addr(1)).sub(C.log(z));
+      }
+
+      var a = C.log(z.neg());
+      var b = C.log(C.sin(z.mulr(Math.PI)));
+      var g = C.loggamma_(z.neg());
+      var result = C.LOGPI.sub(a).sub(b).sub(g);
+      if(z.re < -0.5) {
+        var f = Math.floor((2 * z.re + 1) / 4);
+        if(z.im == 0) f = Math.floor((2 * z.re + 2) / 4); // This fixes it being in some parts of the negative real axis... possibly there is a bug elsewhere that this is compensating...
+        var p = new C(0, 2 * Math.PI * f);
+        var s = (z.im == 0) ? -Math.sign(z.re) : Math.sign(z.im);
+        result = result.add(p.mulr(s));
+      }
       return result;
     }
+  }
 
-    var g = 7;
-    var p = [0.99999999999980993, 676.5203681218851, -1259.1392167224028,
-             771.32342877765313, -176.61502916214059, 12.507343278686905,
-             -0.13857109526572012, 9.9843695780195716e-6, 1.5056327351493116e-7];
 
-    z = z.subr(1);
-    var x = Jmat.Complex(p[0]);
-    for(var i = 1; i < g + 2; i++) {
-      x = x.add(Jmat.Complex(p[i]).div(z.addr(i)));
-    }
-    var t = z.addr(g + 0.5);
-    var pisq = Math.sqrt(Math.PI * 2);
+  // The stirling series is imprecise for small values.
+  // So use the relation loggamma(z) = loggamma(z + 1) - ln(z)
+  // This will recursively call this function again til z.re is > 10 (that's not as bad as it seems. The other option is to compute a sum of up to 10 logarithms here which is same complexity).
+  // NOTE: I would love to be able to use log(gamma(z)) instead, but I don't know how to convert the result of that to the different branch of loggamma:
+  // --> although then there is also a risk of infinite recursion since gamma may call loggamma in some situations
+  // loggamma(z) in terms of log(gamma(z)):
+  // for real positive z, they are equal
+  // for real negative z: loggamma(z) = log(gamma(z)) + 2*pi*i*ceil(x / 2 - 1)
+  // for complex z: loggamma(z) = ????
+  if(z.re < 10) {
+    var a = C.loggamma_(z.addr(1));
+    a = a.sub(C.log(z));
+    return a;
+  }
 
-    var w = t.pow(z.addr(0.5));
-    var e = Jmat.Complex.exp(t.neg());
+  // stirling series
+  var result = C(0.918938533205); //0.5 * ln(2pi)
+  result = result.add(C.subr(z, 0.5).mul(C.log(z)));
+  result = result.sub(z);
+  result = result.add(z.mulr(12).inv());
+  result = result.sub(C.powr(z, 3).mulr(360).inv());
+  result = result.add(C.powr(z, 5).mulr(1260).inv());
+  result = result.sub(C.powr(z, 7).mulr(1680).inv());
+  result = result.add(C.powr(z, 9).mulr(1188).inv());
+  return result;
+};
 
+//Inspired by Wikipedia, Lanczos approximation, precision is around 15 decimal places
+Jmat.Complex.gamma = function(z) {
+  var C = Jmat.Complex;
+  if(z.re == Infinity && z.im == 0) return C(Infinity, 0);
+  if(z.re == -Infinity) return C(NaN);
+  if(C.isNegativeIntOrZero(z)) return C(Infinity, Infinity); // Undirected infinity
+  if(z.im == 0) return C(Jmat.Real.gamma(z.re));
+
+  if(z.re < 0.5) {
+    // Use the reflection formula, because, the approximation below is not accurate
+    // for values around -6.5+0.1i
+    // gamma(1-z)*gamma(z) = pi/sin(pi*z)
+    var result = C.PI.div(C.sin(C.PI.mul(z))).div(C.gamma(C.ONE.sub(z)));
+    if(C.isNaN(result)) result = C(0); // For those values that it can't calculate, it's 0 on the negative side of the complex plane.
+    return result;
+  }
+
+  if(z.re > 50) return C.exp(C.loggamma_(z));
+
+  var g = 7;
+  var p = [0.99999999999980993, 676.5203681218851, -1259.1392167224028,
+           771.32342877765313, -176.61502916214059, 12.507343278686905,
+           -0.13857109526572012, 9.9843695780195716e-6, 1.5056327351493116e-7];
+
+  z = z.subr(1);
+  var x = C(p[0]);
+  for(var i = 1; i < g + 2; i++) {
+    x = x.add(C(p[i]).div(z.addr(i)));
+  }
+  var t = z.addr(g + 0.5);
+  var pisq = Math.sqrt(Math.PI * 2);
+
+
+  var w = t.pow(z.addr(0.5));
+  if(C.isInf(w)) {
+    w = C.log(t).mul(z.addr(0.5));
+    var e = t.neg();
+    var result = w.add(e).add(x).addr(pisq);
+    return C.exp(result);
+  } else {
+    var e = C.exp(t.neg());
     var result = w.mul(e).mul(x).mulr(pisq);
     return result;
-  };
+  }
 
-  return gamma_(z);
 };
 
 Jmat.Complex.factorial = function(a) {
