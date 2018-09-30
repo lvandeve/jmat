@@ -5223,6 +5223,35 @@ Jmat.Complex.qf_poisson = function(p, lambda) {
   return Jmat.Complex.gamma_q_inva(p, lambda).subr(1);
 };
 
+// linear regression: best vertical fit
+// p is an array of points: [[x0, y0], [x1, y1], ...]
+// returns [a, b] representing the best fit line a + bx (a = intercept, b = slope)
+Jmat.Complex.linfit = function(p) {
+  var C = Jmat.Complex;
+
+  var sumx = C(0), sumy = C(0), sumxx = C(0), sumyy = C(0), sumxy = C(0);
+  for(var i = 0; i < p.length; i++) {
+    var x = p[i][0];
+    var y = p[i][1];
+    sumx = sumx.add(x);
+    sumxx = sumxx.add(x.mul(x));
+    sumy = sumy.add(y);
+    sumyy = sumyy.add(y.mul(y));
+    sumxy = sumxy.add(x.mul(y));
+  }
+  var n = p.length;
+
+  var dxx = sumxx.mulr(n).sub(sumx.mul(sumx));
+  var dxy = sumxy.mulr(n).sub(sumx.mul(sumy));
+
+  // slope
+  var b = dxy.div(dxx);
+   // intercept
+  var a = dxx.mul(sumy).sub(dxy.mul(sumx)).div(dxx.mulr(n));
+
+  return [a, b];
+};
+
 ////////////////////////////////////////////////////////////////////////////////
 ////////////////////////////////////////////////////////////////////////////////
 ////////////////////////////////////////////////////////////////////////////////
@@ -5673,7 +5702,7 @@ Jmat.Real.qf_poisson = function(p, lambda) {
 ////////////////////////////////////////////////////////////////////////////////
 ////////////////////////////////////////////////////////////////////////////////
 
-// Statistics functions derived from the distributions for Real
+// Other Real statistical functions
 
 // tails must be 1 or 2, other values make no real life sense
 Jmat.Real.tdist = function(x, nu, tails) {
@@ -5685,4 +5714,28 @@ Jmat.Real.corr_to_pvalue = function(corr, n) {
   if(n < 3) return 1.0; // actually invalid
   var t = corr * Math.sqrt((n - 2) / (1 - corr * corr));
   return Jmat.Real.tdist(t, n - 2, 2);
+};
+
+// linear regression: best vertical fit
+// p is an array of points: [[x0, y0], [x1, y1], ...]
+// returns [a, b] representing the best fit line a + bx (a = intercept, b = slope)
+Jmat.Real.linfit = function(p) {
+  var sumx = 0, sumy = 0, sumxx = 0, sumyy = 0, sumxy = 0;
+  for(var i = 0; i < p.length; i++) {
+    var x = p[i][0];
+    var y = p[i][1];
+    sumx += x;
+    sumxx += x * x;
+    sumy += y;
+    sumyy += y * y;
+    sumxy += x * y;
+  }
+  var n = p.length;
+
+  var dxx = n * sumxx - sumx * sumx;
+  var dxy = n * sumxy - sumx * sumy;
+  var a = (dxx * sumy - dxy * sumx) / (n * dxx); // intercept
+  var b = dxy / dxx; // slope
+
+  return [a, b];
 };

@@ -1,7 +1,7 @@
 /*
 Jmat.js
 
-Copyright (c) 2011-2016, Lode Vandevenne
+Copyright (c) 2011-2018, Lode Vandevenne
 All rights reserved.
 
 Redistribution and use in source and binary forms, with or without modification,
@@ -31,7 +31,7 @@ THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 /*
 Jmat.Matrix: matrix and vector math
 
-NOTE: Many routines assume an epsilon of 1e-15, considering values smaller than this to be zero
+NOTE: Many routines by default assume an epsilon of 1e-15, considering values smaller than this to be zero
 NOTE: There are also a few matrix algorithms in jmat_real.js. Those work on 2D arrays of real numbers,
       while here we work on a custom object with complex numbers.
 NOTE: treat Complex numbers and Matrices as immutable unless you know nothing else refers to it. That is,
@@ -41,20 +41,21 @@ NOTE: treat Complex numbers and Matrices as immutable unless you know nothing el
 
 Overview of some functionality:
 -elementary operators: Matrix.add, Matrix.sub, Matrix.mul, Matrix.div, Matrix.leftdiv, Matrix.mulc, Matrix.mulr, ...
--decompositions: Matrix.lu, Matrix.qr, Matrix.svd, Matrix.polar, Matrix.evd, Matrix.cholesky, Matrix.ldl
+-decompositions: Matrix.lu, Matrix.qr, Matrix.svd, Matrix.polar, Matrix.evd, Matrix.cholesky, Matrix.ldl, Matrix.hessenberg, Matrix.schur
 -inverse: Matrix.inv, Matrix.pseudoinverse
 -solve: Matrix.solve, Matrix.rref
--eigen: Matrix.eig, Matrix.eig11, Matrix.eig22
+-eigen: Matrix.eig, Matrix.eigval, Matrix.eig22
 -fourier transform: Matrix.fft, Matrix.ifft
 -vectors: Matrix.cross, Matrix.dot
 -special functions: Matrix.exp, Matrix.sin, Matrix.cos, Matrix.log, Matrix.sqrt, Matrix.powc
--matrix operators: Matrix.transpose, Matrix.conj, Matrix.tranjugate
+-matrix operators: Matrix.transpose, Matrix.conj, Matrix.transjugate
 -multiply with transposed shortcuts: Matrix.mulT, Matrix.mulTG
 -determinants and minors: Matrix.determinant, Matrix.minor, Matrix.cofactor, Matrix.adj
 -norms and ranks: Matrix.norm, Matrix.maxrownorm, Matrix.maxcolnorm, Matrix.norm2, Matrix.conditionNumber, Matrix.rank, Matrix.trace
 -tests: Matrix.isReal, Matrix.isNaN, Matrix.isInfOrNaN, Matrix.eq, Matrix.near
 -constructors: Jmat.Matrix, Matrix.make, Matrix.parse, Matrix.cast, Matrix.copy, Matrix.identity, Matrix.zero
 -pretty print: Matrix.render, Matrix.toString, Matrix.summary
+-...
 */
 
 /*
@@ -123,6 +124,7 @@ Jmat.Matrix.make = function(a, b, var_arg) {
   if(!a) return new Jmat.Matrix(0, 0);
   if(a instanceof Jmat.Matrix) return Jmat.Matrix.copy(a);
 
+  //if(a.raw && a.length == 1 && typeof a[0] == 'string' && a.raw[0] == a[0]) a = a[0]; // ES6: Matrix`[[1,2],[3,4]]`
   if(typeof a == 'string') return Jmat.Matrix.parse(a);
 
   if(a.constructor === Array && b != undefined) throw 'no further arguments needed if first is array. Use 2D array if first is array, or otherwise w and h first';
@@ -554,7 +556,7 @@ Jmat.Matrix.prototype.mulT = function(b) {
   return Jmat.Matrix.mulT(this, b);
 };
 
-// Multiply a with tranjugate (conjugate transpose) of b. Can be more efficient than tranjugating b yourself and calling regular mul.
+// Multiply a with transjugate (conjugate transpose) of b. Can be more efficient than tranjugating b yourself and calling regular mul.
 Jmat.Matrix.mulTG = function(a, b) {
   // TODO: do direct implementation to have even less copying...
   return Jmat.Matrix.mulT(a, b.conj());
@@ -746,10 +748,12 @@ Jmat.Matrix.isSquare = function(a) {
   return a.w == a.h;
 };
 
+Jmat.Matrix.DEFPROPEPS = 1e-14;
+
 // Singular matrix: square matrix with determinant zero.
 // Other properties: non-invertible, rows or colums linearly dependent, ...
 Jmat.Matrix.isSingular = function(a, opt_epsilon) {
-  var epsilon = (opt_epsilon == undefined) ? 1e-15 : opt_epsilon;
+  var epsilon = (opt_epsilon == undefined) ? Jmat.Matrix.DEFPROPEPS : opt_epsilon;
   var c = Jmat.Matrix.conditionNumber(a);
   // >= is used, not >, so that if epsilon is 0 and c is Infinity, it correctly returns 'true' since c is Infinity for a numerically exact singular matrix.
   return Jmat.Matrix.isSquare(a) && c.abs() >= 1 / epsilon;
@@ -757,12 +761,12 @@ Jmat.Matrix.isSingular = function(a, opt_epsilon) {
 
 // Invertible matrix: square matrix with determinant non-zero. AKA Non-singular.
 Jmat.Matrix.isInvertible = function(a, opt_epsilon) {
-  var epsilon = (opt_epsilon == undefined) ? 1e-15 : opt_epsilon;
+  var epsilon = (opt_epsilon == undefined) ? Jmat.Matrix.DEFPROPEPS : opt_epsilon;
   return Jmat.Matrix.isSquare(a) && !Jmat.Matrix.isSingular(a, epsilon);
 };
 
 Jmat.Matrix.isIdentity = function(a, opt_epsilon) {
-  var epsilon = (opt_epsilon == undefined) ? 1e-15 : opt_epsilon;
+  var epsilon = (opt_epsilon == undefined) ? Jmat.Matrix.DEFPROPEPS : opt_epsilon;
   if (!Jmat.Matrix.isSquare(a)) return false;
 
   for(var y = 0; y < a.h; y++) {
@@ -775,7 +779,7 @@ Jmat.Matrix.isIdentity = function(a, opt_epsilon) {
 };
 
 Jmat.Matrix.isDiagonal = function(a, opt_epsilon) {
-  var epsilon = (opt_epsilon == undefined) ? 1e-15 : opt_epsilon;
+  var epsilon = (opt_epsilon == undefined) ? Jmat.Matrix.DEFPROPEPS : opt_epsilon;
   if (!Jmat.Matrix.isSquare(a)) return false;
 
   for(var y = 0; y < a.h; y++) {
@@ -788,7 +792,7 @@ Jmat.Matrix.isDiagonal = function(a, opt_epsilon) {
 };
 
 Jmat.Matrix.isZero = function(a, opt_epsilon) {
-  var epsilon = (opt_epsilon == undefined) ? 1e-15 : opt_epsilon;
+  var epsilon = (opt_epsilon == undefined) ? Jmat.Matrix.DEFPROPEPS : opt_epsilon;
 
   for(var y = 0; y < a.h; y++) {
     for(var x = 0; x < a.w; x++) {
@@ -800,7 +804,7 @@ Jmat.Matrix.isZero = function(a, opt_epsilon) {
 
 // Equal to its transpose
 Jmat.Matrix.isSymmetric = function(a, opt_epsilon) {
-  var epsilon = (opt_epsilon == undefined) ? 1e-15 : opt_epsilon;
+  var epsilon = (opt_epsilon == undefined) ? Jmat.Matrix.DEFPROPEPS : opt_epsilon;
   if (!Jmat.Matrix.isSquare(a)) return false;
 
   for(var y = 0; y < a.h; y++) {
@@ -814,7 +818,7 @@ Jmat.Matrix.isSymmetric = function(a, opt_epsilon) {
 // Equal to its transjugate, complex equivalent of symmetric
 // Diagonal elements must be real as they have to be their own complex conjugate
 Jmat.Matrix.isHermitian = function(a, opt_epsilon) {
-  var epsilon = (opt_epsilon == undefined) ? 1e-15 : opt_epsilon;
+  var epsilon = (opt_epsilon == undefined) ? Jmat.Matrix.DEFPROPEPS : opt_epsilon;
   if (!Jmat.Matrix.isSquare(a)) return false;
 
   for(var y = 0; y < a.h; y++) {
@@ -828,7 +832,7 @@ Jmat.Matrix.isHermitian = function(a, opt_epsilon) {
 // Equal to negative of its transpose
 // Diagonal elements must be zero as they have to be their own negative
 Jmat.Matrix.isSkewSymmetric = function(a, opt_epsilon) {
-  var epsilon = (opt_epsilon == undefined) ? 1e-15 : opt_epsilon;
+  var epsilon = (opt_epsilon == undefined) ? Jmat.Matrix.DEFPROPEPS : opt_epsilon;
   if (!Jmat.Matrix.isSquare(a)) return false;
 
   for(var y = 0; y < a.h; y++) {
@@ -841,7 +845,7 @@ Jmat.Matrix.isSkewSymmetric = function(a, opt_epsilon) {
 
 // AKA anti-hermitian
 Jmat.Matrix.isSkewHermitian = function(a, opt_epsilon) {
-  var epsilon = (opt_epsilon == undefined) ? 1e-15 : opt_epsilon;
+  var epsilon = (opt_epsilon == undefined) ? Jmat.Matrix.DEFPROPEPS : opt_epsilon;
   if (!Jmat.Matrix.isSquare(a)) return false;
 
   for(var y = 0; y < a.h; y++) {
@@ -853,7 +857,7 @@ Jmat.Matrix.isSkewHermitian = function(a, opt_epsilon) {
 };
 
 Jmat.Matrix.isUpperTriangular = function(a, opt_epsilon) {
-  var epsilon = (opt_epsilon == undefined) ? 1e-15 : opt_epsilon;
+  var epsilon = (opt_epsilon == undefined) ? Jmat.Matrix.DEFPROPEPS : opt_epsilon;
   if (!Jmat.Matrix.isSquare(a)) return false;
 
   for(var y = 0; y < a.h; y++) {
@@ -865,7 +869,7 @@ Jmat.Matrix.isUpperTriangular = function(a, opt_epsilon) {
 };
 
 Jmat.Matrix.isLowerTriangular = function(a, opt_epsilon) {
-  var epsilon = (opt_epsilon == undefined) ? 1e-15 : opt_epsilon;
+  var epsilon = (opt_epsilon == undefined) ? Jmat.Matrix.DEFPROPEPS : opt_epsilon;
   if (!Jmat.Matrix.isSquare(a)) return false;
 
   for(var y = 0; y < a.h; y++) {
@@ -877,7 +881,7 @@ Jmat.Matrix.isLowerTriangular = function(a, opt_epsilon) {
 };
 
 Jmat.Matrix.isStrictlyUpperTriangular = function(a, opt_epsilon) {
-  var epsilon = (opt_epsilon == undefined) ? 1e-15 : opt_epsilon;
+  var epsilon = (opt_epsilon == undefined) ? Jmat.Matrix.DEFPROPEPS : opt_epsilon;
   if (!Jmat.Matrix.isSquare(a)) return false;
 
   for(var y = 0; y < a.h; y++) {
@@ -889,7 +893,7 @@ Jmat.Matrix.isStrictlyUpperTriangular = function(a, opt_epsilon) {
 };
 
 Jmat.Matrix.isStrictlyLowerTriangular = function(a, opt_epsilon) {
-  var epsilon = (opt_epsilon == undefined) ? 1e-15 : opt_epsilon;
+  var epsilon = (opt_epsilon == undefined) ? Jmat.Matrix.DEFPROPEPS : opt_epsilon;
   if (!Jmat.Matrix.isSquare(a)) return false;
 
   for(var y = 0; y < a.h; y++) {
@@ -902,7 +906,7 @@ Jmat.Matrix.isStrictlyLowerTriangular = function(a, opt_epsilon) {
 
 // upper triangular with ones on the diagonal
 Jmat.Matrix.isUpperUnitriangular = function(a, opt_epsilon) {
-  var epsilon = (opt_epsilon == undefined) ? 1e-15 : opt_epsilon;
+  var epsilon = (opt_epsilon == undefined) ? Jmat.Matrix.DEFPROPEPS : opt_epsilon;
   if (!Jmat.Matrix.isUpperTriangular(a)) return false;
 
   for(var i = 0; i < a.h; i++) {
@@ -913,7 +917,7 @@ Jmat.Matrix.isUpperUnitriangular = function(a, opt_epsilon) {
 
 // lower triangular with ones on the diagonal
 Jmat.Matrix.isLowerUnitriangular = function(a, opt_epsilon) {
-  var epsilon = (opt_epsilon == undefined) ? 1e-15 : opt_epsilon;
+  var epsilon = (opt_epsilon == undefined) ? Jmat.Matrix.DEFPROPEPS : opt_epsilon;
   if (!Jmat.Matrix.isLowerTriangular(a)) return false;
 
   for(var i = 0; i < a.h; i++) {
@@ -924,7 +928,7 @@ Jmat.Matrix.isLowerUnitriangular = function(a, opt_epsilon) {
 
 // almost triangular: elements right below the diagonal are also allowed to be non-zero
 Jmat.Matrix.isUpperHessenberg = function(a, opt_epsilon) {
-  var epsilon = (opt_epsilon == undefined) ? 1e-15 : opt_epsilon;
+  var epsilon = (opt_epsilon == undefined) ? Jmat.Matrix.DEFPROPEPS : opt_epsilon;
   if (!Jmat.Matrix.isSquare(a)) return false;
 
   for(var y = 0; y < a.h; y++) {
@@ -937,7 +941,7 @@ Jmat.Matrix.isUpperHessenberg = function(a, opt_epsilon) {
 
 // almost triangular: elements right above the diagonal are also allowed to be non-zero
 Jmat.Matrix.isLowerHessenberg = function(a, opt_epsilon) {
-  var epsilon = (opt_epsilon == undefined) ? 1e-15 : opt_epsilon;
+  var epsilon = (opt_epsilon == undefined) ? Jmat.Matrix.DEFPROPEPS : opt_epsilon;
   if (!Jmat.Matrix.isSquare(a)) return false;
 
   for(var y = 0; y < a.h; y++) {
@@ -950,7 +954,7 @@ Jmat.Matrix.isLowerHessenberg = function(a, opt_epsilon) {
 
 // both upper and lower hessenberg
 Jmat.Matrix.isTridiagonal = function(a, opt_epsilon) {
-  var epsilon = (opt_epsilon == undefined) ? 1e-15 : opt_epsilon;
+  var epsilon = (opt_epsilon == undefined) ? Jmat.Matrix.DEFPROPEPS : opt_epsilon;
   if (!Jmat.Matrix.isSquare(a)) return false;
 
   for(var y = 0; y < a.h; y++) {
@@ -964,7 +968,7 @@ Jmat.Matrix.isTridiagonal = function(a, opt_epsilon) {
 
 // A*A^T == I, for real A (isUnitary is the complex equivelent). Its transpose is its inverse, and the vectors form an orthonormal basis.
 Jmat.Matrix.isOrthogonal = function(a, opt_epsilon) {
-  var epsilon = (opt_epsilon == undefined) ? 1e-15 : opt_epsilon;
+  var epsilon = (opt_epsilon == undefined) ? Jmat.Matrix.DEFPROPEPS : opt_epsilon;
   if (!Jmat.Matrix.isSquare(a)) return false;
   //if (!Jmat.Matrix.isReal(a)) return false; // Not sure if to be strict with this check or not...
 
@@ -974,7 +978,7 @@ Jmat.Matrix.isOrthogonal = function(a, opt_epsilon) {
 
 // A*A^(*) == I
 Jmat.Matrix.isUnitary = function(a, opt_epsilon) {
-  var epsilon = (opt_epsilon == undefined) ? 1e-15 : opt_epsilon;
+  var epsilon = (opt_epsilon == undefined) ? Jmat.Matrix.DEFPROPEPS : opt_epsilon;
   if (!Jmat.Matrix.isSquare(a)) return false;
 
   var aa = a.mulTG(a);
@@ -983,7 +987,7 @@ Jmat.Matrix.isUnitary = function(a, opt_epsilon) {
 
 // Normal matrix: A * A^(*) == A^(*) * A
 Jmat.Matrix.isNormal = function(a, opt_epsilon) {
-  var epsilon = (opt_epsilon == undefined) ? 1e-15 : opt_epsilon;
+  var epsilon = (opt_epsilon == undefined) ? Jmat.Matrix.DEFPROPEPS : opt_epsilon;
   if (!Jmat.Matrix.isSquare(a)) return false;
 
   var at = a.transjugate();
@@ -992,7 +996,7 @@ Jmat.Matrix.isNormal = function(a, opt_epsilon) {
 
 // Permutation matrix: binary, exactly one 1 on each row and column
 Jmat.Matrix.isPermutation = function(a, opt_epsilon) {
-  var epsilon = (opt_epsilon == undefined) ? 1e-15 : opt_epsilon;
+  var epsilon = (opt_epsilon == undefined) ? Jmat.Matrix.DEFPROPEPS : opt_epsilon;
   if (!Jmat.Matrix.isSquare(a)) return false;
 
   for(var y = 0; y < a.h; y++) {
@@ -1024,7 +1028,7 @@ Jmat.Matrix.isPermutation = function(a, opt_epsilon) {
 
 // constant elements along diagonals
 Jmat.Matrix.isToeplitz = function(a, opt_epsilon) {
-  var epsilon = (opt_epsilon == undefined) ? 1e-15 : opt_epsilon;
+  var epsilon = (opt_epsilon == undefined) ? Jmat.Matrix.DEFPROPEPS : opt_epsilon;
   if (!Jmat.Matrix.isSquare(a)) return false;
 
   for(var y = 0; y + 1 < a.h; y++) {
@@ -1037,7 +1041,7 @@ Jmat.Matrix.isToeplitz = function(a, opt_epsilon) {
 
 // constant elements along anti-diagonals
 Jmat.Matrix.isHankel = function(a, opt_epsilon) {
-  var epsilon = (opt_epsilon == undefined) ? 1e-15 : opt_epsilon;
+  var epsilon = (opt_epsilon == undefined) ? Jmat.Matrix.DEFPROPEPS : opt_epsilon;
   if (!Jmat.Matrix.isSquare(a)) return false;
 
   for(var y = 1; y < a.h; y++) {
@@ -1050,7 +1054,7 @@ Jmat.Matrix.isHankel = function(a, opt_epsilon) {
 
 // like identity except one column may have arbitrary elements below the diagonal
 Jmat.Matrix.isFrobenius = function(a, opt_epsilon) {
-  var epsilon = (opt_epsilon == undefined) ? 1e-15 : opt_epsilon;
+  var epsilon = (opt_epsilon == undefined) ? Jmat.Matrix.DEFPROPEPS : opt_epsilon;
   if (!Jmat.Matrix.isSquare(a)) return false;
 
   var col = -1; //the one column that non-zero elements below the diagonal
@@ -1069,7 +1073,7 @@ Jmat.Matrix.isFrobenius = function(a, opt_epsilon) {
 };
 
 Jmat.Matrix.isInteger = function(a, opt_epsilon) {
-  var epsilon = (opt_epsilon == undefined) ? 1e-15 : opt_epsilon;
+  var epsilon = (opt_epsilon == undefined) ? Jmat.Matrix.DEFPROPEPS : opt_epsilon;
   for(var y = 0; y < a.h; y++) {
     for(var x = 0; x < a.w; x++) {
       var e = a.e[y][x];
@@ -1082,7 +1086,7 @@ Jmat.Matrix.isInteger = function(a, opt_epsilon) {
 
 // only 0's and 1's
 Jmat.Matrix.isBinary = function(a, opt_epsilon) {
-  var epsilon = (opt_epsilon == undefined) ? 1e-15 : opt_epsilon;
+  var epsilon = (opt_epsilon == undefined) ? Jmat.Matrix.DEFPROPEPS : opt_epsilon;
   for(var y = 0; y < a.h; y++) {
     for(var x = 0; x < a.w; x++) {
       var e = a.e[y][x];
@@ -1107,7 +1111,7 @@ Jmat.Matrix.isIdempotent = function(a, opt_epsilon) {
 // Nilpotent matrix: A^k = 0 for some positive integer k. May require up to log(n) multiplications, so N^3*log(N) worse complexity but usually much faster due to fast early checks.
 Jmat.Matrix.isNilpotent = function(a, opt_epsilon) {
   var M = Jmat.Matrix;
-  var epsilon = (opt_epsilon == undefined) ? 1e-15 : opt_epsilon;
+  var epsilon = (opt_epsilon == undefined) ? Jmat.Matrix.DEFPROPEPS : opt_epsilon;
   if (!M.isSquare(a)) return false;
   var n = a.w;
   var k = 1;
@@ -1123,7 +1127,7 @@ Jmat.Matrix.isNilpotent = function(a, opt_epsilon) {
 
 // Returns an object with various named boolean and scalar properties of the given matrix
 // TODO: add parameter to only return fast to calculate properties, max N^2 complexity (so no determinant, svd based condition number, rank, definiteness, ...)
-Jmat.Matrix.getProperties = function(a) {
+Jmat.Matrix.getProperties = function(a, opt_epsilon) {
   var M = Jmat.Matrix;
   var result = {};
 
@@ -1140,36 +1144,36 @@ Jmat.Matrix.getProperties = function(a) {
   result['nan'] = M.isNaN(a);
 
   // The following properties only make sense for square matrices
-  result['identity'] = M.isIdentity(a);
-  result['diagonal'] = M.isDiagonal(a);
-  result['tridiagonal'] = M.isTridiagonal(a);
-  result['symmetric'] = M.isSymmetric(a);
-  result['hermitian'] = M.isHermitian(a);
-  result['skewHermitian'] = M.isSkewHermitian(a);
-  result['skewSymmetric'] = M.isSkewSymmetric(a);
-  result['upperTriangular'] = M.isUpperTriangular(a);
-  result['lowerTriangular'] = M.isLowerTriangular(a);
-  result['strictlyUpperTriangular'] = M.isStrictlyUpperTriangular(a);
-  result['strictlyLowerTriangular'] = M.isStrictlyLowerTriangular(a);
-  result['upperUnitriangular'] = M.isUpperUnitriangular(a);
-  result['lowerUnitriangular'] = M.isLowerUnitriangular(a);
-  result['upperHessenberg'] = M.isUpperHessenberg(a);
-  result['lowerHessenberg'] = M.isLowerHessenberg(a);
-  result['singular'] = M.isSingular(a);
-  result['invertible'] = M.isInvertible(a);
-  result['determinant'] = M.determinant(a);
-  result['trace'] = M.trace(a);
-  result['orthogonal'] = M.isOrthogonal(a);
-  result['unitary'] = M.isUnitary(a);
-  result['normal'] = M.isNormal(a);
-  result['permutation'] = M.isPermutation(a);
-  result['toeplitz'] = M.isToeplitz(a);
-  result['hankel'] = M.isHankel(a);
-  result['frobenius'] = M.isFrobenius(a);
-  result['integer'] = M.isInteger(a);
-  result['binary'] = M.isBinary(a);
-  result['involutory'] = M.isInvolutory(a);
-  result['idempotent'] = M.isIdempotent(a);
+  result['identity'] = M.isIdentity(a, opt_epsilon);
+  result['diagonal'] = M.isDiagonal(a, opt_epsilon);
+  result['tridiagonal'] = M.isTridiagonal(a, opt_epsilon);
+  result['symmetric'] = M.isSymmetric(a, opt_epsilon);
+  result['hermitian'] = M.isHermitian(a, opt_epsilon);
+  result['skewHermitian'] = M.isSkewHermitian(a, opt_epsilon);
+  result['skewSymmetric'] = M.isSkewSymmetric(a, opt_epsilon);
+  result['upperTriangular'] = M.isUpperTriangular(a, opt_epsilon);
+  result['lowerTriangular'] = M.isLowerTriangular(a, opt_epsilon);
+  result['strictlyUpperTriangular'] = M.isStrictlyUpperTriangular(a, opt_epsilon);
+  result['strictlyLowerTriangular'] = M.isStrictlyLowerTriangular(a, opt_epsilon);
+  result['upperUnitriangular'] = M.isUpperUnitriangular(a, opt_epsilon);
+  result['lowerUnitriangular'] = M.isLowerUnitriangular(a, opt_epsilon);
+  result['upperHessenberg'] = M.isUpperHessenberg(a, opt_epsilon);
+  result['lowerHessenberg'] = M.isLowerHessenberg(a, opt_epsilon);
+  result['singular'] = M.isSingular(a, opt_epsilon);
+  result['invertible'] = M.isInvertible(a, opt_epsilon);
+  result['determinant'] = M.determinant(a, opt_epsilon);
+  result['trace'] = M.trace(a, opt_epsilon);
+  result['orthogonal'] = M.isOrthogonal(a, opt_epsilon);
+  result['unitary'] = M.isUnitary(a, opt_epsilon);
+  result['normal'] = M.isNormal(a, opt_epsilon);
+  result['permutation'] = M.isPermutation(a, opt_epsilon);
+  result['toeplitz'] = M.isToeplitz(a, opt_epsilon);
+  result['hankel'] = M.isHankel(a, opt_epsilon);
+  result['frobenius'] = M.isFrobenius(a, opt_epsilon);
+  result['integer'] = M.isInteger(a, opt_epsilon);
+  result['binary'] = M.isBinary(a, opt_epsilon);
+  result['involutory'] = M.isInvolutory(a, opt_epsilon);
+  result['idempotent'] = M.isIdempotent(a, opt_epsilon);
   if(result['hermitian']) {
     var d = M.definiteness(a);
     if(d == M.INDEFINITE) result['indefinite'] = true;
@@ -1185,8 +1189,8 @@ Jmat.Matrix.getProperties = function(a) {
 // Gives a one-sentence summary of some interesting properites of the matrix. The more properties the matrix has, the longer the sentence (e.g. if it's square more properties appear, ...)
 // Does not show redundant properties. E.g. if the matrix is 'identity', will not show 'symmetric', if it's 'normal', will not show 'orthogonal', etc...
 // To see every single property instead, do "Jmat.toString(Jmat.Matrix.getProperties(a))"
-Jmat.Matrix.summary = function(a) {
-  var p = Jmat.Matrix.getProperties(a);
+Jmat.Matrix.summary = function(a, opt_epsilon) {
+  var p = Jmat.Matrix.getProperties(a, opt_epsilon);
 
   var toName = function(name) {
     // convert camelCase to lower case with spaces
@@ -1254,16 +1258,16 @@ Jmat.Matrix.summary = function(a) {
 
   return summary;
 };
-Jmat.Matrix.prototype.summary = function() {
-  return Jmat.Matrix.summary(this);
+Jmat.Matrix.prototype.summary = function(opt_epsilon) {
+  return Jmat.Matrix.summary(this, opt_epsilon);
 };
 
 // render() followed by summary()
-Jmat.Matrix.render_summary = function(a) {
-  return a.render() + '\n' + a.summary();
+Jmat.Matrix.render_summary = function(a, opt_epsilon) {
+  return a.render() + '\n' + a.summary(opt_epsilon);
 };
-Jmat.Matrix.prototype.render_summary = function() {
-  return Jmat.Matrix.render_summary(this);
+Jmat.Matrix.prototype.render_summary = function(opt_epsilon) {
+  return Jmat.Matrix.render_summary(this, opt_epsilon);
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -2189,37 +2193,94 @@ Jmat.Matrix.givensPost_ = function(m, i, j, c, s) {
   }
 };
 
-// do householder reflections to bring a to similar a in upper hessenberg form
-Jmat.Matrix.toHessenberg = function(a) {
+// Hessenberg factorization using householder reflections
+// Finds P and H such that A=P*H*P^h with H hessenberg, P unitary, P^h transjugate of P
+Jmat.Matrix.hessenberg = function(a) {
   var M = Jmat.Matrix;
   if(a.h != a.w) return null;
   var real = Jmat.Matrix.isReal(a);
-  var r = M.copy(a);
+  var h = M.copy(a);
+  var p = Matrix.identity(a.h);
   for(var k = 0; k + 2 < a.w; k++) {
-    var x = M.submatrix(r, k + 1, r.h, k, k + 1); // partial column vector
+    var x = M.submatrix(h, k + 1, h.h, k, k + 1); // partial column vector
     var vt = M.getHouseholderVector_(x, real);
     var v = vt[0];
     var tau = vt[1];
+    // The matrix to left and right multiply with A for this step
+    var q = Matrix.identity(v.h).sub(v.mulTG(v).mulc(tau));
 
-    var rs = M.submatrix(r, k + 1, r.h, k, r.w);
-    rs = rs.sub(v.mulTG(v).mul(rs).mulc(tau));
-    r = M.insert(r, rs, k + 1, k);
+    // Left multiply (for efficiency only in the affected region)
+    var hs = M.submatrix(h, k + 1, h.h, k, h.w);
+    hs = q.mul(hs);
+    h = M.insert(h, hs, k + 1, k);
 
-    rs = M.submatrix(r, 0, r.h, k + 1, r.w);
-    rs = rs.sub(rs.mul(v).mulTG(v).mulc(tau));
-    r = M.insert(r, rs, 0, k + 1);
+    // Right multiply (for efficiency only in the affected region)
+    hs = M.submatrix(h, 0, h.h, k + 1, h.w);
+    hs = hs.mul(q); // no need to tranjugate q, it's hermitian (due to v * v^h)
+    h = M.insert(h, hs, 0, k + 1);
+
+    // Cumulatively multiply with p (optional, only needed to also output P)
+    var ps = M.submatrix(p, 0, p.h, k + 1, p.w);
+    ps = ps.mul(q);
+    p = M.insert(p, ps, 0, k + 1);
   }
-  //ensure the elements are really zero
-  for(var y = 0; y < r.h; y++) {
+
+
+  //ensure the elements are really zero (fix numerical problems)
+  for(var y = 0; y < h.h; y++) {
     for(var x = 0; x < Math.max(y - 1, 0); x++) {
-      r.e[y][x] = Jmat.Complex(0);
+      h.e[y][x] = Jmat.Complex(0);
     }
   }
 
-  return r;
+  return {p:p, h:h};
 };
 
-// faster qr algorithm, a must be hessenberg
+// do householder reflections to bring A to similar matrix in upper hessenberg form
+Jmat.Matrix.toHessenberg = function(a) {
+  var h = Jmat.Matrix.hessenberg(a).h;
+
+  return h;
+};
+
+// Schur decomposition: returns P and T such that P*T*P^h = A,
+// with P unitary and T upper triangular and with A's eigenvalues on the diagonal
+Jmat.Matrix.schur = function(a) {
+  var C = Jmat.Complex;
+  var M = Jmat.Matrix;
+  var ph = Jmat.Matrix.hessenberg(a);
+  var h = ph.h;
+  var u = ph.p;
+  var n = a.h;
+  var epsilon = 1e-15;
+  var id = M.identity(a.h);
+  var numloops = 0;
+
+  // The schur decomposition uses the qr algorithm and will put the eigenvalues
+  // on the diagonal in the end. So this is an eigenvalue algorithm. However, for
+  // now, this and Matrix.eigval are independent implementations with a slightly
+  // different goal.
+
+  // TODO: this is a slower qr algorithm on hessenberg matrix. Use a faster one like Francis double step
+  while(n >= 2) {
+    var lambda = h.e[n - 1][n - 1];
+    var il = id.mulc(lambda);
+    var qr = Jmat.Matrix.qr_hessenberg_(h.sub(il));
+    h = qr.r.mul(qr.q).add(il);
+    u = u.mul(qr.q);
+    if(h.e[n - 2][n - 1].abs() < epsilon) {
+      n--;
+      numloops = 0;
+    }
+    numloops++;
+    if(numloops > 1000) break;
+  }
+
+  return { p: u, t: h };
+
+};
+
+// faster qr decomposition, a must be hessenberg
 Jmat.Matrix.qr_hessenberg_ = function(a) {
   var M = Jmat.Matrix;
   var C = Jmat.Complex;
@@ -2341,7 +2402,7 @@ Jmat.Matrix.eig22 = function(m) {
 
 // calculates eigenvalues of complex upper hessenberg matrix, using the shifted QR algorithm with givens rotations
 // h is nxn upper hessenberg matrix, and it gets destroyed during the process
-Jmat.Matrix.eigval_ = function(h) {
+Jmat.Matrix.eigvalHessenberg_ = function(h) {
   var C = Jmat.Complex;
   var M = Jmat.Matrix;
   var epsilon = 1.2e-16; // relative machine precision
@@ -2419,10 +2480,11 @@ Jmat.Matrix.eigval = function(m) {
 
   // TODO: for hermitian or symmetric matrix, use faster algorithm for eigenvalues
 
-  var a = M.toHessenberg(m);
-  var l = M.eigval_(a);
+  var h = M.toHessenberg(m);
+  var l = M.eigvalHessenberg_(h);
 
   // Fullfill our promise of eigenvalues sorted from largest to smallest magnitude, the eigenvalue algorithm usually has them somewhat but not fully correctly sorted
+  // TODO: if all are same size, this sorting gives some arbitrary result based on numerical imprecisions, e.g. with eigenvalues of rotation matrix. Find some more stable useful order.
   l.sort(function(a, b) { return b.abssq() - a.abssq(); });
 
   return l;
@@ -2456,7 +2518,6 @@ Jmat.Matrix.eigenVectorFor = function(m, lambda, opt_normalize) {
       res = res.divc(M.norm(res));
     }
   }*/
-
 
   if(res) {
     if(normalize_mode == 2) res = res.divc(M.norm(res));
@@ -2522,7 +2583,10 @@ Jmat.Matrix.eig = function(m, opt_normalize) {
   if(M.isReal(m) && M.isSymmetric(m)) return Jmat.Matrix.jacobi_(m, opt_normalize);
 
   var l = M.eigval(m);
-  for(var i = 0; i < l.length; i++) if(Jmat.Complex.nearr(l[i], 0, 1e-15)) l[i] = Jmat.Complex(0); // this avoids numerical instability problems with calculation of eigenvectors in case of eigenvalues that should be zero, but are close to it instead
+  for(var i = 0; i < l.length; i++) {
+    // this avoids numerical instability problems with calculation of eigenvectors in case of eigenvalues that should be zero, but are close to it instead
+    if(Jmat.Complex.nearr(l[i], 0, 1e-15)) l[i] = Jmat.Complex(0);
+  }
 
   // Fullfill our promise of eigenvalues sorted from largest to smallest magnitude, the eigenvalue algorithm usually has them somewhat but not fully correctly sorted
   l.sort(function(a, b) { return b.abssq() - a.abssq(); });
@@ -2685,6 +2749,23 @@ Jmat.Matrix.dot = function(a, b) {
   var result = Jmat.Complex(0);
   for(var i = 0; i < n; i++) result = result.add(a.get1(i).mul(b.get1(i).conj()));
   return result;
+};
+
+// inner product of a and b: returns transjugate(a) * b
+// typically, a and b should be column vectors of the same size (but the function supports other sizes as long as compatible with matrix multiplication).
+// the result is a 1x1 matrix (unless a and b were something else than column vectors)
+// the value in the 1x1 matrix is the same as the value for the dot product function
+// different behavior than dot for other inputs than column vectors: this gives the multiplication defined above, not Frobenius inner product.
+Jmat.Matrix.inner = function(a, b) {
+  return a.transjugate().mul(b);
+};
+
+// outer product (aka tensor product) of a and b: returns a * transjugate(b)
+// typically, a and b should be column vectors of the same size (but the function supports other sizes as long as compatible with matrix multiplication).
+// the resulting matrix contains all combinations of an element from a multiplied with an element from b
+// not to be confused with exterior product nor with cross product which are entirely different.
+Jmat.Matrix.outer = function(a, b) {
+  return a.mul(b.transjugate());
 };
 
 
@@ -3374,6 +3455,35 @@ Jmat.Matrix.random = function(h, w, properties, r0, r1, s) {
   return result;
 };
 
+Jmat.Matrix.makeRot2D = function(angle) {
+  var c = Jmat.Complex.cos(angle);
+  var s = Jmat.Complex.sin(angle);
+  return Jmat.Matrix([
+    [c, s.neg()],
+    [s, c]
+  ]);
+};
+
+// makes 3D rotation matrix around axis with given angle. All values, even angle, must be given as Jmat.Complex. Angle is in radians.
+// this function will normalize the axis so it does not matter what length it has. The axis may be given as column or as row vector.
+Jmat.Matrix.makeRot3D = function(axis, angle) {
+  var c = Jmat.Complex.cos(angle);
+  var s = Jmat.Complex.sin(angle);
+  var c1 = c.rsub(1);
+  var x = axis.get1(0);
+  var y = axis.get1(1);
+  var z = axis.get1(2);
+  var norm = Jmat.Complex.sqrt(x.mul(x).add(y.mul(y)).add(z.mul(z)));
+  x = x.div(norm);
+  y = y.div(norm);
+  z = z.div(norm);
+  return Jmat.Matrix([
+    [c.add(x.mul(x).mul(c1)), x.mul(y).mul(c1).sub(z.mul(s)), x.mul(z).mul(c1).add(y.mul(s))],
+    [y.mul(x).mul(c1).add(z.mul(s)), c.add(y.mul(y).mul(c1)), y.mul(z).mul(c1).sub(x.mul(s))],
+    [z.mul(x).mul(c1).sub(y.mul(s)), z.mul(y).mul(c1).add(x.mul(s)), c.add(z.mul(z).mul(c1))]
+  ]);
+};
+
 Jmat.Matrix.matrixfft_ = function(m, inverse) {
   var rowresult = new Jmat.Matrix(m.h, m.w);
 
@@ -3503,31 +3613,23 @@ Jmat.Matrix.sqrt = function(m) {
   }
   return result;*/
 
-  // With eigen decomposition: only the sqrt of the diagonals of D needs to be taken
-  // TODO: this will only work for diagonizable matrix. Implement a way for non-diagonizable one as well (with Jordan normal form)
-  var e = Jmat.Matrix.evd(m);
-  var v = e.v;
-  var d = e.d;
-  for(var i = 0; i < d.w; i++) d.e[i][i] = Jmat.Complex.sqrt(d.e[i][i]);
-  return v.mul(d).mul(Jmat.Matrix.inv(v));
+  return Jmat.Matrix.fun(m, function(z) { return Jmat.Complex.sqrt(z); });
 };
 
 // Matrix logarithm (base e, ln)
 // debug in console: var a = Jmat.Matrix.log(Jmat.Matrix(2,2,1,2,3,4)); Jmat.Matrix.toString(a) + ' ' + Jmat.Matrix.toString(Jmat.Matrix.exp(a))
 Jmat.Matrix.log = function(m) {
-  if(m.h != m.w) return null; //must be square
-
-  // With eigen decomposition: only the log of the diagonals of D needs to be taken
-  // TODO: this will only work for diagonizable matrix. Implement a way for non-diagonizable one as well (with Jordan normal form)
-  var e = Jmat.Matrix.evd(m);
-  var v = e.v;
-  var d = e.d;
-  for(var i = 0; i < d.w; i++) d.e[i][i] = Jmat.Complex.log(d.e[i][i]);
-  return v.mul(d).mul(Jmat.Matrix.inv(v));
+  return Jmat.Matrix.fun(m, function(z) { return Jmat.Complex.log(z); });
 };
 
 // Matrix to any complex scalar power s
 Jmat.Matrix.powc = function(m, s) {
+  return Jmat.Matrix.fun(m, function(z) { return z.pow(s); });
+};
+
+// Apply any complex function to a matrix using its eigenvalue decomposition
+// Function f must get 1 complex value as input and give 1 complex value as output
+Jmat.Matrix.fun = function(m, f) {
   if(m.h != m.w) return null; //must be square
 
   // With eigen decomposition: only the log of the diagonals of D needs to be taken
@@ -3535,7 +3637,7 @@ Jmat.Matrix.powc = function(m, s) {
   var e = Jmat.Matrix.evd(m);
   var v = e.v;
   var d = e.d;
-  for(var i = 0; i < d.w; i++) d.e[i][i] = d.e[i][i].pow(s);
+  for(var i = 0; i < d.w; i++) d.e[i][i] = f(d.e[i][i]);
   return v.mul(d).mul(Jmat.Matrix.inv(v));
 };
 

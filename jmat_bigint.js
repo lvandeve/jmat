@@ -82,6 +82,7 @@ Jmat.BigInt.STRINGBASE_ = 10;
 Jmat.BigInt.make = function(a, b, minus) {
   if(a == undefined) return new Jmat.BigInt(a, b, minus);
   if(typeof a == 'number') return Jmat.BigInt.fromInt(a, b);
+  //if(a.raw && a.length == 1 && typeof a[0] == 'string' && a.raw[0] == a[0]) a = a[0]; // ES6: BigInt`123456789123456789`
   if(typeof a == 'string') return Jmat.BigInt.parse(a, Jmat.BigInt.STRINGBASE_, b);
   if(a.length != undefined) return new Jmat.BigInt(a, b, minus);
   if(a.re != undefined) return Jmat.BigInt.fromInt(a.re, b);

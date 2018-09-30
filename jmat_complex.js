@@ -1,7 +1,7 @@
 /*
 Jmat.js
 
-Copyright (c) 2011-2016, Lode Vandevenne
+Copyright (c) 2011-2018, Lode Vandevenne
 All rights reserved.
 
 Redistribution and use in source and binary forms, with or without modification,
@@ -82,6 +82,7 @@ Jmat.Complex = function(re, im) {
 Jmat.Complex.make = function(a, b) {
   if(a == undefined) return new Jmat.Complex(0, 0);
   if(typeof a == 'number') return new Jmat.Complex(a, b == undefined ? 0 : b);
+  //if(a.raw && a.length == 1 && typeof a[0] == 'string' && a.raw[0] == a[0]) a = a[0]; // ES6: Complex`5+6i`
   if(typeof a == 'string') return Jmat.Complex.parse(a);
   return new Jmat.Complex(a.re, a.im); // Copy value object
 };

@@ -877,6 +877,9 @@ Jmat.cofactor = function(a, row, col) { return Jmat.Matrix.cofactor(Jmat.Matrix.
 /* Submatrix, x1 and y1 excluded, 0-based coordinates. a:{Array|Matrix}, y0,y1,x0,x1:{number} integer. returns {Matrix} */
 Jmat.submatrix = function(a, y0, y1, x0, x1) { return Jmat.Matrix.submatrix(Jmat.Matrix.cast(a), Jmat.Real.caststrict(y0), Jmat.Real.caststrict(y1), Jmat.Real.caststrict(x0), Jmat.Real.caststrict(x1)); };
 
+Jmat.makeRot2D = function(angle) { return Jmat.Matrix.makeRot2D(Jmat.Complex.cast(angle)); };
+Jmat.makeRot3D = function(axis, angle) { return Jmat.Matrix.makeRot3D(Jmat.Matrix.cast(axis), Jmat.Complex.cast(angle)); };
+
 // Matrix decompositions
 
 /* Singular value decomposition. m:{Array|Matrix}. returns {Object.<string, Matrix>} object with u:left vectors, s:singular values, v:right vectors */
