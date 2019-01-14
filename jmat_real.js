@@ -1695,6 +1695,13 @@ Jmat.Real.matrix_solve = function(a, b) {
   return result;
 };
 
+// Execute givens rotation for a[i] and b[j] with c = cos(angle) and s = sin(angle)
+Jmat.Real.givens_rot_ = function(a, i, b, j, c, s) {
+  var tmp = b[j];
+  b[j] = s * a[i] + c * tmp;
+  a[i] = c * a[i] - s * tmp;
+};
+
 // This is a matrix algorithm, but is in Jmat.Real because it operates on real elements, and you can use the algorithm without Matrix class.
 // Jacobi eigenvalue algorithm for real symmetric matrix
 // a is n*n 2D array with input and output matrix (real symmetric), contains eigenvalues on diagonal after the algorithm (sorted)
@@ -1712,42 +1719,42 @@ Jmat.Real.matrix_jacobi = function(a, v, n, opt_epsilon) {
     }
   }
 
-  // Sum of squares of all off-diagonal elements
-  var off2 = 0;
-  for(var y = 0; y < n; y++) {
-    for(var x = y + 1; x < n; x++) {
-      if(x != y) {
-        off2 += 2 * a[y][x] * a[y][x];
+  var numloops = 0;
+  for(;;) {
+    // Find biggest off-diagonal element to zero out with givens rotation
+    var biggest = 0;
+    var x = 0;
+    var y = 0;
+    for(var y0 = 0; y0 < n; y0++) {
+      for(var x0 = y0 + 1; x0 < n; x0++) {
+        var value = Math.abs(a[y0][x0]);
+        if(value > biggest) {
+          biggest = value;
+          x = x0;
+          y = y0;
+        }
       }
     }
-  }
+    if(biggest * biggest <= epsilon) break;
 
-  while(off2 > epsilon) {
-    for(var y = 0; y < n; y++) {
-      for(var x = y + 1; x < n; x++) {
-        if(a[y][x] * a[y][x] <= off2 / (2 * n * n)) continue; // Too small
-        off2 -= 2 * a[y][x] * a[y][x];
-        // Jacobi rotation coefficients
-        var beta = (a[x][x] - a[y][y]) / (2 * a[y][x]);
-        var t = Math.sign(beta) / (Math.abs(beta) + Math.sqrt(beta * beta + 1));
-        var s = 1 / (Math.sqrt(t * t + 1));
-        var c = s * t;
-        // Rotate rows of A
-        for(var k = 0; k < n; k++) {
-          var tmp = a[k][y];
-          a[k][y] = s * a[k][x] + c * tmp;
-          a[k][x] = c * a[k][x] - s * tmp;
-        }
-        // Rotate columns of A and V
-        for(var k = 0; k < n; k++) {
-          var tmp = a[y][k];
-          a[y][k] = s * a[x][k] + c * tmp;
-          a[x][k] = c * a[x][k] - s * tmp ;
-          tmp = v[y][k];
-          v[y][k] = s * v[x][k] + c * tmp;
-          v[x][k] = c * v[x][k] - s * tmp;
-        }
-      }
+    if(numloops++ > n * n * 30) {
+      break; // ERROR! infinite loop?
+    }
+
+    // Givens rotation parameters
+    var beta = (a[x][x] - a[y][y]) / (2 * a[y][x]);
+    var t = 0.5 * beta / Math.sqrt(1.0 + beta * beta);
+    var c = Math.sqrt(0.5 - t);
+    var s = Math.sqrt(0.5 + t);
+
+    // Rotate rows of A
+    for(var k = 0; k < n; k++) {
+      Jmat.Real.givens_rot_(a[k], x, a[k], y, c, s);
+    }
+    // Rotate columns of A and V
+    for(var k = 0; k < n; k++) {
+      Jmat.Real.givens_rot_(a[x], k, a[y], k, c, s);
+      Jmat.Real.givens_rot_(v[x], k, v[y], k, c, s);
     }
   }
 

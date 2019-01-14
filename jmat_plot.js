@@ -38,6 +38,9 @@ THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 ////////////////////////////////////////////////////////////////////////////////
 
 // TODO: support any size rather than always 320x320 pixels
+// TODO: suppoert zooming in/out with mousewheel (around mouse cursor as center)
+// TODO: support showing of max value of function or auto scale to it
+// TODO: for the 'real' plot (where real refers to the input value in fact), have choice between showing complex values as abs/arg with color, or separate re/im
 
 // e.g.: new Jmat.PlotParams({p: 1})
 // constructor
