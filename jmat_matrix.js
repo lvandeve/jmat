@@ -1799,8 +1799,10 @@ Jmat.Matrix.norm = function(m) {
 };
 
 // divides through the Frobenius norm
-Jmat.Matrix.normalize = function(m) {
+Jmat.Matrix.normalize = function(m, opt_epsilon) {
+  var epsilon = opt_epsilon || 1e-15;
   var norm = Jmat.Matrix.norm(m);
+  if(norm.abs() < opt_epsilon) return m;
   return m.divr(norm.re);
 };
 
@@ -2092,39 +2094,45 @@ Jmat.Matrix.proj = function(v, u) {
   return u.mulc(f);
 };
 
-// does 1 step of gram-schmidt orthogonalization, for the column x of the matrix. us must have the x previously calculated vectors. The function returns the vector that you can fill in us[x].
-Jmat.Matrix.gramSchmidtStep_ = function(m, x, us) {
+// does 1 step of gram-schmidt orthogonalization, for the row y of the matrix.
+// us must have the y previously calculated vectors. The function returns the vector that you can fill in us[y].
+Jmat.Matrix.gramSchmidtStep_ = function(m, y, us) {
   var M = Jmat.Matrix;
-  var v = M.col(m, x);
+  var v = M.row(m, y);
   var u = v;
 
-  //for(var j = 0; j < i; j++) u = u.sub(M.proj(v, us[j])); // "classical" way, commented out
-  for(var j = 0; j < x; j++) u = u.sub(M.proj(u, us[j])); // more stable way, MGS (only difference is v is changed into previous u iteration)
+  for(var j = 0; j < y; j++) {
+    //var p = M.proj(v, us[j]); // "classical" way, commented out
+    var p = M.proj(u, us[j]);
+    u = u.sub(p); // more stable way, MGS (only difference is v is changed into previous u iteration)
+  }
 
   return u;
 };
 
 
-// Performs gram-schmidt orthogonalization of the column vectors given in matrix M
-// NOTE: This is not for real usage but a demonstration of the Gram-Schmidt process.
-// The q returned by Matrix.qr is similar, but calculated with more stable and efficient algorithms (it givens or householder).
+// Performs gram-schmidt orthogonalization of the rows given in matrix M
+// NOTE: This is not for real usage but a toy demonstration of the Gram-Schmidt process, since this is numerically unstable.
+// The q returned by Matrix.qr is similar, but calculated with more stable and efficient algorithms (with givens or householder).
 Jmat.Matrix.gramSchmidt = function(m, opt_normalize) {
   var M = Jmat.Matrix;
   var vs = [];
-  for(var i = 0; i < m.w; i++) vs[i] = M.col(m, i);
+  for(var i = 0; i < m.h; i++) vs[i] = M.row(m, i);
   var us = [];
-  for(var i = 0; i < m.w; i++) {
+  for(var i = 0; i < m.h; i++) {
     us[i] = M.gramSchmidtStep_(m, i, us);
   }
 
   if(opt_normalize) {
     // Gram-Schmidt orthonormalization instead of orthogonalization.
-    for(var i = 0; i < us.length; i++) us[i] = M.normalize(us[i]);
+    for(var i = 0; i < us.length; i++) {
+      us[i] = M.normalize(us[i], 1e-10);
+    }
   }
   var result = new M(m.h, m.w);
   for(var y = 0; y < m.h; y++) {
     for(var x = 0; x < m.w; x++) {
-      result.e[y][x] = us[x].e[y][0];
+      result.e[y][x] = us[y].e[0][x];
     }
   }
   return result;
@@ -2378,17 +2386,27 @@ Jmat.Matrix.eigval22 = function(m) {
 
 // explicit algebraic formula for eigenvalues and vectors of 2x2 matrix
 // NOTE: the eigenvectors are to be read as columns of v, not rows.
-Jmat.Matrix.eig22 = function(m) {
+Jmat.Matrix.eig22 = function(m, opt_normalize) {
   if(m.w != 2 || m.h != 2) return null;
 
   var l = Jmat.Matrix.eigval22(m);
   var l1 = l[0];
   var l2 = l[1];
 
+  // TODO: make numerically more precise (see numerical improvements of quadratic function solution)
   var v11 = m.e[0][1].div(l1.sub(m.e[0][0]));
   var v12 = Jmat.Complex(1);
   var v21 = m.e[0][1].div(l2.sub(m.e[0][0]));
   var v22 = Jmat.Complex(1);
+
+  if(opt_normalize == 2) {
+    var n1 = Jmat.Complex.sqrt(v11.mul(v11).add(v12.mul(v12)));
+    v11 = v11.div(n1);
+    v12 = v12.div(n1);
+    var n2 = Jmat.Complex.sqrt(v21.mul(v21).add(v22.mul(v22)));
+    v21 = v21.div(n2);
+    v22 = v22.div(n2);
+  }
 
   var result = {};
   result.l = [l1, l2];
@@ -2469,6 +2487,15 @@ Jmat.Matrix.eigvalHessenberg_ = function(h) {
   return result;
 };
 
+Jmat.Matrix.eigval_ = function(m) {
+  var M = Jmat.Matrix;
+
+  var h = M.toHessenberg(m);
+  var l = M.eigvalHessenberg_(h);
+
+  return l;
+};
+
 // Returns the eigenvalues (aka spectrum) of m in an array, from largest to smallest
 // The eigenvalues also give the characteristic polynomial: (x-l[0])*(x-l[1])*...*(x-l[n-1])
 Jmat.Matrix.eigval = function(m) {
@@ -2480,8 +2507,7 @@ Jmat.Matrix.eigval = function(m) {
 
   // TODO: for hermitian or symmetric matrix, use faster algorithm for eigenvalues
 
-  var h = M.toHessenberg(m);
-  var l = M.eigvalHessenberg_(h);
+  var l = M.eigval_(m);
 
   // Fullfill our promise of eigenvalues sorted from largest to smallest magnitude, the eigenvalue algorithm usually has them somewhat but not fully correctly sorted
   // TODO: if all are same size, this sorting gives some arbitrary result based on numerical imprecisions, e.g. with eigenvalues of rotation matrix. Find some more stable useful order.
@@ -2578,7 +2604,7 @@ Jmat.Matrix.eig = function(m, opt_normalize) {
   if(m.w != m.h || m.w < 1) return null;
   var n = m.w;
   if(n == 1) return M.eig11(m);
-  if(n == 2) return M.eig22(m);
+  if(n == 2) return M.eig22(m, opt_normalize);
 
   if(M.isReal(m) && M.isSymmetric(m)) return Jmat.Matrix.jacobi_(m, opt_normalize);
 
@@ -3601,6 +3627,10 @@ Jmat.Matrix.sin = function(m) {
   return result;
 };
 
+Jmat.Matrix.tan = function(m) {
+  return Jmat.Matrix.fun(m, function(z) { return Jmat.Complex.tan(z); });
+};
+
 // Square root of matrix (returns a such that a * a = m)
 // debug in console: var a = Jmat.Matrix.sqrt(Jmat.Matrix(3,3,1,1,0,0,0,1,1,0,1)); Jmat.Matrix.toString(a) + ' ' + Jmat.Matrix.toString(a.mul(a))
 Jmat.Matrix.sqrt = function(m) {
@@ -3620,6 +3650,14 @@ Jmat.Matrix.sqrt = function(m) {
 // debug in console: var a = Jmat.Matrix.log(Jmat.Matrix(2,2,1,2,3,4)); Jmat.Matrix.toString(a) + ' ' + Jmat.Matrix.toString(Jmat.Matrix.exp(a))
 Jmat.Matrix.log = function(m) {
   return Jmat.Matrix.fun(m, function(z) { return Jmat.Complex.log(z); });
+};
+
+Jmat.Matrix.log2 = function(m) {
+  return Jmat.Matrix.fun(m, function(z) { return Jmat.Complex.log2(z); });
+};
+
+Jmat.Matrix.log10 = function(m) {
+  return Jmat.Matrix.fun(m, function(z) { return Jmat.Complex.log10(z); });
 };
 
 // Matrix to any complex scalar power s

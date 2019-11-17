@@ -187,6 +187,133 @@ Jmat.doEigenPrecisionBenchmark = function() {
   Jmat.Real.seed = restore_seed;
 };
 
+Jmat.Test.testRandomSymmetricEigval = function() {
+  var C = Jmat.Complex;
+
+  var r = function() {
+    return (Math.random() - 0.5) * 2 * 100;
+  };
+
+  for(var i = 0; i < 1000; i++) {
+    var n = Math.floor(Math.random() * 30 + 1);
+    var a = [];
+    var v = [];
+    for(var y = 0; y < n; y++) {
+      a[y] = [];
+      v[y] = [];
+    }
+    for(var y = 0; y < n; y++) {
+      for(var x = 0; x < n; x++) {
+        var val = r();
+        a[y][x] = a[x][y] = val;
+        v[y][x] = v[x][y] = 0;
+      }
+    }
+    var m = Jmat.Matrix(a);
+
+    // Compare two entirely different algorithms, with real symmetric matrix
+    Jmat.Real.matrix_jacobi(a, v, n);
+    var l0 = [];
+    for(var j = 0; j < n; j++) l0[j] = C(a[j][j]);
+
+    var l1 = Jmat.Matrix.eigval_(m);
+
+    l0.sort(function(a, b) { return b.abssq() - a.abssq(); });
+    l1.sort(function(a, b) { return b.abssq() - a.abssq(); });
+
+    console.log(m.render());
+    console.log(Jmat.render(l0));
+    console.log(Jmat.render(l1));
+    for(var j = 0; j < n; j++) {
+      Jmat.Test.expectNear(l0[j], l1[j], 1e-11);
+    }
+  }
+};
+
+Jmat.Test.testRandomRealSol = function() {
+  var R = Jmat.Real;
+  var C = Jmat.Complex;
+
+  var r = function() {
+    return (Math.random() - 0.5) * 2 * 100;
+  };
+
+  var sum = 0;
+  var max = 0;
+  for(var i = 0; i < 1000; i++) {
+    var a = 0, b = 0, c = 0, d = 0;
+    a = r();
+    b = r();
+    var sol = R.linsol(a, b);
+    for(var j = 0; j < sol.length; j++) {
+      var x = sol[j];
+      var y = a * x + b;
+      //Jmat.Test.expectNear(0, y, 1e-14);
+      sum += Math.abs(y);
+      max = Math.max(max, Math.abs(y));
+    }
+  }
+  console.log('linsol: ' + sum / 1000 + ' ' + max);
+
+  var sum = 0;
+  var max = 0;
+  for(var i = 0; i < 10000; i++) {
+    var a = 0, b = 0, c = 0, d = 0, e = 0;
+    a = r();
+    b = r();
+    c = r();
+    var sol = R.quadsol(a, b, c);
+
+    for(var j = 0; j < sol.length; j++) {
+      var x = sol[j];
+      var y = a * x * x + b * x + c;
+      //Jmat.Test.expectNear(0, y, 1e-12);
+      sum += Math.abs(y);
+      max = Math.max(max, Math.abs(y));
+    }
+  }
+  console.log('quadsol: ' + sum / 1000 + ' ' + max);
+
+  var sum = 0;
+  var max = 0;
+  for(var i = 0; i < 1000; i++) {
+    var a = 0, b = 0, c = 0, d = 0;
+    a = r();
+    b = r();
+    c = r();
+    d = r();
+    var sol = R.cubicsol(a, b, c, d);
+    for(var j = 0; j < sol.length; j++) {
+      var x = sol[j];
+      var y = a * x * x * x + b * x * x + c * x + d;
+      //Jmat.Test.expectNear(0, y, 1e-7);
+      sum += Math.abs(y);
+      max = Math.max(max, Math.abs(y));
+    }
+  }
+  console.log('cubicsol: ' + sum / 1000 + ' ' + max);
+
+  var sum = 0;
+  var max = 0;
+  for(var i = 0; i < 1000; i++) {
+    var a = 0, b = 0, c = 0, d = 0, e = 0;
+    a = r();
+    b = r();
+    c = r();
+    d = r();
+    e = r();
+    var sol = R.quartsol(a, b, c, d, e);
+    for(var j = 0; j < sol.length; j++) {
+      var x = sol[j];
+      var y = a * x * x * x * x + b * x * x * x + c * x * x + d * x + e;
+      //Jmat.Test.expectNear(0, y, 1e-7);
+      sum += Math.abs(y);
+      max = Math.max(max, Math.abs(y));
+    }
+  }
+  console.log('quartsol: ' + sum / 1000 + ' ' + max);
+};
+
 Jmat.Test.doUnitTestLogGamma = function() {
   var R = Jmat.Real;
   var C = Jmat.Complex;
@@ -523,3 +650,4 @@ Jmat.doUnitTest = function(opt_verbose) {
   console.log('success');
   return 'success';
 };
+

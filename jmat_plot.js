@@ -251,11 +251,44 @@ Jmat.Plot.getComplexColor = function(y, maxval) {
     }
 
     l *= 255;
-    if(l < (255-m) & a > 0) l = (255-m);
+    if(l < (255-m) && a > 0) l = (255-m);
     if(l > m) l = m;
 
     if(Jmat.Plot.complexColorFormula_ == 2) rgb = Jmat.Plot.hslToRgb(h, s, l);
     else rgb = Jmat.Plot.hsvToRgb(h, s, l);
+  }
+
+  return rgb;
+};
+
+// this one is based on re/im instead of abs/arg
+// here, gray is 0, red indicates real, green indicates imaginary
+Jmat.Plot.getComplexColor2 = function(y, maxval) {
+  var rgb;
+
+  if(Jmat.Complex.isNaN(y)) {
+    rgb = [0, 0, 255];
+  } else {
+    var r = Math.abs(y.re / maxval / 2);
+    var g = Math.abs(y.im / maxval / 2);
+    var b = 0;
+
+    var m = 254; //max lightness for non-infinity (e.g. 240 or 250)
+
+    var mm = 1 - m/255;
+    //r = (1 - 4*mm) - (1 - 8*mm) / (1 + 15*Math.log(r + 1));
+    //r = 1 - 1 / (1.1 + 5*Math.log(r + 1));
+    r = Math.log(r + 1);
+    r = Math.min(Math.max(0, r), 1);
+    //g = (1 - 4*mm) - (1 - 8*mm) / (1 + 15*Math.log(g + 1));
+    //g = 1 - 1 / (1.1 + 5*Math.log(g + 1));
+    g = Math.log(g + 1);
+    g = Math.min(Math.max(0, g), 1);
+
+    r = 128 + r * (y.re > 0 ? 1 : -1) * 127;
+    g = 128 + g * (y.im > 0 ? 1 : -1) * 127;
+
+    rgb = [r, g, b];
   }
 
   return rgb;

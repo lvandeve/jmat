@@ -700,18 +700,18 @@ Jmat.Real.pascal_triangle = function(n, p) {
 Jmat.Real.gcd = function(x, y) {
   if(!Jmat.Real.isInt(x) || !Jmat.Real.isInt(y)) return NaN; //prevents infinite loop if both x and y are NaN. Also, reals are not supported here.
   if(Math.abs(x) > Jmat.Real.BIGGESTJSINT || Math.abs(y) > Jmat.Real.BIGGESTJSINT) return NaN; // does not work above JS integer precision
- //Euclid's algorithm
- for(;;) {
-   if(y == 0) return Math.abs(x); //if x or y are negative, the result is still positive by the definition
-   var z = Jmat.Real.mod(x, y);
-   x = y;
-   y = z;
- }
+  //Euclid's algorithm
+  for(;;) {
+    if(y == 0) return Math.abs(x); //if x or y are negative, the result is still positive by the definition
+    var z = Jmat.Real.mod(x, y);
+    x = y;
+    y = z;
+  }
 };
 
 //least common multiple
 Jmat.Real.lcm = function(x, y) {
- return Math.abs(x * y) / Jmat.Real.gcd(x, y);
+  return Math.abs(x * y) / Jmat.Real.gcd(x, y);
 };
 
 // Decomposes fraction (aka rational approximation): returns two integers [numerator, denominator] such that n/d = a.
@@ -1423,6 +1423,148 @@ Jmat.Real.dayOfWeek = function(y, m, d) {
   d += (m < 3) ? (y--) : (y - 2);
   return (R.idiv(23 * m, 9) + d + 4 + R.idiv(y, 4) - R.idiv(y, 100) + R.idiv(y, 400)) % 7;
 };
+
+////////////////////////////////////////////////////////////////////////////////
+
+// Returns solution as single element array to be consistent with quadsol etc...
+//ax + b = 0
+Jmat.Real.linsol = function(a, b) {
+  return [-b / a];
+};
+
+// Returns solutions of axx + bx + c = 0 as array of up to 2 elements
+Jmat.Real.quadsol = function(a, b, c) {
+  if(a == 0) return Jmat.Real.linsol(b, c);
+
+  var d = b * b - 4 * a * c; //discriminant
+  if(d < 0) return []; // no real solutions
+  if(d == 0) return [-b / (2 * a)];
+
+  var s = Math.sqrt(d);
+
+  // Numerically slightly more precise than just returning (-b +/- s) / (2 * a).
+  // That is, this solves the 'b - s' subtraction problem, however the 'bb-4ac' imprecision problem is not solved.
+  var sg = b < 0 ? -1 : 1;
+  var x0 = (-b - sg * s) / (2 * a);
+  var x1 = 2 * c / (-b - sg * s);
+
+  return [x0, x1];
+};
+
+// Returns solutions of axxx + bxx + cx + d = 0 as array of up to 3 elements
+Jmat.Real.cubicsol = function(a,b, c, d) {
+  if(a == 0) Jmat.Real.quadsol(b, c, d);
+
+  //normalize the equation
+  d /= a;
+  c /= a;
+  b /= a;
+  a = 1;
+
+  var q = (3 * c - b * b) / 9;
+  var r = (9 * b * c - 27 * d - 2 * b * b * b) / 54;
+
+  var e = q * q * q + r * r;
+
+  if(e >= 0) {
+    var s = Math.cbrt(r + Math.sqrt(e));
+    var t = Math.cbrt(r - Math.sqrt(e));
+
+    var x0 = -b / 3 + (s + t);
+    //These are imaginary except if s == t. Imaginary part shown commented out, but excluded by Math.Real.
+    var x1 = -b / 3 - (s + t) / 2 // + i * Math.sqrt(3) * (s - t) / 2;
+    var x2 = -b / 3 - (s + t) / 2 // - i * Math.sqrt(3) * (s - t) / 2;
+
+    if(e == 0) return [x0, x1];
+    else return [x0];
+  } else { //if e < 0, there are 3 real solutions, found with trig functions
+    var s = Math.sqrt(-q); //q is negative, otherwise e could never be negative
+    var theta = Math.acos(r / (s * s * s));
+
+    x0 = 2 * s * Math.cos(theta / 3) - b / 3;
+    x1 = 2 * s * Math.cos((theta + 2 * Math.PI) / 3) - b / 3;
+    x2 = 2 * s * Math.cos((theta + 4 * Math.PI) / 3) - b / 3;
+
+    return [x0, x1, x2];
+  }
+}
+
+// Returns solutions of axxxx + bxxx + cxx + dx + e = 0 as array of up to 4 elements
+Jmat.Real.quartsol = function(a, b, c, d, e) {
+  if(a == 0) Jmat.Real.cubicsol(b, c, d, e);
+  //normalize the equation
+  e /= a;
+  d /= a;
+  c /= a;
+  b /= a;
+  a = 1; // No more a's in the next formulas because they're 1
+
+  var alpha = -(3 * b * b) / 8 + c;
+  var beta = (b * b * b) / 8 - (b * c) / (2) + d;
+  var gamma = -(3 * b * b * b * b) / 256 + (c * b * b) / 16 - (b * d) / 4 + e;
+
+  if(beta == 0) {
+    var delta = alpha * alpha - 4 * gamma;
+
+    if(delta < 0) return []; //no real solutions
+
+    var epsi = (-alpha + Math.sqrt(delta)) / 2;
+    var zeta = (-alpha - Math.sqrt(delta)) / 2;
+
+    var eta = -b / 4;
+
+    if(epsi < 0 && zeta < 0) {
+      return []; //no real solutions
+    } else if(epsi >= 0 && zeta < 0) {
+      x0 = eta + Math.sqrt(epsi);
+      x1 = eta - Math.sqrt(epsi);
+      return [x0, x1];
+    } else if(epsi < 0 && zeta >= 0) {
+      x0 = eta + Math.sqrt(zeta);
+      x1 = eta - Math.sqrt(zeta);
+      return [x0, x1];
+    } else {
+      x0 = eta + Math.sqrt(epsi);
+      x1 = eta - Math.sqrt(epsi);
+      x2 = eta + Math.sqrt(zeta);
+      x3 = eta - Math.sqrt(zeta);
+      return [x0, x1, x2, x3];
+    }
+  } else {
+    var p = -(alpha * alpha) / 12 - gamma;
+    var q = -(alpha * alpha * alpha) / 108 + (alpha * gamma) / 3 - (beta * beta) / 8;
+    var delta = q * q / 4 + p * p * p / 27;
+    if(delta < 0) return []; //no real solutions
+    var r = q / 2 + Math.sqrt(delta);
+    var u = Math.cbrt(r);
+    var y = -(5.0 / 6) * alpha - u + (u == 0 ? 0 : p / (3 * u));
+    var temp = alpha + 2 * y;
+    var w = temp > 0 ? Math.sqrt(temp) : 0;
+
+    var epsi = -(3 * alpha + 2 * y + (2 * beta) / w);
+    var zeta = -(3 * alpha + 2 * y - (2 * beta) / w);
+
+    var eta = -b / 4;
+
+    if(epsi < 0 && zeta < 0) {
+      return []; //no real solutions
+    } else if(epsi >= 0 && zeta <= 0) {
+      x0 = eta + (+w + Math.sqrt(epsi)) / 2;
+      x1 = eta + (+w - Math.sqrt(epsi)) / 2;
+      return [x0, x1];
+    } else if(epsi <= 0 && zeta >= 0) {
+      x0 = eta + (-w + Math.sqrt(zeta)) / 2;
+      x1 = eta + (-w - Math.sqrt(zeta)) / 2;
+      return [x0, x1];
+    } else {
+      x0 = eta + (+w + Math.sqrt(epsi)) / 2;
+      x1 = eta + (+w - Math.sqrt(epsi)) / 2;
+      x2 = eta + (-w + Math.sqrt(zeta)) / 2;
+      x3 = eta + (-w - Math.sqrt(zeta)) / 2;
+      return [x0, x1, x2, x3];
+    }
+  }
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 
