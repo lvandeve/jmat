@@ -651,3 +651,4 @@ Jmat.doUnitTest = function(opt_verbose) {
   return 'success';
 };
 
+Jmat.test = Jmat.doUnitTest;

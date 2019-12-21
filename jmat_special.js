@@ -1,7 +1,7 @@
 /*
 Jmat.js
 
-Copyright (c) 2011-2016, Lode Vandevenne
+Copyright (c) 2011-2019, Lode Vandevenne
 All rights reserved.
 
 Redistribution and use in source and binary forms, with or without modification,
@@ -2644,7 +2644,7 @@ Jmat.Complex.lerchphi_integral_ = function(z, s, a, opt_var) {
     var r = u.div(v).div(w);
     return r;
   };
-  var q = C.integrate(C(0), C(Infinity), f, 30, 1).mulr(2);
+  var q = C.integrate(C(0), C(Infinity), f).mulr(2);
   result = result.add(q);
   return result;
 };
@@ -2803,7 +2803,8 @@ Jmat.Complex.trilog = function(z) {
   }
 
   // TODO: better implementation for this case
-  return Jmat.Complex.polylog_integral_(Jmat.Complex(3), z);
+  // NOTE: This is a ring shaped region for a in range 0.75..1/0.75
+  return Jmat.Complex.polylog_integral_abel_plana_full_(Jmat.Complex(3), z);
 };
 
 // Bernoulli numbers B_m. Only supports a hardcoded first few dozens.
@@ -2845,82 +2846,84 @@ Jmat.Real.stieltjes_zeta = [
 ];
 Jmat.Complex.stieltjes_zeta = Jmat.Real.stieltjes_zeta;
 
-// This is really a last resort, very inaccurate and slow
-// Welcome to the land of randomness and bad results.
-// Some cases are really good, others horrible.
-// Unfortunately almost every integral has problems on the positive real axis of z.
-// Since there is an awesome solution for all s with s.re < 0, only the formulas for s.re > 0 below are actually u sed
-Jmat.Complex.polylog_integral_ = function(s, z) {
+// This is the expression in terms of the Bose-Einstein distribution
+// For real inputs, this one returns good results for s.re > 4 and z.re < 1 (including negative z.re).
+// So its region of good use is the quadrant where s > 4 and z < 0 (and more precise the bigger s gets)
+// This also converges to a correct solution for z.re > 1 if s.re large enough (> 10), but gives wrong values in many triangle-like regions for s.re < 10 and z.re > 1
+// So this function could be used to get correct results for any z if s.re very large.
+Jmat.Complex.polylog_integral_bose_einstein_ = function(s, z) {
   var C = Jmat.Complex;
-  // To test these, try e.g.:
-  // complexDomainPlot(function(z){return C.polylog(C(15, 0.5), z);}, 2, 1);
-  // complexDomainPlot(function(z){return C.polylog(C(0.5, 15), z);}, 2, 1);
+  // The code starts outputting NaN at around s.re >= 170 (and using loggamma doesn't solve it).
+  // But the result converges to a certain value there anyway so we can return that instead.
+  // But, it's numerically difficult to figure out of for large s.re, this is converging to z or to 0?
+  // TODO: figure out which it is, and if imaginary part of s or z affect this.
+  // It appears to converge towards z as s.re increases towards 30, but for larger s.re such as 60, it starts going to 0.
+  // I think it's really converting to z (no matter what imaginary part s or z has) and the gamma starts to grow too big and cause numerical issues for larger s.re
+  // So, let's start outputting z for s.re > 30
+  if(s.re > 30) return z;
+  var g = C.gamma(s);
+  var f = function(t) {
+    var result = t.pow(s.dec()).div(C.exp(t).div(z).subr(1));
+    if(C.isNaN(result)) result = C.ZERO;
+    return result;
+  };
+  var r = C.integrate(C(0), C(Infinity), f);
+  return r.div(g);
+};
 
-  if(s.re > 1 && Math.abs(s.im) < s.re && Math.abs(z.arg()) > 0.1) {
-    // Approximate with an integral representation (only works for real s.re, and has some serious problems with periodic things appearing near the positive real axis of z)
-    // In practice, only works for s.re > 1 (!!) and s.im = 0, or very small |s.im| and s.re > 0
-    var g = C.gamma(s);
-    var f = function(t) {
-      var result = t.pow(s.dec()).div(C.exp(t).sub(z));
-      if(C.isNaN(result)) result = C.ZERO;
-      return result;
-    };
-    var r = C.integrate(C(0), C(Infinity), f, 50);
-    return z.div(g).mul(r);
-  } else if(C.isNegative(s) && Math.abs(z.arg()) > 0.1) {
-    // Approximate with an integral representation (only works for s.re < 0
-    var lzm = C.log(z.neg());
-    var f = function(t) {
-      var ta = t.pow(s.neg());
-      var tb = C.sin(s.mulr(Math.PI/2).sub(t.mul(lzm)));
-      var na = C.sinh(t.mulr(Math.PI));
-      var result = ta.mul(tb).div(na);
-      if(C.isNaN(result)) result = C.ZERO;
-      return result;
-    };
-    var r = C.integrate(C(0), C(Infinity), f, 30);
-    return r;
-  } else if(z.im <= 0 || (s.re > 0 && Math.abs(s.im) < s.re)) {
-    // Integral formula for polylog that works for all complex s and z, except for positive real z if s.re < 0
-    // Is from 0 to infinity, but seems to work well from 0-10 with only 100 steps (at least in the areas where this is used)
-    // While in theory it works for all z and all s (except z near positive axis if s.re < 0), in practice it seems to work only for z.im <= 0 and s.re > 0 and |s.im| << s.re
-    // --> I tried with z-plot for s=-15+0.5i, s=0.5+15i, and other variations like that
-    var lzm = C.log(z.neg());
-    var f = function(t) {
-      var ta = C.sin(s.mul(C.atan(t)).sub(t.mul(lzm)));
-      var na = (C.ONE.add(t.mul(t))).pow(s.divr(2));
-      var nb = C.sinh(t.mulr(Math.PI));
-      var result = ta.div(na).div(nb);
-      if(C.isNaN(result)) result = C.ZERO;
-      return result;
-    };
-    // TODO: better integral. The interval is in reality from 0 to infinity, but the gaus laguerre implementation (or f) here returns a better result if you end it at 10 than at infinity...
-    var r = C.integrate(C(0), C(10), f, 30);
-    return z.mulr(0.5).add(z.mul(r));
-  } else if(z.im > 0) { // Because something is broken for z.im <= 0. TODO: find out what
-    // Similar integral, but with upper incomplete gamma.
-    // It is theoretically better than the above because it supports even its last edge case.
-    // But it seems broken. It does not work for z.im <= 0... At least it gets
-    var lz = C.log(z);
-    var f = function(t) {
-      var ta = C.sin(s.mul(C.atan(t)).sub(t.mul(lz)));
-      var na = (C.ONE.add(t.mul(t))).pow(s.divr(2));
-      var nb = C.exp(t.mulr(2*Math.PI)).subr(1);
-      var result = ta.div(na).div(nb);
-      if(C.isNaN(result)) result = C.ZERO;
-      return result;
-    };
-    var r = C.integrate(C(0), C(Infinity), f, 30);
-    var g = C.incgamma_upper(C.ONE.sub(s), lz.neg());
-    var l = lz.neg().pow(C.ONE.sub(s));
-    return z.mulr(0.5).add(g.div(l)).add(z.mulr(2).mul(r));
-  } else {
-    return C(NaN); //there is nothing we can do... :(
-  }
+// Abel-Plana formula for polylog (the version without upper incomplete gamma function)
+// In theory supports almost all complex s and z, but numerically not:
+// For real s and z:
+// It appears to work well for s.re > 5, except for larger s.re it starts outputting wrong phases if z.re > 0 and wrong abs too for z.re < 0.
+// It works very badly for z.re > 0 and s.re < 5, especially the phase it outputs is very wrong
+// It also returns bad results for most of the quadrant of s.re < 0 and z.re < 0, even though it does get some parts closer to 0 correct
+// So, this implementation is not useful in the end unfortunately.
+Jmat.Complex.polylog_integral_abel_plana_ = function(s, z) {
+  var C = Jmat.Complex;
+  // Integral formula for polylog that works for all complex s and z, except for positive real z if s.re < 0
+  // Is from 0 to infinity, but seems to work well from 0-10 with only 100 steps (at least in the areas where this is used)
+  // While in theory it works for all z and all s (except z near positive axis if s.re < 0), in practice it seems to work only for z.im <= 0 and s.re > 0 and |s.im| << s.re
+  // --> I tried with z-plot for s=-15+0.5i, s=0.5+15i, and other variations like that
+  var lzm = C.log(z.neg());
+  var f = function(t) {
+    var ta = C.sin(s.mul(C.atan(t)).sub(t.mul(lzm)));
+    var na = (C.ONE.add(t.mul(t))).pow(s.divr(2));
+    var nb = C.sinh(t.mulr(Math.PI));
+    var result = ta.div(na).div(nb);
+    if(C.isNaN(result)) result = C.ZERO;
+    return result;
+  };
+  var r = C.integrate(C(0), C(Infinity), f);
+  return z.mulr(0.5).add(z.mul(r));
+};
+
+
+// Abel-Plana formula for polylog (the full version with upper incomplete gamma function)
+// For real s and z, here is where it works well and not well:
+// it looks mostly correct for any z.re > 1 (as long as not too large and |s.re\ not too large), and for any s.re > 0 (again if |s.re| not too large).
+// The s.re < 0 and z.re < 0 quadrant has issues. Also, for larger |s.re\
+// And large values of |s.re| or |z.re|, where large can be as small as 10, give problems. There are similar phase problems and problems with large values as polylog_integral_abel_plana_.
+// So this implementation is unfortunately barely useful or precise, but could be used for s.re in range -5..5, something none of the other formulas work well in.
+Jmat.Complex.polylog_integral_abel_plana_full_ = function(s, z) {
+  var C = Jmat.Complex;
+  var lz = C.log(z);
+  var f = function(t) {
+    var ta = C.sin(s.mul(C.atan(t)).sub(t.mul(lz)));
+    var na = (C.ONE.add(t.mul(t))).pow(s.divr(2));
+    var nb = C.exp(t.mulr(2*Math.PI)).subr(1);
+    var result = ta.div(na).div(nb);
+    if(C.isNaN(result)) result = C.ZERO;
+    return result;
+  };
+  var r = C.integrate(C(0), C(Infinity), f);
+  var g = C.incgamma_upper(C.ONE.sub(s), lz.neg());
+  var l = lz.neg().pow(C.ONE.sub(s));
+  return z.mulr(0.5).add(g.div(l)).add(z.mulr(2).mul(r));
 };
 
 // Borwein algorithm. Converges theoretically only for |z^2/(z-1)| < 3.7.
 // In practice this zone of convergence is much smaller due to numerical problems. For extreme values of s (e.g. -20), it is as small as 0.5
+// So the practical useful area appears to be, for real s and z: for s.re < 0: narrow band between z.re == -0.8..0.8 or so, for s.re > 0, the band gradually increases to become z.re = -3..0.8. So the best use appears to be handling the band of z.re == -0.8 .. 0.8
 // This algorithm is actually intended for arbitrary precision libraries, not for floating point.
 // I'm keeping it here, because for s.re > -3, and with the adaptive n, it works better than most other polylog code here and is quite accurate... The function "polylog_borwein_ok_" returns whether it's usable for the given values.
 // Uses the following formula:
@@ -2929,7 +2932,7 @@ Jmat.Complex.polylog_integral_ = function(s, z) {
 // NOTE: changing z to -1 makes this the Borwein algorithm for riemann zeta.
 Jmat.Complex.polylog_borwein_ = function(s, z) {
   var kidney_radius = z.mul(z).div(z.dec()).abs(); //radius of the kidney shaped region of convergence. Theoretically works for < 4, in practice with double precision only for < 3 and then only if not too much n!
-  if(kidney_radius >= 3.7) return Jmat.Complex(NaN); //yeah right... it sucks way before this
+  if(kidney_radius >= 3.7) return Jmat.Complex(NaN);
 
   // number of loops. NOTE: higher is better for arbitrary precision library (with 31 being perfect), but results in random garbage with floating point. So it is limited here instead.
   var n = Math.floor(Math.min(31, 16 / kidney_radius));
@@ -2988,12 +2991,23 @@ Jmat.Complex.polylog_borwein_ok_ = function(s, z) {
   return (s.re >= -5 && z.im == 0 && kidney_radius <= 1.5) || (s.re >= 0 && Math.abs(s.im) < s.re && kidney_radius <=2) || z.abs() <= 0.5;
 };
 
+// This one works well for s.re < -4 or so and abs(z.re) > 1, and works better (with more z.re coverage too) the smaller s.re becomes
+// For s.re < -1, sort of works but with too low precision
 Jmat.Complex.polylog_residue_ = function(s, z) {
   // Sum of residues: LI_s(e^mu) = gamma(1-s) * SUM_k=-oo..oo (2*k*pi*i - mu)^(s-1)
   // Theoretically holds for Re(s) < 0 and e^mu != 1
   // This seems to work pretty well in practice! Even for large z. It works for all z except 1, for all s with negative real part (even things like Jmat.Complex.polylog(Jmat.Complex(-15,0.5), Jmat.Complex(-100,1)) match wolfram alpha polylog(-15+0.5i, -100+i)!!)
 
   //if(z.re < 0) return square(s, z); //numerically not stable
+
+  // this implemenation starts returning NaN for around s.re < -200. But in reality,
+  // the polylog goes towards some complex infinity for s.re << -200, but its phase changes everywhere.
+  // Let's return (Infinity,Infinity) here, since (Infinity,Infinity) is currently defined to mean "undirected infinity"
+  // This is not very correct in rigorous terms, but better than NaN.
+  if(s.re < -200) {
+    return C(Infinity, Infinity);
+  }
+
 
   var result_is_real = false;
   var origz = z;
@@ -3022,43 +3036,103 @@ Jmat.Complex.polylog_residue_ = function(s, z) {
   return result;
 };
 
+//In theory, converges for |z| < 1, but in practice:
+// -does not work well for s.re < 0, especially if s.re << 0 (it needs too high iteration cound then)
+// -does not work well for |z| > 0.7 or so, again needs more iterations
+// borwein can handle all of this function and more (TODO: check if this is also true for large imaginary components in s or z)
+Jmat.Complex.polylog_series_ = function(s, z) {
+  var C = Jmat.Complex;
+  var result = C(0);
+  var zz = z;
+  for(var i = 1; i < 30; i++) {
+    result = result.add(zz.div(C(i).pow(s)));
+    zz = zz.mul(z);
+  }
+  return result;
+};
+
 //Polylogarithm: Li_s(z)
 Jmat.Complex.polylog = function(s, z) {
-  if(Jmat.Complex.isInt(s)) {
+  var C = Jmat.Complex;
+
+  // test individual algorithms...
+  //return C.polylog_series_(s, z);
+  //return C.polylog_residue_(s, z);
+  //return C.polylog_borwein_(s, z);
+  //return C.polylog_integral_bose_einstein_(s, z);
+  //return C.polylog_integral_abel_plana_(s, z);
+  //return C.polylog_integral_abel_plana_full_(s, z);
+
+  if(C.isInt(s)) {
     if(s.eqr(0)) {
-      return z.div(Jmat.Complex.ONE.sub(z));
+      return z.div(C.ONE.sub(z));
     } else if(s.eqr(1)) {
-      return Jmat.Complex.log(Jmat.Complex.ONE.sub(z)).neg();
+      return C.log(C.ONE.sub(z)).neg();
     } else if(s.eqr(2)) {
-      return Jmat.Complex.dilog(z);
+      return C.dilog(z);
     } else if(s.eqr(3)) {
-      return Jmat.Complex.trilog(z);
+      return C.trilog(z);
     } else if(s.eqr(-1)) {
-      var z1 = Jmat.Complex.ONE.sub(z);
+      var z1 = C.ONE.sub(z);
       return z.div(z1).div(z1);
     } else if(s.eqr(-2)) {
-      var z1 = Jmat.Complex.ONE.sub(z);
+      var z1 = C.ONE.sub(z);
       return z.mul(z.inc()).div(z1).div(z1).div(z1);
     } else if(s.eqr(-3)) {
-      var z1 = Jmat.Complex.ONE.sub(z);
+      var z1 = C.ONE.sub(z);
       var zz1 = z1.mul(z1);
-      return z.mul(Jmat.Complex.ONE.add(z.mulr(4)).add(z.mul(z))).div(zz1).div(zz1);
+      return z.mul(C.ONE.add(z.mulr(4)).add(z.mul(z))).div(zz1).div(zz1);
     } else if(s.eqr(-4)) {
-      var z1 = Jmat.Complex.ONE.sub(z);
+      var z1 = C.ONE.sub(z);
       var zz1 = z1.mul(z1);
-      return z.mul(z.inc()).mul(Jmat.Complex.ONE.add(z.mulr(10)).add(z.mul(z))).div(zz1).div(zz1).div(z1);
+      return z.mul(z.inc()).mul(C.ONE.add(z.mulr(10)).add(z.mul(z))).div(zz1).div(zz1).div(z1);
     }
   }
 
-  // TODO: there are still problems with:
-  // 1) pure imaginary s
-  // 2) z near 1 (no matter what s)
-  // 3) despite its goodness, there's something wrong with the Sum of residues formula. Normally both sum terms should be used, but some zones seem to require only one. Make it work both for complexDomainPlot(function(z){return Jmat.Complex.polylog(Jmat.Complex(-5, 15), z);}, 2, 1); (where using the other one, makes it black) and plot2D(Jmat.Complex.polylog, 10, 1) (where the complex values in lower left quadrant should be real), and yet some other zones would make it double its value if both are enabled...
-  // 4) for s.re > 0, it is a lot less accurate than for s.re < 0, because for s.re < 0 a good series can be used, while for s.re > 0, the inaccurate integrals are used and no inversion formula for is available here
+  if(s.re > 1 && z.eqr(0)) return C(0);
+  if(s.re > 1 && z.eqr(1)) return C.zeta(s); // It's the riemann zeta function for z=1, but only if s.re > 1
+  /*if(z.eqr(-1)) return C.eta(s).neg();*/
 
-  if(s.re > 1 && z.eqr(0)) return Jmat.Complex(0);
-  if(s.re > 1 && z.eqr(1)) return Jmat.Complex.zeta(s); // It's the riemann zeta function for z=1, but only if s.re > 1
-  /*if(z.eqr(-1)) return Jmat.Complex.eta(s).neg();*/
+  // All special cases handled above, now select one of the algorithms based on the region we're in.
+  // All these regions are based on real s and z, but seem to work fine for any imaginary components of s and z as well
+
+  // TODO: test with pure imaginary s
+
+  // TODO: numeric issues for s.re < 0 arise when s has imaginary part
+
+  // TODO: numeric issues for s.re ~= 4 arise when z has negative imaginary part
+
+  if(s.re < -4 && (z.re >= 0.5 || z.re < 0)) return C.polylog_residue_(s, z);
+
+  // TODO: something is wrong for s.re very close to 0 and large |z.re| (both negative and positive), the two extra polylog_residue_ cases below handle some of it but not all and may be introducing some problems themselves.
+  if(s.re < 0 && (z.re < -20)) return C.polylog_residue_(s, z); // polylog_residue_ is not precise in this region, but polylog_integral_bose_einstein_ starts returning wrong phase in this particular region (narrow strip for s.re in range -4..0 and z.re < -20)
+  if(s.re < 0 && (z.re > 20)) return C.polylog_residue_(s, z); // idem for z.re > 20.
+
+  if(z.re < 0.8 && z.re > -0.8) {
+    if(C.polylog_borwein_ok_(s, z)) {
+      return C.polylog_borwein_(s, z);
+    } else {
+      // fallback for when imaginary part (and thus the absolute value) of z too large for borwein to work. TODO: find better alternative
+      C.polylog_integral_abel_plana_full_(s, z);
+    }
+  }
+
+  if((z.re < 1.0 && s.re > 4) || s.re > 20) return C.polylog_integral_bose_einstein_(s, z);
+
+  if(s.re > -5 && s.re < 5) return C.polylog_integral_abel_plana_full_(s, z);
+
+  // TODO: region for z.re > 0.8 and s.re in range 5..20 is missing above: none of the above functions is correct or precise enough in that region!
+  // For now, polylog_integral_abel_plana_full_ performs the best here, but the numeric precision is not great especially for phase...
+  return C.polylog_integral_abel_plana_full_(s, z);
+
+  // Some properties of polylog:
+  // For real s and z, the imaginary part of the result is 0 for z < 1 and -pi * ln(z)^(s-1) / gamma(s) for z >= 1
+
+  /*if(C.isNegativeInt(s) && z.abs() > 1) {
+    // Inversion formula. Since the "sum of residue" above works already for all negative s, this code probably never gets called anymore.
+    var sign = C.isOdd(s) ? 1 : -1; // (-1)^(s-1)
+    return C.polylog(s, z.inv()).mulr(sign);
+  }*/
 
   // The duplication formula (square relationship):
   // Li_s(-z) + Li_s(z) = 2^(1-s)*Li_s(z^2)
@@ -3066,41 +3140,11 @@ Jmat.Complex.polylog = function(s, z) {
   // Li_s(z) = 2^(1-s)*Li_s(z^2) - Li_s(-z)
   // Li_s(-z) = 2^(1-s)*Li_s(z^2) - Li_s(z)
   /*var square = function(s, z) {
-    var a = Jmat.Complex.polylog(s, z.mul(z));
-    var b = Jmat.Complex.polylog(s, z.neg());
-    var c = Jmat.Complex.TWO.pow(Jmat.Complex.ONE.sub(s));
+    var a = C.polylog(s, z.mul(z));
+    var b = C.polylog(s, z.neg());
+    var c = C.TWO.pow(C.ONE.sub(s));
     return c.mul(a).sub(b);
   };*/
-
-  var a = z.abs();
-
-  if((a <= 0.5 && s.re >= -10) || (a < 0.75 && s.re >= -2) || (a < 0.9 && s.re > -1)) {
-    // METHOD A: the series definition SUM_k=1..oo z^k / k^s. But only valid for |z| < 1 and converges slowly even then
-    // In practice, only useful if |z| < 0.5 and s.re not too small, or higher |z| for larger s.re. If it works, this is one of the most accurate representations...
-    var result = Jmat.Complex.ZERO;
-    var zz = z;
-    var N = a <= 0.5 ? 30 : 50;
-    for(var i = 1; i < N; i++) {
-      var r = zz.div(Jmat.Complex(i).pow(s));
-      result = result.add(r);
-      if(Jmat.Complex.near(r, Jmat.Complex.ZERO, 1e-15)) break;
-      zz = zz.mul(z);
-    }
-    return result;
-  } else if(Jmat.Complex.polylog_borwein_ok_(s, z)) {
-    return Jmat.Complex.polylog_borwein_(s, z);
-  } else if(s.re < 0) {
-    // TODO: the integral with gaussian laguerre handles this one better than polylog_residue_, either fix polylog_residue_ or use the integral
-    return Jmat.Complex.polylog_residue_(s, z);
-  } else if(Jmat.Complex.isNegativeInt(s) && a > 1) {
-    // Inversion formula. Since the "sum of residue" above works so fantastic and is already for all negative s, this code probably never gets called anymore.
-    var sign = Jmat.Complex.isOdd(s) ? 1 : -1; // (-1)^(s-1)
-    return Jmat.Complex.polylog(s, z.inv()).mulr(sign);
-  } else {
-    // Last resort: the not very well working integrals :(
-    // Polylog is supposed to be very interesting at s=0.5+t*i. But no code here is precise enough for that.
-    return Jmat.Complex.polylog_integral_(s, z);
-  }
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -4458,6 +4502,7 @@ Jmat.Real.gauss_laguerre_roots_ = function(order) {
 };
 
 //numerical integration, aka quadrature
+
 //integrate function f using simpsons rule, from x to y, with amount of steps given by steps parameter (higher = more precision, number of evaluations is thoroughly steps * 2)
 //NOTE: this is the real version, real JS numbers only. Complex version is Jmat.Complex.integrate_simpson
 Jmat.Real.integrate_simpson = function(x, y, f, steps, stopLoop) {
@@ -4482,10 +4527,67 @@ Jmat.Real.integrate_simpson = function(x, y, f, steps, stopLoop) {
   return result;
 };
 
+
+// composite simpson's rule
+Jmat.Real.integrate_composite_simpson = function(x, y, f, steps, stopLoop) {
+  if(steps & 1) steps++;
+  var step = (y - x) / steps;
+
+  var result = f(x);
+
+  for(var i = 1; i < steps; i++) {
+    if(i & 1) {
+      result += 4 * f(x + step * i);
+    } else {
+      result += 2 * f(x + step * i);
+    }
+    if(!!stopLoop && i % 50 == 49 && stopLoop()) return NaN;
+  }
+  result += f(x + step * steps);
+  result *= step / 3;
+
+  return result;
+};
+
+
+// Jmat.Real.integrate_adaptive_simpson and Jmat.Real.integrate_adaptive_simpson_rec_ are based on the C code from Wikipedia:
+// https://en.wikipedia.org/wiki/Adaptive_Simpson%27s_method
+Jmat.Real.integrate_adaptive_simpson = function(a, b, f, epsilon, maxDepth, stopLoop) {
+  var h = b - a;
+  var fa = f(a);
+  var fb = f(b);
+  var fm = f((a + b) / 2);
+  var s = (h / 6) * (fa + 4 * fm + fb);
+  return Jmat.Real.integrate_adaptive_simpson_rec_(a, b, f, epsilon, s, fa, fb, fm, maxDepth, stopLoop);
+};
+Jmat.Real.integrate_adaptive_simpson_rec_ = function(a, b, f, eps, whole, fa, fb, fm, rec, stopLoop) {
+  if(!!stopLoop && rec % 50 == 49 && stopLoop()) return NaN;
+
+  // evaluate the function at new mid points for the next sub intervals
+  var m = (a + b) / 2;
+  var h = (b - a) / 2;
+  var lm = (a + m) / 2;
+  var rm = (m + b) / 2;
+  if((eps / 2 == eps) || (a == lm)) return whole; // out of possible floating point precision, return at least something we got
+  var flm = f(lm);
+  var frm = f(rm);
+  var left  = (h / 6) * (fa + 4 * flm + fm);
+  var right = (h / 6) * (fm + 4 * frm + fb);
+  var delta = left + right - whole;
+
+  // either out of max recursion depth or target precision reached. Using Richardson extrapolation.
+  if(rec <= 0 || Math.abs(delta) <= 15 * eps) return left + right + delta / 15;
+
+  // divide the current interval in two parts and evaluate each recursively until they adaptively reach desired precision
+  return Jmat.Real.integrate_adaptive_simpson_rec_(a, m, f, eps / 2, left,  fa, fm, flm, rec - 1) +
+         Jmat.Real.integrate_adaptive_simpson_rec_(m, b, f, eps / 2, right, fm, fb, frm, rec - 1);
+}
+
+
 Jmat.Real.integrate_gaussian_legendre = function(x, y, f, order) {
   var R = Jmat.Real;
   if(order < 1 || order != Math.round(order)) return NaN;
-  if(order > 100) return NaN; // too slow
+  if(order > 100) return NaN; // too slow, and not the intention of this method either
 
   var l = R.gauss_legendre_roots_(order); // roots, weights
   var roots = l[0];
@@ -4505,7 +4607,7 @@ Jmat.Real.integrate_gaussian_legendre = function(x, y, f, order) {
 Jmat.Real.integrate_gaussian_laguerre = function(a, f, order) {
   var R = Jmat.Real;
   if(order < 1 || order != Math.round(order)) return NaN;
-  if(order > 100) return NaN; // too slow
+  if(order > 100) return NaN; // too slow, and not the intention of this method either
 
   var l = R.gauss_laguerre_roots_(order); // roots, weights
   var roots = l[0];
@@ -4520,6 +4622,7 @@ Jmat.Real.integrate_gaussian_laguerre = function(a, f, order) {
   return sum;
 };
 
+// TODO: this implementation does not work well for high precision, make adaptive version
 // Gaussian quadrature (legendre for -1..1, laguerre for 0..oo)
 // E.g. try Jmat.Real.integrate_gaussian(0, Infinity, function(t) { return 1 / Math.exp(t); }, 5);
 Jmat.Real.integrate_gaussian = function(x, y, f, order) {
@@ -4541,77 +4644,21 @@ Jmat.Real.integrate_gaussian = function(x, y, f, order) {
   return R.integrate_gaussian_legendre(x, y, f, order);
 };
 
-//numerical integration, aka quadrature
-//opt_type: 0: simpson, 1: gaussian. Default: 1
-//NOTE: this is the real version, real JS numbers only. Complex version is Jmat.Complex.integrate
-//NOTE: using this function requires experimentation for your usecase, it depends a lot on the function what parameters work best. With gaussian, steps > 30 usually makes it worse, not better.
-Jmat.Real.integrate = function(x, y, f, steps, opt_type) {
-  if(opt_type == undefined) opt_type = 1;
-  if(!steps) steps = opt_type == 1 ? 20 : 30;
+// numerical integration, aka quadrature
+// NOTE: this is the real version, real JS numbers only. Complex version is Jmat.Complex.integrate
+Jmat.Real.integrate = function(x, y, f, opt_steps) {
+  var R = Jmat.Real;
+  if(x == y) return 0;
 
-  if(opt_type == 0) return Jmat.Real.integrate_simpson(x, y, f, steps);
-  return Jmat.Real.integrate_gaussian(x, y, f, steps);
-};
-
-Jmat.Complex.integrate_gaussian_legendre = function(x, y, f, order) {
-  var C = Jmat.Complex;
-  if(order < 1 || order != Math.round(order)) return C(NaN);
-  if(order > 100) return C(NaN); // too slow
-
-  var l = Jmat.Real.gauss_legendre_roots_(order); // roots, weights
-  var roots = l[0];
-  var weights = l[1];
-
-  var x2 = (y.sub(x)).divr(2);
-  var y2 = (y.add(x)).divr(2);
-  var sum = C(0);
-  for (var i = 0; i < order; i++) {
-    sum = sum.add(f(x2.mulr(roots[i]).add(y2)).mulr(weights[i]));
+  if(Math.abs(x) == Infinity || Math.abs(y) == Infinity) {
+    // the gaussian one can handle infinities for the endpoints
+    if(!opt_steps) opt_steps = 20;
+    return R.integrate_gaussian(x, y, f, opt_steps);
+  } else {
+    // otherwise, the adaptive simpson implementation works quite well
+    if(!opt_steps) opt_steps = 30;
+    return R.integrate_adaptive_simpson(x, y, f, 1e-6, opt_steps);
   }
-  return x2.mul(sum);
-};
-
-
-// Integrates from a to infinity
-Jmat.Complex.integrate_gaussian_laguerre = function(a, f, order) {
-  var C = Jmat.Complex;
-  if(order < 1 || order != Math.round(order)) return C(NaN);
-  if(order > 100) return C(NaN); // too slow
-
-  var l = Jmat.Real.gauss_laguerre_roots_(order); // roots, weights
-  var roots = l[0];
-  var weights = l[1];
-
-  var sum = C(0);
-  for (var i = 0; i < roots.length; i++) {
-    var w = Math.exp(-roots[i]); // weighing function for laguerre-gaussian
-    var v = f(C(roots[i]).add(a));
-    sum = sum.add(v.divr(w).mulr(weights[i]));
-  }
-  return sum;
-};
-
-// Gaussian quadrature (legendre for -1..1, laguerre for 0..oo)
-// NOTE: order over 20 or 30 is not useful. Sometimes less order is more
-// precise, e.g. if f is quadratic or cubic, then order=2 is most precise
-// Tricks for more precision: the smaller the derivatives of the function, the more precise, so try to transform to other function with lower derivatives
-Jmat.Complex.integrate_gaussian = function(x, y, f, order) {
-  var C = Jmat.Complex;
-
-  if(y.eqr(Infinity)) {
-    if(x.eqr(-Infinity)) {
-      // TODO: hermite
-      var a = C.integrate_gaussian_laguerre(C(0), function(t) { return f(t.neg()); }, order);
-      var b = C.integrate_gaussian_laguerre(C(0), f, order);
-      return a.add(b);
-    }
-    return C.integrate_gaussian_laguerre(x, f, order);
-  }
-  if(x.eqr(-Infinity)) {
-    return C.integrate_gaussian_laguerre(x.neg(), function(t) { return f(t.neg()); }, order);
-  }
-
-  return C.integrate_gaussian_legendre(x, y, f, order);
 };
 
 //numerical integration, aka quadrature
@@ -4652,15 +4699,139 @@ Jmat.Complex.integrate_simpson = function(x, y, f, steps, stopLoop) {
   return result;
 };
 
-//numerical integration, aka quadrature
-//opt_type: 0: simpson, 1: gaussian. Default: 1
-//NOTE: using this function requires experimentation for your usecase, it depends a lot on the function what parameters work best. With gaussian, steps > 30 usually makes it worse, not better.
-Jmat.Complex.integrate = function(x, y, f, steps, opt_type) {
-  if(opt_type == undefined) opt_type = 1;
-  if(!steps) steps = opt_type == 1 ? 20 : 30;
 
-  if(opt_type == 0) return Jmat.Complex.integrate_simpson(x, y, f, steps);
-  return Jmat.Complex.integrate_gaussian(x, y, f, steps);
+// composite simpson's rule
+Jmat.Complex.integrate_composite_simpson = function(x, y, f, steps, stopLoop) {
+  if(steps & 1) steps++;
+  var step = y.sub(x).divr(steps);
+
+  var result = f(x);
+
+  for(var i = 1; i < steps; i++) {
+    var x2 = x.add(step.mulr(i));
+    if(i & 1) {
+      result = result.add(f(x2).mulr(4));
+    } else {
+      result = result.add(f(x2).mulr(2));
+    }
+    if(!!stopLoop && i % 50 == 49 && stopLoop()) return NaN;
+  }
+  result = result.add(f(x.add(step.mulr(steps))));
+  result = result.mul(step.divr(3));
+
+  return result;
+};
+
+
+// Jmat.Complex.integrate_adaptive_simpson and Jmat.Complex.integrate_adaptive_simpson_rec_ are based on the C code from Wikipedia:
+// https://en.wikipedia.org/wiki/Adaptive_Simpson%27s_method
+Jmat.Complex.integrate_adaptive_simpson = function(a, b, f, epsilon, maxDepth, stopLoop) {
+  var h = b.sub(a);
+  var fa = f(a);
+  var fb = f(b);
+  var fm = f((a.add(b).divr(2)));
+  var s = h.divr(6).mul(fa.add(fm.mulr(4)).add(fb));
+  return Jmat.Complex.integrate_adaptive_simpson_rec_(a, b, f, epsilon, s, fa, fb, fm, maxDepth, stopLoop);
+};
+Jmat.Complex.integrate_adaptive_simpson_rec_ = function(a, b, f, eps, whole, fa, fb, fm, rec, stopLoop) {
+  if(!!stopLoop && rec % 50 == 49 && stopLoop()) return NaN;
+
+  // evaluate the function at new mid points for the next sub intervals
+  var m = a.add(b).divr(2);
+  var h = b.sub(a).divr(2);
+  var lm = a.add(m).divr(2);
+  var rm = m.add(b).divr(2);
+  if((eps / 2 == eps) || (a.eq(lm))) return whole; // out of possible floating point precision, return at least something we got
+  var flm = f(lm);
+  var frm = f(rm);
+  var left  = h.divr(6).mul(fa.add(flm.mulr(4)).add(fm));
+  var right = h.divr(6).mul(fm.add(frm.mulr(4)).add(fb));
+  var delta = left.add(right).sub(whole);
+
+  // either out of max recursion depth or target precision reached. Using Richardson extrapolation.
+  if(rec <= 0 || delta.abs() <= 15 * eps) return left.add(right).add(delta.divr(15));
+
+  // divide the current interval in two parts and evaluate each recursively until they adaptively reach desired precision
+  return Jmat.Complex.integrate_adaptive_simpson_rec_(a, m, f, eps / 2, left,  fa, fm, flm, rec - 1).add
+         (Jmat.Complex.integrate_adaptive_simpson_rec_(m, b, f, eps / 2, right, fm, fb, frm, rec - 1));
+}
+
+Jmat.Complex.integrate_gaussian_legendre = function(x, y, f, order) {
+  var C = Jmat.Complex;
+  if(order < 1 || order != Math.round(order)) return C(NaN);
+  if(order > 100) return C(NaN); // too slow, and not the intention of this method either
+
+  var l = Jmat.Real.gauss_legendre_roots_(order); // roots, weights
+  var roots = l[0];
+  var weights = l[1];
+
+  var x2 = (y.sub(x)).divr(2);
+  var y2 = (y.add(x)).divr(2);
+  var sum = C(0);
+  for (var i = 0; i < order; i++) {
+    sum = sum.add(f(x2.mulr(roots[i]).add(y2)).mulr(weights[i]));
+  }
+  return x2.mul(sum);
+};
+
+
+// Integrates from a to infinity
+Jmat.Complex.integrate_gaussian_laguerre = function(a, f, order) {
+  var C = Jmat.Complex;
+  if(order < 1 || order != Math.round(order)) return C(NaN);
+  if(order > 100) return C(NaN); // too slow, and not the intention of this method either
+
+  var l = Jmat.Real.gauss_laguerre_roots_(order); // roots, weights
+  var roots = l[0];
+  var weights = l[1];
+
+  var sum = C(0);
+  for (var i = 0; i < roots.length; i++) {
+    var w = Math.exp(-roots[i]); // weighing function for laguerre-gaussian
+    var v = f(C(roots[i]).add(a));
+    sum = sum.add(v.divr(w).mulr(weights[i]));
+  }
+  return sum;
+};
+
+// TODO: this implementation does not work well for high precision, make adaptive version
+// Gaussian quadrature (legendre for -1..1, laguerre for 0..oo)
+// NOTE: order over 20 or 30 is not useful. Sometimes less order is more
+// precise, e.g. if f is quadratic or cubic, then order=2 is most precise
+// Tricks for more precision: the smaller the derivatives of the function, the more precise, so try to transform to other function with lower derivatives
+Jmat.Complex.integrate_gaussian = function(x, y, f, order) {
+  var C = Jmat.Complex;
+
+  if(y.eqr(Infinity)) {
+    if(x.eqr(-Infinity)) {
+      // TODO: hermite
+      var a = C.integrate_gaussian_laguerre(C(0), function(t) { return f(t.neg()); }, order);
+      var b = C.integrate_gaussian_laguerre(C(0), f, order);
+      return a.add(b);
+    }
+    return C.integrate_gaussian_laguerre(x, f, order);
+  }
+  if(x.eqr(-Infinity)) {
+    return C.integrate_gaussian_laguerre(x.neg(), function(t) { return f(t.neg()); }, order);
+  }
+
+  return C.integrate_gaussian_legendre(x, y, f, order);
+};
+
+// numerical integration, aka quadrature
+Jmat.Complex.integrate = function(x, y, f, opt_steps) {
+  var C = Jmat.Complex;
+  if(x.eq(y)) return C(0);
+
+  if(C.isInf(x) || C.isInf(y)) {
+    // the gaussian one can handle infinities for the endpoints
+    if(!opt_steps) opt_steps = 20;
+    return C.integrate_gaussian(x, y, f, opt_steps);
+  } else {
+    // otherwise, the adaptive simpson implementation works quite well
+    if(!opt_steps) opt_steps = 30;
+    return C.integrate_adaptive_simpson(x, y, f, 1e-6, opt_steps);
+  }
 };
 
 // differentiation with just two points (finite difference, or secant)

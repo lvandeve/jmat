@@ -1,7 +1,7 @@
 /*
 Jmat.js
 
-Copyright (c) 2011-2018, Lode Vandevenne
+Copyright (c) 2011-2019, Lode Vandevenne
 All rights reserved.
 
 Redistribution and use in source and binary forms, with or without modification,
@@ -54,10 +54,10 @@ complex mathematical functions.
 The only sad thing is that Javascript doesn't support operator overloading
 and nice expressions like a + b have to become a.add(b) instead
 
-Infinity/NaN in re and/or im is used as follows (work in progress, this convention is not yet implemented by all functions):
+Infinity/NaN in re and/or im is used as follows (work in progress, this convention is not yet implemented by all functions and may change):
  - (Infinity,Infinity) means: undirected infinity (idem if any is -Infinity)
  - (Infinity,0), (0,Infinity), (-Infinity,0) and (0,-Infinity) are directed infinities in those 90 degree directions
- - other directed angles are not yet implemented (TODO: planned to use nonzero second number in some way)
+ - other directed angles are not yet implemented (TODO: use nonzero second number or a third extra variable in some way)
  - infinities can mean either overflow or actual mathematical infinity, the distinction is not indicated.
  - any NaN in either re or im means the entire complex value should be considered NaN
 
@@ -561,7 +561,7 @@ Jmat.Complex.prototype.dec = function() {
   return new Jmat.Complex(this.re - 1, this.im);
 };
 
-// TODO: consider no longer have prototype.abs return real and Complex.abs return Complex. Use absr for real instead.
+// TODO: consider no longer have prototype.abs return real and Complex.abs return Complex. Use absr for real instead (or absc for complex).
 // absolute value, aka modulus of complex number, as a Jmat.Complex object (its imaginary part is 0)
 Jmat.Complex.abs = function(x) {
   return Jmat.Complex(x.abs());

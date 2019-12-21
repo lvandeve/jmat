@@ -1,7 +1,7 @@
 /** @license
 Jmat.js
 
-Copyright (c) 2011-2016, Lode Vandevenne
+Copyright (c) 2011-2019, Lode Vandevenne
 All rights reserved.
 
 Redistribution and use in source and binary forms, with or without modification,
@@ -40,23 +40,24 @@ Most of the code is written based on formulas from Wikipedia, Mathworld,
 NIST DLMF, various papers, and books "Handbook of Mathematical Functions" and
 "Numerical Linear Algebra".
 
-Two algorithms use code from third party open source libraries, converted to
-JavaScript. Their licenses and attribution are included at the implementation.
-It are KISS FFT (see Jmat.Matrix.kiss_...) and linpack zsvdc (see
-Jmat.Matrix.zsvdc_). They are included in this source file to keep it self
-contained.
+Some algorithms use code from third party open source libraries, converted to
+JavaScript. Their license and/or attribution are included as a function comment
+near their implementation (which is inside of a larger source file that includes
+other code). In particular, this includes KISS FFT (see Jmat.Matrix.kiss_...)
+and linpack zsvdc (see Jmat.Matrix.zsvdc_).
 
 --------------------------------------------------------------------------------
 
 Features
 --------
 
--Complex numbers: add, multiply, power, trigonometrics, etc...
--Special functions in complex domain: gamma, beta, bessel, airy, theta, zeta, erf, agm, hypergeometric, ...
+-Complex numbers: add, multiply, power, logarithm, trigonometrics, etc...
+-Special functions in complex domain: gamma, beta, bessel, airy, theta, zeta, erf, agm, hypergeometric, lambertw, polylog, ...
 -Numerical linear algebra on complex matrices: matrix multiplication, determinant, SVD, eigenvalues, pseudo inverse, ...
 -Statistical distributions pdf, cdf and qf: normal, student t, chi square, gamma, beta, weibull, fisher, ...
 -Numerical algorithms: root finding, quadrature, differentiation, ...
 -Prime number functions: primality test, euler's totient, prime factors, prime counting, gcd, ...
+-Big integers
 -Plotting (with jmat_plot.js)
 -...
 
@@ -242,13 +243,16 @@ Jmat.plotComplex(function(c) {
 Precision
 ---------
 
+The precision is limited to double precision and big integers. Arbitrary
+precision for real or complex numbers is not supported.
+
 The algorithms chosen are as precise as possible while being fast and simple.
 However, this library focuses more on supporting the full complex domain for the
-input of the functions. Often, approximations are used. Number of correct digits
-is not specified. This means the precision may be low in some regions,
-especially for extreme input values. In general, though, most functions are
-reasonably precise for double precision floating point. If precision is
-important, please check the results first in the applicable input domain.
+inputs of the functions, even if in some regions the approximations are not as
+precise.
+
+If precision is important, please check the results first in the applicable
+input domain.
 
 
 Contact
@@ -281,7 +285,8 @@ various input types, e.g. Jmat.gamma can take both 5 and Jmat.Complex(5) as inpu
 while Jmat.Complex.gamma only accepts Jmat.Complex(5) and Jmat.Real.gamma only accepts 5.
 
 To work with complex numbers or matrices, you'll need to use Jmat.Complex and Jmat.Matrix
-objects anyway, create them with Jmat.Complex or Jmat.Matrix.
+objects anyway, create them with Jmat.Complex or Jmat.Matrix (or respectively C and M if
+those shorthand names are enabled).
 
 Return values should always be treated as immutable objects. Do not modify the
 re and im fields directly: doing so could result in changing the internal
@@ -290,7 +295,7 @@ constants (like Jmat.Complex.PI).
 The Jmat.Complex and Jmat.Matrix objects contain several functions in their prototype as
 well, e.g. add, so it is possible to write Jmat.Complex(5).add(Jmat.Complex(6)) instead of
 Jmat.add(Jmat.Complex(5), Jmat.Complex(6)). However, those prototype functions do not accept
-input of a wrong type (must be Jmat.Complex, not a plain JS number).
+input of a wrong type (e.g. must be Jmat.Complex, not a plain JS number).
 
 The comments below use closure-style types, e.g. {number|Complex} means the type
 is either a plain JS number of a Jmat.Complex object, and {Array.<Complex>} means an array
@@ -902,14 +907,14 @@ Jmat.maxrownorm = function(m) { return Jmat.Matrix.maxrownorm(Jmat.Matrix.cast(m
 
 // Numerical algorithms. The function parameters f and df must always work with Jmat.Complex objects, one input, one output.
 
-/* Derivative of f at x. x:{number|Complex}, f:{function(Complex):Complex}. returns {Complex} */
-Jmat.differentiate = function(x, f) { return Jmat.Complex.differentiate(Jmat.Complex.cast(x), f); }; // derivative
+/* Derivative of f at x. x:{number|Complex}, f:{function(Complex):Complex|function(number):number}. returns {Complex}. */
+Jmat.differentiate = function(x, f) { return Jmat.Complex.differentiate(Jmat.Complex.cast(x), Jmat.castComplexFun_(f, x)); }; // derivative
 /* Quadrature: definite integral of f from x to y. x,y:{number|Complex}, f:{function(Complex):Complex}, steps:{number} integer. returns {Complex} */
-Jmat.integrate = function(x, y, f, steps) { return Jmat.Complex.integrate(Jmat.Complex.cast(x), Jmat.Complex.cast(y), f, Jmat.Real.caststrict(steps)); };
+Jmat.integrate = function(x, y, f, steps) { return Jmat.Complex.integrate(Jmat.Complex.cast(x), Jmat.Complex.cast(y), Jmat.castComplexFun_(f, x), Jmat.Real.caststrict(steps)); };
 /* Newton's method. f,df:{function(Complex):Complex} df is derivative of f, z0:{number|Complex}, maxiter:{number} integer. returns {Complex} */
-Jmat.rootfind_newton = function(f, df, z0, maxiter) { return Jmat.Complex.rootfind_newton(f, df, Jmat.Complex.cast(z0), Jmat.Real.caststrict(maxiter)); };
+Jmat.rootfind_newton = function(f, df, z0, maxiter) { return Jmat.Complex.rootfind_newton(Jmat.castComplexFun_(f, z0), Jmat.castComplexFun_(df, z0), Jmat.Complex.cast(z0), Jmat.Real.caststrict(maxiter)); };
 /* Newton's method, but without giving derivative (it is calculated like the secant method). f:{function(Complex):Complex}, z0:{number|Complex}, maxiter:{number} integer. returns {Complex} */
-Jmat.rootfind_newton_noderiv = function(f, z0, maxiter) { return Jmat.Complex.rootfind_newton_noderiv(f, Jmat.Complex.cast(z0), Jmat.Real.caststrict(maxiter)); };
+Jmat.rootfind_newton_noderiv = function(f, z0, maxiter) { return Jmat.Complex.rootfind_newton_noderiv(Jmat.castComplexFun_(f, z0), Jmat.Complex.cast(z0), Jmat.Real.caststrict(maxiter)); };
 
 Jmat.polyroots = function(coeffs) { return Jmat.Complex.polyroots(Jmat.Complex.castArray(coeffs)); };
 
@@ -950,6 +955,22 @@ Jmat.bigIntIn_ = function(v) {
   }
   return v && (v instanceof Jmat.BigInt);
   // No test for array, that can already mean matrix
+};
+
+
+// casts {function(number):number} into {function(Complex):Complex}, or leaves {function(Complex):Complex} as-is.
+Jmat.castComplexFun_ = function(f, opt_testvalue) {
+  // test if f uses number or Complex (TODO: this is not very robust)
+  // typeof a Jmat.Complex instance is 'object'.
+  // A real function could return 'number' but also 'string' when receiving Jmat.Complex input and using regular number operations on it (because C(0) + C(0) gives 'string' while C(0) * C(0) gives 'number').
+  // check for presense of field 're' to determine if complex. If the function returns null or undefined, also assume it's complex since a real function would return 'NaN' for such cases.
+  var value = (opt_testvalue == undefined) ? Jmat.Complex(0.5) : Jmat.Complex.cast(opt_testvalue);
+  var test = f(value);
+  var isComplex = (test == null || test == undefined || test.re != undefined);
+  var g = f;
+  // the real function is called on z.re, the imaginary part of z is ignored, a real function should not be used if complex range is used.
+  if(!isComplex) g = function(z) { return Jmat.Complex(f(z.re)); };
+  return g;
 };
 
 Jmat.toString_ = function(a, opt_render, opt_precision) {
