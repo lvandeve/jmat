@@ -3005,7 +3005,7 @@ Jmat.Complex.polylog_residue_ = function(s, z) {
   // Let's return (Infinity,Infinity) here, since (Infinity,Infinity) is currently defined to mean "undirected infinity"
   // This is not very correct in rigorous terms, but better than NaN.
   if(s.re < -200) {
-    return C(Infinity, Infinity);
+    return Jmat.Complex(Infinity, Infinity);
   }
 
 
@@ -4581,7 +4581,7 @@ Jmat.Real.integrate_adaptive_simpson_rec_ = function(a, b, f, eps, whole, fa, fb
   // divide the current interval in two parts and evaluate each recursively until they adaptively reach desired precision
   return Jmat.Real.integrate_adaptive_simpson_rec_(a, m, f, eps / 2, left,  fa, fm, flm, rec - 1) +
          Jmat.Real.integrate_adaptive_simpson_rec_(m, b, f, eps / 2, right, fm, fb, frm, rec - 1);
-}
+};
 
 
 Jmat.Real.integrate_gaussian_legendre = function(x, y, f, order) {
@@ -4754,7 +4754,7 @@ Jmat.Complex.integrate_adaptive_simpson_rec_ = function(a, b, f, eps, whole, fa,
   // divide the current interval in two parts and evaluate each recursively until they adaptively reach desired precision
   return Jmat.Complex.integrate_adaptive_simpson_rec_(a, m, f, eps / 2, left,  fa, fm, flm, rec - 1).add
          (Jmat.Complex.integrate_adaptive_simpson_rec_(m, b, f, eps / 2, right, fm, fb, frm, rec - 1));
-}
+};
 
 Jmat.Complex.integrate_gaussian_legendre = function(x, y, f, order) {
   var C = Jmat.Complex;

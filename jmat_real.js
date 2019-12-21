@@ -1466,14 +1466,16 @@ Jmat.Real.cubicsol = function(a,b, c, d) {
 
   var e = q * q * q + r * r;
 
+  var x0, x1, x2;
+
   if(e >= 0) {
     var s = Math.cbrt(r + Math.sqrt(e));
     var t = Math.cbrt(r - Math.sqrt(e));
 
-    var x0 = -b / 3 + (s + t);
+    x0 = -b / 3 + (s + t);
     //These are imaginary except if s == t. Imaginary part shown commented out, but excluded by Math.Real.
-    var x1 = -b / 3 - (s + t) / 2 // + i * Math.sqrt(3) * (s - t) / 2;
-    var x2 = -b / 3 - (s + t) / 2 // - i * Math.sqrt(3) * (s - t) / 2;
+    x1 = -b / 3 - (s + t) / 2; // + i * Math.sqrt(3) * (s - t) / 2;
+    x2 = -b / 3 - (s + t) / 2; // - i * Math.sqrt(3) * (s - t) / 2;
 
     if(e == 0) return [x0, x1];
     else return [x0];
@@ -1487,7 +1489,7 @@ Jmat.Real.cubicsol = function(a,b, c, d) {
 
     return [x0, x1, x2];
   }
-}
+};
 
 // Returns solutions of axxxx + bxxx + cxx + dx + e = 0 as array of up to 4 elements
 Jmat.Real.quartsol = function(a, b, c, d, e) {
@@ -1502,6 +1504,7 @@ Jmat.Real.quartsol = function(a, b, c, d, e) {
   var alpha = -(3 * b * b) / 8 + c;
   var beta = (b * b * b) / 8 - (b * c) / (2) + d;
   var gamma = -(3 * b * b * b * b) / 256 + (c * b * b) / 16 - (b * d) / 4 + e;
+  var x0, x1, x2, x3;
 
   if(beta == 0) {
     var delta = alpha * alpha - 4 * gamma;
@@ -1564,7 +1567,7 @@ Jmat.Real.quartsol = function(a, b, c, d, e) {
       return [x0, x1, x2, x3];
     }
   }
-}
+};
 
 ////////////////////////////////////////////////////////////////////////////////
 

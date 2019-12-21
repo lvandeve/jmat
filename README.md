@@ -12,3 +12,9 @@ This library includes:
  * Matrices.
  * Quaternions.
  * Big Integers.
+
+#Building
+
+To build the minified version, use:
+
+`./minify.sh`
