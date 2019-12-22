@@ -69,6 +69,8 @@ Jmat.Real.caststrict = function(v) {
   return v;
 };
 
+Jmat.Real.PI = Math.PI;
+Jmat.Real.E = Math.E;
 Jmat.Real.SQRT2 = Math.sqrt(2);
 Jmat.Real.SQRTPI = Math.sqrt(Math.PI); // gamma(0.5)
 Jmat.Real.INVSQRT2PI = 1 / Math.sqrt(2 * Math.PI); //0.3989422804014327

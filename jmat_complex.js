@@ -816,15 +816,16 @@ Jmat.Complex.atan = function(z) {
   return Jmat.Complex(-0.5 * l.im, 0.5 * l.re);
 };
 
-Jmat.Complex.atan2 = function(x, y) {
+Jmat.Complex.atan2 = function(y, x) {
   var C = Jmat.Complex;
   if(!C.isReal(x) || !C.isReal(y)) {
-    if(y.eqr(0)) return C(Math.PI / 2);
-    // As per the definition, return atan of (x / y)
-    return C.atan(x.div(y));
+    // The simple definition atan(y / x) is incorrect for most of the domain
+    // Better definition: -i*log((x+i*y) / sqrt(x^2+y^2))
+    if(x.re < 0 && y.eqr(0)) return C(Math.PI / 2);
+    return C.log(x.add(y.mul(C.I)).div(C.sqrt(x.mul(x).add(y.mul(y))))).mul(C.I).neg();
   } else {
     var result = C(0);
-    result.re = Math.atan2(x.re, y.re);
+    result.re = Math.atan2(y.re, x.re);
     return result;
   }
 };
@@ -1081,6 +1082,10 @@ Jmat.Complex.loggamma_ = function(z) {
       if(z.re < -0.5 && Jmat.Real.isInt((2 * z.re + 1) / 4)) {
         // to fix, there is another formula for loggamma(1+z), and 1+z won't make that value integer
         // loggamma(z) = loggamma(z + 1) - log(z)
+
+        // Out of floating point precision, all floating point values are integer here, avoid infinite recursion
+        if(Jmat.Real.isInt((2 * (z.re + 1) + 1) / 4)) return C(NaN);
+
         return C.loggamma_(z.addr(1)).sub(C.log(z));
       }
 

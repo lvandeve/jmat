@@ -563,26 +563,36 @@ Jmat.Real.loggamma = function(z) {
 };
 
 //Inverse of the gamma function (not the reciproke, the inverse or "arc" function)
-//source: http://mathforum.org/kb/message.jspa?messageID=342551&tstart=0
-//lx = log(x + c) / sqrt(2pi); result = lx / lambertw(lx / e) + 0.5
+//Inverse gamma has multiple results, this function attempts to keep the results in the main branch
 //not very precise
-Jmat.Complex.gamma_inv = function(value) {
-  if(Jmat.Complex.isPositive(value) && value.re > 0.85) { //doesn't work for negative values, nor values smaller than somewhere around 0.85
-    // Approximation for positive real x.
-    var x = value.re;
-    //c = sqrt(2 * pi) / e - gamma(k), where k = the positive zero of the digamma function (1.4616321449683623412626...)
-    var c = 0.03653381448490041660;
-    var lx = Math.log((x + c) / Math.sqrt(2 * Math.PI));
-    return Jmat.Complex(lx / Jmat.Real.lambertw(lx / Math.E) + 0.5);
-  }
+Jmat.Complex.gamma_inv = function(z) {
+  var C = Jmat.Complex;
 
-  // TODO: this has problems for |z| > 20. Use more stable root finding
-  // TODO: since the current digamma implementation is nothing more than a derivative approximation, I might as well use finvert_newton_noderiv. Try using digamma anyway if it's ever made more precise.
-  var result = Jmat.Complex.finvert_newton(value, Jmat.Complex.gamma, function(z) {
-    // Derivative of gamma function is: gamma function multiplied by digamma function
-    return Jmat.Complex.gamma(z).mul(Jmat.Complex.digamma(z));
-  });
-  if(!Jmat.Complex.near(Jmat.Complex.gamma(result), value, 0.01)) return Jmat.Complex(NaN);
+  var precision = 0.01;
+
+  //approximation using lambertw. This approximation is good if z is real and > 0.05
+  //source: http://mathforum.org/kb/message.jspa?messageID=342551&tstart=0
+  //lx = log((x + c) / sqrt(2pi)); result = lx / lambertw(lx / e) + 0.5
+  var lx = C.log(z.addr(0.03653381448490041660).mul(C.INVSQRT2PI));
+  var result = lx.div(C.lambertw(lx.div(C.E))).addr(0.5);
+
+  // If the approximation is good enough, resturn it.
+  if(C.near(C.gamma(result), z, precision)) return result;
+  if(z.im == 0 && z.re > 0) return result;
+
+  // If the approximation was not good enough, use it as starting value for the newton approximation
+  // NOTE: using "0" as start value will yield a different branch, but this branch doesn't match the standard positive results of gamma for positive inputs, and gives fractal-like numerical issues on certain areas of the complex plane around 0 and the negative axis and for large values
+  // NOTE: the derivative of the gamma function is: gamma(z)*digamma(z). Needed for newton, but not if we use method that doesn't require the derivative.
+
+  var startval = result;
+  var result = C.finvert_newton_noderiv(C.log(z), C.loggamma, C.log(startval), 30);
+
+  // Sometimes the newton iterations above flip to a different branch. For the branch we want, sign(result.im) == sign(z.im), and that allows us to recognise when this happens.
+  // when it happens, return the original approximation, it's not as precise as "precision" indicates, but better than the wrong branch
+  if(z.im > 0 && result.im < 0) return startval;
+  if(z.im < 0 && result.im > 0) return startval;
+
+  if(!C.near(C.gamma(result), z, precision)) return C(NaN);
   return result;
 };
 
@@ -2034,17 +2044,21 @@ Jmat.Complex.struvem = function(nu, z) {
 // Anger's J function
 Jmat.Complex.angerj = function(nu, z) {
   var C = Jmat.Complex;
-  return C.integrate(C(0), C(Math.PI), function(theta) {
+  // with integrate_gaussian, it goes wrong for large negative or positive nu
+  // with integrate_adaptive_simpson, some artefacts appear around z=0 for some values for nu
+  // non adaptive simpson appears to work better in those respects
+  return C.integrate_simpson(C(0), C(Math.PI), function(theta) {
     return C.cos(nu.mul(theta).sub(z.mul(C.sin(theta))));
-  }).divr(Math.PI);
+  }, 50).divr(Math.PI);
 };
 
 // Weber's E function
 Jmat.Complex.webere = function(nu, z) {
   var C = Jmat.Complex;
-  return C.integrate(C(0), C(Math.PI), function(theta) {
+  // Similar results with the choice of different integration algorithms as commented in angerj.
+  return C.integrate_simpson(C(0), C(Math.PI), function(theta) {
     return C.sin(nu.mul(theta).sub(z.mul(C.sin(theta))));
-  }).divr(Math.PI);
+  }, 50).divr(Math.PI);
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -4219,7 +4233,7 @@ Jmat.Real.rootfind_bisection = function(valuex, valuey, f, maxit, prec) {
 };
 
 //TODO: does not work well
-Jmat.Complex.rootfind_secant = function(z0, z1, f, maxit, prec) {
+Jmat.Complex.rootfind_secant = function(f, z0, z1, maxit, prec) {
   maxit = maxit || 30;
   prec = prec || 1e-15;
 
@@ -4241,6 +4255,12 @@ Jmat.Complex.rootfind_secant = function(z0, z1, f, maxit, prec) {
 
   return z1; //not found, give best guess
 };
+
+//TODO: does not work well
+Jmat.Complex.finvert_secant = function(z, f, z0, z1, maxi, prec) {
+  return Jmat.Complex.rootfind_secant(function(x) { return f(x).sub(z); }, z0,  z1, maxi, prec);
+};
+
 
 //root finding, aka find zeroes (findZero)
 //most parameters are optional. Based on which are given, a certain algorithm is chosen (newton, bisection, ...)
@@ -4552,7 +4572,7 @@ Jmat.Real.integrate_composite_simpson = function(x, y, f, steps, stopLoop) {
 
 // Jmat.Real.integrate_adaptive_simpson and Jmat.Real.integrate_adaptive_simpson_rec_ are based on the C code from Wikipedia:
 // https://en.wikipedia.org/wiki/Adaptive_Simpson%27s_method
-Jmat.Real.integrate_adaptive_simpson = function(a, b, f, epsilon, maxDepth, stopLoop) {
+Jmat.Real.integrate_adaptive_simpson = function(a, b, f, maxDepth, epsilon, stopLoop) {
   var h = b - a;
   var fa = f(a);
   var fb = f(b);
@@ -4657,7 +4677,7 @@ Jmat.Real.integrate = function(x, y, f, opt_steps) {
   } else {
     // otherwise, the adaptive simpson implementation works quite well
     if(!opt_steps) opt_steps = 30;
-    return R.integrate_adaptive_simpson(x, y, f, 1e-6, opt_steps);
+    return R.integrate_adaptive_simpson(x, y, f, opt_steps, 1e-6);
   }
 };
 
@@ -4725,7 +4745,7 @@ Jmat.Complex.integrate_composite_simpson = function(x, y, f, steps, stopLoop) {
 
 // Jmat.Complex.integrate_adaptive_simpson and Jmat.Complex.integrate_adaptive_simpson_rec_ are based on the C code from Wikipedia:
 // https://en.wikipedia.org/wiki/Adaptive_Simpson%27s_method
-Jmat.Complex.integrate_adaptive_simpson = function(a, b, f, epsilon, maxDepth, stopLoop) {
+Jmat.Complex.integrate_adaptive_simpson = function(a, b, f, maxDepth, epsilon, stopLoop) {
   var h = b.sub(a);
   var fa = f(a);
   var fb = f(b);
@@ -4830,7 +4850,7 @@ Jmat.Complex.integrate = function(x, y, f, opt_steps) {
   } else {
     // otherwise, the adaptive simpson implementation works quite well
     if(!opt_steps) opt_steps = 30;
-    return C.integrate_adaptive_simpson(x, y, f, 1e-6, opt_steps);
+    return C.integrate_adaptive_simpson(x, y, f, opt_steps, 1e-6);
   }
 };
 

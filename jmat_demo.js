@@ -110,6 +110,7 @@ var fun2d = [
     '--',
     'struveh', 'struvek', 'struvel', 'struvem', 'angerj', 'webere',
     'gamma_p', 'gamma_q', 'incgamma_lower', 'incgamma_upper', 'polygamma',
+    'gamma_p_inv', 'gamma_q_inva',
     'beta',
     'besselj', 'bessely', 'besseli', 'besselk', 'hankelh1', 'hankelh2',
     'lambertwb',
@@ -142,9 +143,12 @@ var plotTitle = makeBlockDiv(bodyEl);
 plotTitle.innerHTML = '<h2>Plot demo</h2>';
 plotTitle.style.margin = '5px';
 
+var plotsize = 640;
+var plotparams = {w: plotsize, h: plotsize, p: 2};
+
 var plotContainerEl = makeRelDivAt(15, 0, bodyEl);
-plotContainerEl.style.width = '400px';
-plotContainerEl.style.height = '400px';
+plotContainerEl.style.width = (plotsize + 80) + 'px';
+plotContainerEl.style.height = (plotsize + 80) + 'px';
 
 var plotDropdownsBlock = makeBlockDiv(bodyEl);
 
@@ -155,8 +159,8 @@ var el0 = makeLabeledDropDown(0, 0, 'real', fun1d, plotDropdowns);
 el0.onchange = function() {
   Jmat.stopPlotting();
   var f = fun1d[el0.selectedIndex];
-  if(Jmat[f]) Jmat.plotReal(Jmat[f], plotContainerEl, {p:1}, f);
-  else if(Jmat.Complex[f]) Jmat.plotReal(function(z) { return Jmat.Complex[f](Jmat.Complex.cast(z)); }, plotContainerEl, {p:1}, f);
+  if(Jmat[f]) Jmat.plotReal(Jmat[f], plotContainerEl, plotparams, f);
+  else if(Jmat.Complex[f]) Jmat.plotReal(function(z) { return Jmat.Complex[f](Jmat.Complex.cast(z)); }, plotContainerEl, plotparams, f);
   else console.log('function ' + f + ' not found');
 };
 
@@ -164,8 +168,8 @@ var el1 = makeLabeledDropDown(130, 0, 'complex', fun1d, plotDropdowns);
 el1.onchange = function() {
   Jmat.stopPlotting();
   var f = fun1d[el1.selectedIndex];
-  if(Jmat[f]) Jmat.plotComplex(Jmat[f], plotContainerEl, {p:1}, f);
-  else if(Jmat.Complex[f]) Jmat.plotComplex(function(z) { return Jmat.Complex[f](Jmat.Complex.cast(z)); }, plotContainerEl, {p:1}, f);
+  if(Jmat[f]) Jmat.plotComplex(Jmat[f], plotContainerEl, plotparams, f);
+  else if(Jmat.Complex[f]) Jmat.plotComplex(function(z) { return Jmat.Complex[f](Jmat.Complex.cast(z)); }, plotContainerEl, plotparams, f);
   else console.log('function ' + f + ' not found');
 };
 
@@ -173,12 +177,12 @@ var el2 = makeLabeledDropDown(260, 0, '2d', fun2d, plotDropdowns);
 el2.onchange = function() {
   Jmat.stopPlotting();
   var f = fun2d[el2.selectedIndex];
-  if(Jmat[f]) Jmat.plot2D(Jmat[f], plotContainerEl, {p:1}, f);
-  else if(Jmat.Complex[f]) Jmat.plot2D(function(x, y) { return Jmat.Complex[f](Jmat.Complex.cast(x), Jmat.Complex.cast(y)); }, plotContainerEl, {p:1}, f);
+  if(Jmat[f]) Jmat.plot2D(Jmat[f], plotContainerEl, plotparams, f);
+  else if(Jmat.Complex[f]) Jmat.plot2D(function(x, y) { return Jmat.Complex[f](Jmat.Complex.cast(x), Jmat.Complex.cast(y)); }, plotContainerEl, plotparams, f);
   else console.log('function ' + f + ' not found');
 };
 
-Jmat.plotComplex(Jmat['gamma'], plotContainerEl, {p:1}, 'gamma');
+Jmat.plotComplex(Jmat['gamma'], plotContainerEl, plotparams, 'gamma');
 
 var plotInfo = makeBlockDiv(bodyEl);
 
@@ -225,9 +229,9 @@ examples.innerHTML = 'Examples:<br/>' +
     '<li>Jmat.gamma(5.5).add(Jmat.trigamma(5.5)) </li>' +
     '<li>Jmat.factorize(30030) </li>' +
     '<li>Jmat.plot2D(Jmat.gamma_p, plotContainerEl); </li>' +
-    '<li>Jmat.plotComplex(function(z) { return Jmat.polygamma(4, z); }, plotContainerEl, {p:1}); </li>' +
-    '<li>Jmat.plotReal(function(x) { return Jmat.cdf_studentt(x, 2); }, plotContainerEl, {p:1}); </li>' +
-    '<li>Jmat.plotComplex(function(z) { return Jmat.theta2(z, 0.2); }, plotContainerEl, {p:1}); </li>' +
+    '<li>Jmat.plotComplex(function(z) { return Jmat.polygamma(4, z); }, plotContainerEl); </li>' +
+    '<li>Jmat.plotReal(function(x) { return Jmat.cdf_studentt(x, 2); }, plotContainerEl); </li>' +
+    '<li>Jmat.plotComplex(function(z) { return Jmat.theta2(z, 0.2); }, plotContainerEl); </li>' +
     '<li>Jmat.plotReal(function(x) { return Jmat.pdf_laplace(x, 0, 1); }, plotContainerEl, {xsize:10, ysize:2});  </li>' +
     '<li>Jmat.plotComplex(function(c) { var i = 0; var z = Complex(0); for(;;) { if(z.abs() > 2) break; z = z.mul(z).add(c); i++; if(i > 60) return Complex(0); } return Complex.polar(1, i * Math.PI / 60); }, plotContainerEl, {p:1, s:4}); </li>' +
     '</ul>' +
@@ -244,4 +248,4 @@ R = Jmat.Real;
 
 info = makeBlockDivAt(0, 10, bodyEl);
 info.innerHTML = 'This software is provided \'as-is\', without any express or implied warranty. In no event will the authors be held liable for any damages arising from the use of this software.<p/>' +
-    'Copyright (c) 2011-2016 by Lode Vandevenne.';
+    'Copyright (c) 2011-2019 by Lode Vandevenne.';
