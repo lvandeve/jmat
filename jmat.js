@@ -665,6 +665,10 @@ Jmat.trilog = function(z) { return Jmat.Complex.trilog(Jmat.Complex.cast(z)); };
 Jmat.polylog = function(s, z) { return Jmat.Complex.polylog(Jmat.Complex.cast(s), Jmat.Complex.cast(z)); };
 /* Hurwitz Zeta function. s,q:{number|Complex}. returns {Complex} */
 Jmat.hurwitzzeta = function(s, q) { return Jmat.Complex.hurwitzzeta(Jmat.Complex.cast(s), Jmat.Complex.cast(q)); };
+/* Hurwitz Lerch Phi function. z,s,a:{number|Complex}. returns {Complex} */
+Jmat.lerchphi = function(z, s, a) { return Jmat.Complex.lerchphi(Jmat.Complex.cast(z), Jmat.Complex.cast(s), Jmat.Complex.cast(a)); };
+/* Lerch Phi function. z,s,a:{number|Complex}. returns {Complex} */
+Jmat.lerchphi2 = function(z, s, a) { return Jmat.Complex.lerchphi2(Jmat.Complex.cast(z), Jmat.Complex.cast(s), Jmat.Complex.cast(a)); };
 
 // Hypergeometric functions
 

@@ -1,7 +1,7 @@
 /** @license
 Jmat.js
 
-Copyright (c) 2011-2016, Lode Vandevenne
+Copyright (c) 2011-2019, Lode Vandevenne
 All rights reserved.
 
 Redistribution and use in source and binary forms, with or without modification,
@@ -1825,7 +1825,7 @@ Jmat.Real.matrix_rref = function(a) {
   return a;
 };
 
-// solves A*X = B. B and result are column vector given as 1D array.
+// solves A*X = B. B and result are column vector given as 1D array. A is given as an array of row vectors.
 Jmat.Real.matrix_solve = function(a, b) {
   var aug = [];
   for(var y = 0; y < a.length; y++) {

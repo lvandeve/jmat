@@ -1,5 +1,5 @@
 /*
-Copyright (c) 2011-2016, Lode Vandevenne
+Copyright (c) 2011-2019, Lode Vandevenne
 All rights reserved.
 
 Redistribution and use in source and binary forms, with or without modification,
@@ -105,7 +105,7 @@ var fun1d = [
     'bitneg',
     'minkowski',
     'x', 'inv',
-];
+].sort();
 var fun2d = [
     '--',
     'struveh', 'struvek', 'struvel', 'struvem', 'angerj', 'webere',
@@ -124,7 +124,7 @@ var fun2d = [
     'mod', 'rem',
     'bitand', 'bitor', 'bitxor', 'lshift', 'rshift',
     'add', 'sub', 'mul', 'div', 'pow', 'logy',
-];
+].sort();
 
 var headerEl = makeBlockDiv(document.body);
 headerEl.innerHTML = '<h2>Jmat.js</h2>';
@@ -150,6 +150,9 @@ var plotContainerEl = makeRelDivAt(15, 0, bodyEl);
 plotContainerEl.style.width = (plotsize + 80) + 'px';
 plotContainerEl.style.height = (plotsize + 80) + 'px';
 
+Jmat.Plot.defaultParams = plotparams;
+Jmat.Plot.defaultParent = plotContainerEl;
+
 var plotDropdownsBlock = makeBlockDiv(bodyEl);
 
 var plotDropdowns = makeRelDiv(plotDropdownsBlock);
@@ -159,8 +162,8 @@ var el0 = makeLabeledDropDown(0, 0, 'real', fun1d, plotDropdowns);
 el0.onchange = function() {
   Jmat.stopPlotting();
   var f = fun1d[el0.selectedIndex];
-  if(Jmat[f]) Jmat.plotReal(Jmat[f], plotContainerEl, plotparams, f);
-  else if(Jmat.Complex[f]) Jmat.plotReal(function(z) { return Jmat.Complex[f](Jmat.Complex.cast(z)); }, plotContainerEl, plotparams, f);
+  if(Jmat[f]) Jmat.plotReal(Jmat[f], f);
+  else if(Jmat.Complex[f]) Jmat.plotReal(function(z) { return Jmat.Complex[f](Jmat.Complex.cast(z)); }, f);
   else console.log('function ' + f + ' not found');
 };
 
@@ -168,8 +171,8 @@ var el1 = makeLabeledDropDown(130, 0, 'complex', fun1d, plotDropdowns);
 el1.onchange = function() {
   Jmat.stopPlotting();
   var f = fun1d[el1.selectedIndex];
-  if(Jmat[f]) Jmat.plotComplex(Jmat[f], plotContainerEl, plotparams, f);
-  else if(Jmat.Complex[f]) Jmat.plotComplex(function(z) { return Jmat.Complex[f](Jmat.Complex.cast(z)); }, plotContainerEl, plotparams, f);
+  if(Jmat[f]) Jmat.plotComplex(Jmat[f], f);
+  else if(Jmat.Complex[f]) Jmat.plotComplex(function(z) { return Jmat.Complex[f](Jmat.Complex.cast(z)); }, f);
   else console.log('function ' + f + ' not found');
 };
 
@@ -177,20 +180,50 @@ var el2 = makeLabeledDropDown(260, 0, '2d', fun2d, plotDropdowns);
 el2.onchange = function() {
   Jmat.stopPlotting();
   var f = fun2d[el2.selectedIndex];
-  if(Jmat[f]) Jmat.plot2D(Jmat[f], plotContainerEl, plotparams, f);
-  else if(Jmat.Complex[f]) Jmat.plot2D(function(x, y) { return Jmat.Complex[f](Jmat.Complex.cast(x), Jmat.Complex.cast(y)); }, plotContainerEl, plotparams, f);
+  if(Jmat[f]) Jmat.plot2D(Jmat[f], f);
+  else if(Jmat.Complex[f]) Jmat.plot2D(function(x, y) { return Jmat.Complex[f](Jmat.Complex.cast(x), Jmat.Complex.cast(y)); }, f);
   else console.log('function ' + f + ' not found');
 };
 
-Jmat.plotComplex(Jmat['gamma'], plotContainerEl, plotparams, 'gamma');
+Jmat.plotComplex(Jmat['gamma'], 'gamma');
 
 var plotInfo = makeBlockDiv(bodyEl);
+
+Jmat.Plot.complexColorFormula_ = 5;
+
+var colorlegend =
+    '<font color="white" style="background-color:red">red</font> = positive real<br>' +
+    '<font style="background-color:cyan">cyan</font> = negative real<br>' +
+    '<font style="background-color:#a0f050">acid green</font> = positive imaginary<br>' +
+    '<font style="background-color:#a060ff">purple</font> = negative imaginary<br>' +
+    '<font color="white" style="background-color:black">black</font> = zero<br>' +
+    '<font color="black" style="background-color:white">white</font> = infinity<br>' +
+    '<font color="white" style="background-color:#888">grey</font> = NaN<br>' +
+    'darker = lower absolute value<br>' +
+    'lighter = higher absolute value<br>' +
+    'other hues = other complex arguments<br>' +
+    '';
+
+if(Jmat.Plot.complexColorFormula_ == 5) {
+colorlegend =
+    '<font color="white" style="background-color:red">red</font> = positive real<br>' +
+    '<font style="background-color:#0a0">green</font> = negative real<br>' +
+    '<font style="background-color:#ee0">yellow</font> = positive imaginary<br>' +
+    '<font color="white" style="background-color:#44f">#blue</font> = negative imaginary<br>' +
+    '<font color="white" style="background-color:black">black</font> = zero<br>' +
+    '<font color="black" style="background-color:white">white</font> = infinity<br>' +
+    '<font color="white" style="background-color:#888">grey</font> = NaN<br>' +
+    'darker = lower absolute value<br>' +
+    'lighter = higher absolute value<br>' +
+    'other hues = other complex arguments<br>' +
+    '';
+}
 
 
 var info = makeRelDivAt(0, 0, plotInfo);
 info.innerHTML =
     'Plot types: "Real": function of 1 argument plotted with classic X/Y real plot. "Complex": function of 1 argument plotted in 2D for complex arguments with complex color wheel. "2D": function of 2 arguments plotted for real arguments in 2D with result as complex color wheel.<p/>' +
-    'Complex color wheel legend: red = positive, cyan = negative, black = zero, white = infinity, darker = lower abs, lighter = higher abs, acid green = positive imaginary, purple = negative imaginary, other hues = other complex arguments, grey = NaN<p/>';
+    'Complex color wheel legend:<br>' + colorlegend + '<p/>';
 
 
 var evalTitle = makeBlockDiv(bodyEl);
@@ -228,12 +261,12 @@ examples.innerHTML = 'Examples:<br/>' +
     '<li>Jmat.eig([[1,2],[3,4]]).l.toString()</li>' +
     '<li>Jmat.gamma(5.5).add(Jmat.trigamma(5.5)) </li>' +
     '<li>Jmat.factorize(30030) </li>' +
-    '<li>Jmat.plot2D(Jmat.gamma_p, plotContainerEl); </li>' +
-    '<li>Jmat.plotComplex(function(z) { return Jmat.polygamma(4, z); }, plotContainerEl); </li>' +
-    '<li>Jmat.plotReal(function(x) { return Jmat.cdf_studentt(x, 2); }, plotContainerEl); </li>' +
-    '<li>Jmat.plotComplex(function(z) { return Jmat.theta2(z, 0.2); }, plotContainerEl); </li>' +
-    '<li>Jmat.plotReal(function(x) { return Jmat.pdf_laplace(x, 0, 1); }, plotContainerEl, {xsize:10, ysize:2});  </li>' +
-    '<li>Jmat.plotComplex(function(c) { var i = 0; var z = Complex(0); for(;;) { if(z.abs() > 2) break; z = z.mul(z).add(c); i++; if(i > 60) return Complex(0); } return Complex.polar(1, i * Math.PI / 60); }, plotContainerEl, {p:1, s:4}); </li>' +
+    '<li>Jmat.plot2D(Jmat.gamma_p); </li>' +
+    '<li>Jmat.plotComplex(function(z) { return Jmat.polygamma(4, z); }); </li>' +
+    '<li>Jmat.plotReal(function(x) { return Jmat.cdf_studentt(x, 2); }); </li>' +
+    '<li>Jmat.plotComplex(function(z) { return Jmat.theta2(z, 0.2); }); </li>' +
+    '<li>Jmat.plotReal(function(x) { return Jmat.pdf_laplace(x, 0, 1); }, \'\', {xsize:10, ysize:2});  </li>' +
+    '<li>Jmat.plotComplex(function(c) { var i = 0; var z = Complex(0); for(;;) { if(z.abs() > 2) break; z = z.mul(z).add(c); i++; if(i > 60) return Complex(0); } return Complex.polar(1, i * Math.PI / 60); }, \'\', {p:1, s:4}); </li>' +
     '</ul>' +
     'ops: add, sub, mul, div, pow, sqrt, cos, sign, ceil, zeta, ... <br/>' +
     'matrix ops: determinant, eig, evd, rank, trace, norm, norm2, svd, qr, pseudoinverse, ... <br/>' +

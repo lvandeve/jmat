@@ -727,23 +727,46 @@ Jmat.Real.incgamma_lower = function(s, z) {
 // upper incomplete gamma function
 // uppercase GAMMA(s, x)
 Jmat.Complex.incgamma_upper = function(s, z) {
+  var C = Jmat.Complex;
+
+  if(z.eqr(0) && s.re < 0) return C(Infinity, Infinity);
+
+
+  // The "twiddle" solution for negative integer s (further below) still does not work well if z.re > 0, so use the full integration formula in this quadrant
+  if(s.re < 0 && z.re > 0) {
+    return C.integrate(z, C(Infinity), function(t) {
+      return t.pow(s.dec()).mul(C.exp(t.neg()));
+    });
+  }
+
   // For negative integer s, gamma, and lower incomplete gamma, are not defined. But the upper is.
-  if(Jmat.Complex.isNegativeIntOrZero(s)) {
+  if(C.isNegativeIntOrZero(s)) {
     s = s.addr(1e-7); //twiddle it a bit for negative integers, so that formula in terms of lower gamma sort of works... TODO: use better approximation
   }
 
-  return Jmat.Complex.gamma(s).sub(Jmat.Complex.incgamma_lower(s, z));
+  return C.gamma(s).sub(C.incgamma_lower(s, z));
 };
 
 // upper incomplete gamma function
 // uppercase GAMMA(s, x)
 Jmat.Real.incgamma_upper = function(s, z) {
+  var R = Jmat.Real;
+
+  if(z == 0 && s < 0) return Infinity;
+
+  // The "twiddle" solution for negative integer s (further below) still does not work well if z.re > 0, so use the full integration formula in this quadrant
+  if(s < 0 && z > 0) {
+    return R.integrate(z, Infinity, function(t) {
+      return Math.pow(t, s - 1) * Math.exp(-t);
+    });
+  }
+
   // For negative integer s, gamma, and lower incomplete gamma, are not defined. But the upper is.
-  if(Jmat.Real.isNegativeIntOrZero(s)) {
+  if(R.isNegativeIntOrZero(s)) {
     s += 1e-7; //twiddle it a bit for negative integers, so that formula in terms of lower gamma sort of works... TODO: use better approximation
   }
 
-  return Jmat.Real.gamma(s) - Jmat.Complex.incgamma_lower(s, z);
+  return R.gamma(s) - R.incgamma_lower(s, z);
 };
 
 Jmat.Complex.gamma_p_cache_ = []; // cache used because a is often constant between gamma_p calls
@@ -2664,15 +2687,25 @@ Jmat.Complex.lerchphi_integral_ = function(z, s, a, opt_var) {
 };
 
 // Lerch transcendent. Precise if |z| < 0.75, numerically imprecise in many other cases
-// opt_var enables a variation (different branch cut), differing only for a.re < 0:
-// Without opt_var, it is SUM_k=0..oo z^k / (a+k)^s. This is the default, but is sometimes called hurwitzhlerchphi
-// With opt_var, it is SUM_k=0..oo z^k / ((a+k)^2)^(s/2)
-// TODO: with opt_var true, then with a=0 it should returns some result, not infinity (and it's not just a limit)
-Jmat.Complex.lerchphi = function(z, s, a, opt_var) {
+// opt_var enables the variation with different branch for the power in the denominator
+Jmat.Complex.lerchphi_ = function(z, s, a, opt_var) {
   var C = Jmat.Complex;
   if(z.abs() < 0.75) return Jmat.Complex.lerchphi_series_(z, s, a, opt_var);
   //if(z.re < 0.5) return Jmat.Complex.lerchphi_binomial_series_(z, s, a, opt_var); //the integral is more precise than this one, disabled
   return C.lerchphi_integral_(z, s, a, opt_var);
+};
+
+// Lerch transcendent. Precise if |z| < 0.75, numerically imprecise in many other cases
+// opt_var enables a variation (different branch cut), differing only for a.re < 0:
+// The formula used is SUM_k=0..oo z^k / (a+k)^s. This is sometimes called hurwitz-lerch-phi
+Jmat.Complex.lerchphi = function(z, s, a) {
+  return Jmat.Complex.lerchphi_(z, s, a, false);
+};
+
+// Variation of lerchphi, using the formula SUM_k=0..oo z^k / ((a+k)^2)^(s/2)
+// TODO: with a=0 it should returns some result as lerchphi, not infinity (and it's not just a limit)
+Jmat.Complex.lerchphi2 = function(z, s, a) {
+  return Jmat.Complex.lerchphi_(z, s, a, true);
 };
 
 

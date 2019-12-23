@@ -56,10 +56,11 @@ Jmat.PlotParams = function(o) {
   this.xshift = o.xshift != undefined ? o.xshift : 0; // point which you want in the center of the plot
   this.yshift = o.yshift != undefined ? o.yshift : 0;
 
-  // these are only used for 2D plot
-  this.xshift_im = 0;
-  this.yshift_im = 0;
-  this.transpose = false;
+  // these are only used for 2D plots
+  this.xshift_im = o.xshift_im != undefined ? o.xshift_im : 0;
+  this.yshift_im = o.yshift_im != undefined ? o.yshift_im : 0;
+  this.transpose = o.transpose != undefined ? o.transpose : false;
+  this.twiddle = o.twiddle != undefined ? o.twiddle : false; // when zoomed far out, use half integers instead of integers for pixels
 
   // The value at which the complex color wheel has highest saturation (pure red for positive real). Higher value gives more white color, lower gives darker color.
   // Not used by real plot.
@@ -73,24 +74,18 @@ Jmat.PlotParams = function(o) {
 //fun = mathematical function taking 1 Jmat.Complex arguments, e.g. Jmat.sin
 //params = parameter object with plot size, resolution, etc.... See Jmat.PlotParams.
 //parent = HTML parent element, best of type div. All necessary elements (e.g. canvas) will be created inside of it.
-Jmat.plotReal = function(fun, parent, params, label) {
-  if(!params) params = new Jmat.PlotParams();
-  if(!(params instanceof Jmat.PlotParams)) {
-    params = new Jmat.PlotParams(params);
-  }
-  if(!parent) parent = document.body;
+Jmat.plotReal = function(fun, label, params, parent) {
+  params = new Jmat.PlotParams(params || Jmat.Plot.defaultParams); // always make copy, since zooming etc... may change the object
+  if(!parent) parent = Jmat.Plot.defaultParent || document.body;
   Jmat.Plot.plotReal_(fun, params, parent, label);
 };
 
 //fun = mathematical function taking 1 Jmat.Complex arguments, e.g. Jmat.gamma
 //params = parameter object with plot size, resolution, etc.... See Jmat.PlotParams.
 //parent = HTML parent element, best of type div. All necessary elements (e.g. canvas) will be created inside of it.
-Jmat.plotComplex = function(fun, parent, params, label) {
-  if(!params) params = new Jmat.PlotParams({p: 4});
-  if(!(params instanceof Jmat.PlotParams)) {
-    params = new Jmat.PlotParams(params);
-  }
-  if(!parent) parent = document.body;
+Jmat.plotComplex = function(fun, label, params, parent) {
+  params = new Jmat.PlotParams(params || Jmat.Plot.defaultParams); // always make copy, since zooming etc... may change the object
+  if(!parent) parent = Jmat.Plot.defaultParent || document.body;
   Jmat.Plot.plot2D_(function(x, y) {
     return fun(Jmat.Complex(x.re, y.re));
   }, params, parent, label, 're', 'im');
@@ -99,12 +94,9 @@ Jmat.plotComplex = function(fun, parent, params, label) {
 //fun = mathematical function taking 2 Jmat.Complex arguments, e.g. Jmat.besselj
 //params = parameter object with plot size, resolution, etc.... See Jmat.PlotParams.
 //parent = HTML parent element, best of type div. All necessary elements (e.g. canvas) will be created inside of it.
-Jmat.plot2D = function(fun, parent, params, label) {
-  if(!params) params = new Jmat.PlotParams();
-  if(!(params instanceof Jmat.PlotParams)) {
-    params = new Jmat.PlotParams(params);
-  }
-  if(!parent) parent = document.body;
+Jmat.plot2D = function(fun, label, params, parent) {
+  params = new Jmat.PlotParams(params || Jmat.Plot.defaultParams); // always make copy, since zooming etc... may change the object
+  if(!parent) parent = Jmat.Plot.defaultParent || document.body;
   Jmat.Plot.plot2D_(fun, params, parent, label);
 };
 
@@ -114,6 +106,18 @@ Jmat.stopPlotting = function() {
   Jmat.Plot.stopIndex_ = (Jmat.Plot.stopIndex_ ? Jmat.Plot.stopIndex_ + 1 : 1);
 };
 
+
+// Jmat graphics, graphing and plotting library
+// internal functions are grouped in here
+Jmat.Plot = function() {
+};
+
+// If set, and no params given, this can override the default
+Jmat.Plot.defaultParams = undefined;
+
+// If set, and no DOM element given, this can override the default
+Jmat.Plot.defaultParent = undefined;
+
 ////////////////////////////////////////////////////////////////////////////////
 ////////////////////////////////////////////////////////////////////////////////
 ////////////////////////////////////////////////////////////////////////////////
@@ -122,18 +126,16 @@ Jmat.stopPlotting = function() {
 ////////////////////////////////////////////////////////////////////////////////
 
 
-// Jmat graphics, graphing and plotting library
-// internal functions are grouped in here
-Jmat.Plot = function() {
-};
-
-
 // pixel screen coordinates to mathematical coordinates
 Jmat.Plot.fromPixel = function(params, px, py) {
+  py = params.h - py; // doesn't need -1 due to dividing through params.h instead of (params.h + 1) further on. TODO: check which we really want.
   var dx = px - params.w / 2;
   var dy = py - params.h / 2;
   var x = params.xshift + dx * params.xsize / params.w;
   var y = params.yshift + dy * params.ysize / params.h;
+  if(params.xsize >= params.w) x = Math.floor(x) + (params.twiddle ? 0.5 : 0);
+  if(params.ysize >= params.h) y = Math.floor(y) + (params.twiddle ? 0.5 : 0);
+
   return [Jmat.Complex(x, params.xshift_im), Jmat.Complex(y, params.yshift_im)];
 };
 
@@ -216,12 +218,47 @@ Jmat.Plot.rgbToCss = function(rgb) {
   return '#' + r + g + b;
 };
 
-Jmat.Plot.complexColorFormula_ = 0; //0 = "tweaked wikipedia", 1 = "wikipedia", 2 = "original"
+Jmat.Plot.complexColorFormula_ = 5; //0 = "tweaked wikipedia", 1 = "wikipedia", 2 = "original", 3 = "re/im", 4 = "re/im 2", 5=red/green/yellow/blue
+
+Jmat.Plot.complexColorLS_ = function(y, maxval) {
+  var s = 255;
+  var l;
+  var a = y.abs() / maxval;
+
+  var m = 254; //max lightness for non-infinity (e.g. 240 or 250)
+
+  // Original formula. Use with Jmat.Plot.hslToRgb
+  if(Jmat.Plot.complexColorFormula_ == 2) {
+    l = (m / 255) * a / (a + 1);
+    s = 255;
+  }
+
+  // The Wikipedia formula. Use with hsvToRgb
+  if(Jmat.Plot.complexColorFormula_ == 1) {
+    l = 1 - 1 / (1.1 + 5*Math.log(a + 1));
+    s = 255 / (1 + 0.3*Math.log(a + 1));
+  }
+
+  // Tweaked version of the Wikipedia formula. Use with hsvToRgb
+  // Advantage over "original" formula: prettier, less visible "transition lines"
+  // Disadvantage over "original" formula: less clear, less difference between magnitudes, value 1 is not perfectly #ff0000
+  if(Jmat.Plot.complexColorFormula_ == 0) {
+    var mm = 1 - m/255;
+    l = (1 - 4*mm) - (1 - 8*mm) / (1 + 15*Math.log(a + 1));
+    s = 255 / (1 + 0.3*Math.log(a + 1));
+  }
+
+  l *= 255;
+  if(l < (255-m) && a > 0) l = (255-m);
+  if(l > m) l = m;
+
+  return [l, s];
+};
 
 // For "Color wheel graphs of complex functions" (not for "Domain coloring" which has repeating pattern of lightness rather than black for 0, white for infinity)
 //maxvalue matches the halfway brightness of the HSL color model. Higher values go towards white, lower values go towards black, but are capped.
 //hue is the argument. Positive real values are red, negative real values are cyan, positive imag values are grassgreen, negative imag values are purple, other colors are complex.
-Jmat.Plot.getComplexColor = function(y, maxval) {
+Jmat.Plot.getComplexColor1 = function(y, maxval) {
   var rgb;
 
   if(Jmat.Complex.isNaN(y)) {
@@ -238,36 +275,10 @@ Jmat.Plot.getComplexColor = function(y, maxval) {
     // |z| < 1: darker than that
 
     var h = Jmat.Complex.arg1(y) * 255;
-    var s = 255;
-    var l;
-    var a = y.abs() / maxval;
 
-    var m = 254; //max lightness for non-infinity (e.g. 240 or 250)
-
-    // Original formula. Use with Jmat.Plot.hslToRgb
-    if(Jmat.Plot.complexColorFormula_ == 2) {
-      l = (m / 255) * a / (a + 1);
-      s = 255;
-    }
-
-    // The Wikipedia formula. Use with hsvToRgb
-    if(Jmat.Plot.complexColorFormula_ == 1) {
-      l = 1 - 1 / (1.1 + 5*Math.log(a + 1));
-      s = 255 / (1 + 0.3*Math.log(a + 1));
-    }
-
-    // Tweaked version of the Wikipedia formula. Use with hsvToRgb
-    // Advantage over "original" formula: prettier, less visible "transition lines"
-    // Disadvantage over "original" formula: less clear, less difference between magnitudes, value 1 is not perfectly #ff0000
-    if(Jmat.Plot.complexColorFormula_ == 0) {
-      var mm = 1 - m/255;
-      l = (1 - 4*mm) - (1 - 8*mm) / (1 + 15*Math.log(a + 1));
-      s = 255 / (1 + 0.3*Math.log(a + 1));
-    }
-
-    l *= 255;
-    if(l < (255-m) && a > 0) l = (255-m);
-    if(l > m) l = m;
+    var ls = Jmat.Plot.complexColorLS_(y, maxval);
+    var l = ls[0];
+    var s = ls[1];
 
     if(Jmat.Plot.complexColorFormula_ == 2) rgb = Jmat.Plot.hslToRgb(h, s, l);
     else rgb = Jmat.Plot.hsvToRgb(h, s, l);
@@ -277,7 +288,7 @@ Jmat.Plot.getComplexColor = function(y, maxval) {
 };
 
 // this one is based on re/im instead of abs/arg
-// here, gray is 0, red indicates real, green indicates imaginary
+// here, gray is 0, red indicates real, green indicates imaginary, with some b added that is average of r and g
 Jmat.Plot.getComplexColor2 = function(y, maxval) {
   var rgb;
 
@@ -303,10 +314,151 @@ Jmat.Plot.getComplexColor2 = function(y, maxval) {
     r = 128 + r * (y.re > 0 ? 1 : -1) * 127;
     g = 128 + g * (y.im > 0 ? 1 : -1) * 127;
 
+    b = (r + g) / 2;
+
     rgb = [r, g, b];
   }
 
   return rgb;
+};
+
+// similar to getComplexColor2 but g and b swapped, this gives orange, white, blue and black as the hues.
+Jmat.Plot.getComplexColor3 = function(y, maxval) {
+  var rgb = Jmat.Plot.getComplexColor2(y, maxval);
+  return [rgb[0], rgb[2], rgb[1]];
+};
+
+
+// This one has similarities to getComplexColor1, but different hues:
+// positive = red
+// negative = green (darker than "full bright" green to make it more distinguishable from yellow)
+// pos imaginary = yellow (made a little bit darker, but not too much for this one since darker yellow looks too drab)
+// neg imaginary = blue (made a bit brighter because otherwise it looks too dark compared to other colors of similar strength)
+// the advantage: the hues are more memorable: two sets of "classical" opposing colors: red-green for the real axis, yellow-blue for the imaginary axis. And each time the "warm" color for positive (red and yellow) and the "cold" color for negative (green and blue)
+// NOTE: sometimes, like in traffic lights "green" means positive and "red" means negative, but here we use the electrical convention where red wire is positive (and it also matches the standard hue pattern of getComplexColor1 better, less confusion)
+Jmat.Plot.getComplexColor4 = function(y, maxval) {
+  if(Jmat.Complex.isNaN(y)) {
+    return [128, 128, 128];
+  }
+  if(Jmat.Complex.isInf(y)) {
+    return [255, 255, 255];
+  }
+
+  var l = 0;
+
+  var r = y.abs();
+
+
+  // When it starts becoming more white from being very high value, depends on the exponent of the power here.
+  // TODO: take maxval into account for this instead
+  var l = r;
+  l = 1 - Math.pow(2, -Math.pow(r, 0.33333333));
+
+  // the eye is very sensitive to any discontinuity between different piecewise linear functions, for both hue and lightness.
+  // Match the edges of a smoothstep function with the discontinuities to make it look better.
+  // However, the cubicspline below can do even better.
+  var smoothstep = function(x) { return x * x * (3 - 2 * x); };
+  var smootherstep = function(x) { return x * x * x * (x * (x * 6 - 15) + 10); };
+  var softsmooth = function(x) { return smoothstep(x) * 0.5 + x * 0.5; };
+  if(l > 0.5) l = 0.5 + ((l - 0.5) * 0.95); // distinguish it from full white infinity, allow to slightly still see the hue
+  l *= 255;
+
+  var cubicspline = function(x, x0, y0, x1, y1, x2, y2) {
+    var a12 = 1 / (x1 - x0);
+    var a21 = a12;
+    var a11 = 2 * a12;
+    var a23 = 1 / (x2 - x1);
+    var a32 = a23;
+    var a33 = 2 * a23;
+    var a22 = a11 + a33;
+    var b1 = 3 * (y1 - y0) / ((x1 - x0) * (x1 - x0));
+    var b3 = 3 * (y2 - y1) / ((x2 - x1) * (x2 - x1));
+    var b2 = b1 + b3;
+
+    var a = [[a11, a12, 0], [a21, a22, a23], [0, a32, a33]];
+    var b = [b1, b2, b3];
+    // TODO: perhaps this all can be significantly simplified, especially knowing that x0 and y0 are 0, x2 and y2 are always 255, and more
+    var k = Jmat.Real.matrix_solve(a, b);
+    var k0 = k[0];
+    var k1 = k[1];
+    var k2 = k[2];
+
+    var a1 = k0 * (x1 - x0) - (y1 - y0);
+    var b1 = -k1 * (x1 - x0) + (y1 - y0);
+    var a2 = k1 * (x2 - x1) - (y2 - y1);
+    var b2 = -k2 * (x2 - x1) + (y2 - y1);
+
+    var t = x;
+    if(t < x1) {
+      t = (x - x0) / (x1 - x0);
+      return (1 - t) * y0 + t * y1 + t * (1 - t) * ((1 - t) * a1 + t * b1);
+    } else {
+      t = (x - x1) / (x2 - x1);
+      return (1 - t) * y1 + t * y2 + t * (1 - t) * ((1 - t) * a2 + t * b2);
+    }
+  };
+
+
+  var a = Jmat.Complex.arg1(y);
+  if(a >= 1) a -= 1; // avoid some potential artefacts in rendering
+
+  var data = [
+    [255, 0, 0], // pos (red)
+    [224, 224, 0], // pos imag (yellow)
+    [0, 192, 0], // neg (green)
+    [64, 64, 255], // neg imag (blue)
+  ];
+  /*var data = [
+    [255, 0, 0], // pos (red)
+    [255, 160, 0],
+    [255, 255, 0], // pos imag (yellow)
+    [160, 224, 0],
+    [0, 192, 0], // neg (green)
+    [0, 128, 160],
+    [64, 64, 255], // neg imag (blue)
+    [128, 0, 192],
+  ];*/
+  a *= data.length;
+  data.push(data[0]);
+  var i = Math.floor(a);
+  a -= i;
+  if(data.length > 4) a = softsmooth(a);
+  else a = smoothstep(a);
+  var r0 = data[i][0];
+  var g0 = data[i][1];
+  var b0 = data[i][2];
+  var r1 = data[i + 1][0];
+  var g1 = data[i + 1][1];
+  var b1 = data[i + 1][2];
+
+  var r = r0 * (1 - a) + r1 * a;
+  var g = g0 * (1 - a) + g1 * a;
+  var b = b0 * (1 - a) + b1 * a;
+
+  var applyLightness = function(rgb, l) {
+    var result = [0, 0, 0];
+    for(var c = 0; c < 3; c++) {
+      var s = cubicspline(l, 0, 0, 128, rgb[c], 255, 255);
+      result[c] = s;
+    }
+    return result;
+  };
+  var rgb = applyLightness([r, g, b], l);
+
+  return rgb;
+};
+
+Jmat.Plot.getComplexColor_ = function(y, maxval) {
+  // TODO: use nonnumeric names, the numeric codes for Jmat.Plot.complexColorFormula_ don't match the names
+  if(Jmat.Plot.complexColorFormula_ <= 2) return Jmat.Plot.getComplexColor1(y, maxval);
+  else if(Jmat.Plot.complexColorFormula_ == 3) return Jmat.Plot.getComplexColor2(y, maxval);
+  else if(Jmat.Plot.complexColorFormula_ == 4) return Jmat.Plot.getComplexColor3(y, maxval);
+  else return Jmat.Plot.getComplexColor4(y, maxval);
+};
+
+Jmat.Plot.getComplexColor = function(y, maxval) {
+  var rgb = Jmat.Plot.getComplexColor_(y, maxval);
+  return [Math.floor(rgb[0]), Math.floor(rgb[1]), Math.floor(rgb[2])];
 };
 
 Jmat.Plot.makeSizedDiv = function(parent, x, y, w, h) {
@@ -368,26 +520,20 @@ Jmat.Plot.makeCenteredText = function(parent, text, width, x, y, fontSize, rot) 
 
 // w and h are the area for the plot itself, the canvas will be larger to add the labels
 Jmat.Plot.initCanvas_ = function(parent, w, h, clickfun) {
-  var data = parent.data;
-  var id = parent.idd;
-  var ctx = parent.ctx;
-
-  if(!data) {
-    var canvas =  document.createElement('canvas');
-    canvas.style.position = 'absolute';
-    canvas.style.left = 0;
-    canvas.style.top = 0;
-    canvas.width = parseInt(parent.style.width);
-    canvas.height = parseInt(parent.style.height);
-    ctx = canvas.getContext("2d");
-    id = ctx.createImageData(w, h);
-    data  = id.data;
-    parent.idd = id;
-    parent.data = data;
-    parent.ctx = ctx;
-    parent.appendChild(canvas);
-    canvas.onclick = clickfun;
-  }
+  var canvas = document.createElement('canvas');
+  canvas.style.position = 'absolute';
+  canvas.style.left = 0;
+  canvas.style.top = 0;
+  canvas.width = parseInt(parent.style.width);
+  canvas.height = parseInt(parent.style.height);
+  var ctx = canvas.getContext("2d");
+  var id = ctx.createImageData(w, h);
+  var data  = id.data;
+  parent.idd = id;
+  parent.data = data;
+  parent.ctx = ctx;
+  parent.appendChild(canvas);
+  if(clickfun) canvas.onclick = clickfun;
 };
 
 // Plot a pixel or rectangle to the given element. E.g. if w and h are 2, it's a 2x2 pixel.
@@ -451,6 +597,10 @@ Jmat.Plot.addPlotLabels_ = function(xlabel, ylabel, params, parent) {
   Jmat.Plot.makeAlignedText(parent,  xlabel, 0, (plotx0 * 3 + plotx1) / 4, ploty1 + 8, 1, 0, 'small');
 };
 
+Jmat.Plot.addControls_ = function(params, parent) {
+  // TODO
+};
+
 ////////////////////////////////////////////////////////////////////////////////
 
 Jmat.Plot.makeRealPixel_ = function(div, params, px, y, prevy, rgb) {
@@ -487,59 +637,35 @@ Jmat.Plot.makeRealPixel_ = function(div, params, px, y, prevy, rgb) {
 };
 
 Jmat.Plot.plotReal_ = function(fun, params, parent, label) {
+  var width = params.w;
+  var height = params.h;
+  var xsize = params.xsize;
+  var ysize = params.ysize;
+  var p = params.p;
+
+  var L = 32;
+  var steps = Math.floor(width / p);
+
+
+
+  parent.innerHTML = '';
+  var div = Jmat.Plot.makeSizedDiv(parent, L, L, width, height);
+  var labeldiv = Jmat.Plot.makeSizedDiv(parent, 0, 0, 1, 1);
   //parent.style.backgroundColor = 'white'; // TODO: make element inside it instead to alter style
   var plotfun = function() {
-    var width = params.w;
-    var height = params.h;
-    var xsize = params.xsize;
-    var ysize = params.ysize;
-    var p = params.p;
+    var prevy;
 
-    var L = 32;
-    var steps = Math.floor(width / p);
-    parent.innerHTML = '';
-    var div = Jmat.Plot.makeSizedDiv(parent, L, L, width, height);
-    div.style.backgroundColor = '#eee';
-    div.style.border = '1px solid black';
+    div.innerHTML = '';
+
+    labeldiv.innerHTML = '';
+    Jmat.Plot.addPlotLabels_('x', 'y', params, labeldiv);
+    if(label) Jmat.Plot.makeAlignedText(labeldiv, label, 0, L + width, L, 2, 2);
 
     // axis lines
     var d = Jmat.Plot.makeSizedDiv(div, 0, width / 2, height, 2);
     d.style.backgroundColor = '#ccc';
     d = Jmat.Plot.makeSizedDiv(div, width / 2, 0, 2, height);
     d.style.backgroundColor = '#ccc';
-
-    Jmat.Plot.addPlotLabels_('x', 'y', params, parent);
-    if(label) Jmat.Plot.makeAlignedText(parent, label, 0, L + width, L, 2, 2);
-
-    d = Jmat.Plot.makeCenteredText(parent, '←', 0, L + width / 2 - 35, L - 10);
-    d.onclick = function() { params.xshift -= params.xsize / 8; plotfun(); };
-    d.style.color = '#ddd';
-    d = Jmat.Plot.makeCenteredText(parent, '→', 0, L + width / 2 - 15, L - 10);
-    d.onclick = function() { params.xshift += params.xsize / 8; plotfun(); };
-    d.style.color = '#ddd';
-
-    d = Jmat.Plot.makeCenteredText(parent, '[+]', 0, L + width / 2 + 15, L - 10);
-    d.onclick = function() { params.xsize /= 2; params.ysize /= 2; plotfun(); };
-    d.style.color = '#ddd';
-    d = Jmat.Plot.makeCenteredText(parent, '[-]', 0, L + width / 2 + 35, L - 10);
-    d.onclick = function() { params.xsize *= 2; params.ysize *= 2; plotfun(); };
-    d.style.color = '#ddd';
-
-    d = Jmat.Plot.makeCenteredText(parent, '+', 0, L + width + 8, L + 70);
-    d.onclick = function() { params.ysize /= 2; plotfun(); };
-    d.style.color = '#ddd';
-    d = Jmat.Plot.makeCenteredText(parent, '-', 0, L + width + 8, L + 90);
-    d.onclick = function() { params.ysize *= 2; plotfun(); };
-    d.style.color = '#ddd';
-
-    d = Jmat.Plot.makeCenteredText(parent, '↑', 0, L + width + 8, L + 50);
-    d.onclick = function() { params.yshift -= params.ysize / 8; plotfun(); };
-    d.style.color = '#ddd';
-    d = Jmat.Plot.makeCenteredText(parent, '↓', 0, L + width + 8, L + 110);
-    d.onclick = function() { params.yshift += params.ysize / 8; plotfun(); };
-    d.style.color = '#ddd';
-
-    var prevy;
 
     Jmat.Plot.initCanvas_(div, width, height);
 
@@ -556,8 +682,10 @@ Jmat.Plot.plotReal_ = function(fun, params, parent, label) {
         Jmat.Plot.makeRealPixel_(div, params, px, y.re, prevy.re, [0,0,0], Jmat.Complex.toString(x) + ': ' + Jmat.Complex.toString(y));
       } else {
         // Abs and arg-color-wheel, always in positive zone
-        var h = Jmat.Complex.arg1(y) * 255;
-        var rgb = Jmat.Plot.hslToRgb(h, 255, 128);
+        //var h = Jmat.Complex.arg1(y) * 255;
+        //var rgb = Jmat.Plot.hslToRgb(h, 255, 128);
+        var temp = Jmat.Complex.polar(1, y.arg());
+        var rgb = Jmat.Plot.getComplexColor(temp, 1);
         var a = y.abs();
         var pa = prevy.abs();
         Jmat.Plot.makeRealPixel_(div, params, px, a, pa, rgb, Jmat.Complex.toString(x) + ': ' + Jmat.Complex.toString(y));
@@ -567,6 +695,39 @@ Jmat.Plot.plotReal_ = function(fun, params, parent, label) {
     }
   };
 
+  div.style.backgroundColor = '#eee';
+  div.style.border = '1px solid black';
+
+
+  d = Jmat.Plot.makeCenteredText(parent, '←', 0, L + width / 2 - 35, L - 10);
+  d.onclick = function() { params.xshift -= params.xsize / 8; plotfun(); };
+  d.style.color = '#ddd';
+  d = Jmat.Plot.makeCenteredText(parent, '→', 0, L + width / 2 - 15, L - 10);
+  d.onclick = function() { params.xshift += params.xsize / 8; plotfun(); };
+  d.style.color = '#ddd';
+
+  d = Jmat.Plot.makeCenteredText(parent, '[+]', 0, L + width / 2 + 15, L - 10);
+  d.onclick = function() { params.xsize /= 2; params.ysize /= 2; plotfun(); };
+  d.style.color = '#ddd';
+  d = Jmat.Plot.makeCenteredText(parent, '[-]', 0, L + width / 2 + 35, L - 10);
+  d.onclick = function() { params.xsize *= 2; params.ysize *= 2; plotfun(); };
+  d.style.color = '#ddd';
+
+  d = Jmat.Plot.makeCenteredText(parent, '+', 0, L + width + 8, L + 70);
+  d.onclick = function() { params.ysize /= 2; plotfun(); };
+  d.style.color = '#ddd';
+  d = Jmat.Plot.makeCenteredText(parent, '-', 0, L + width + 8, L + 90);
+  d.onclick = function() { params.ysize *= 2; plotfun(); };
+  d.style.color = '#ddd';
+
+  d = Jmat.Plot.makeCenteredText(parent, '↑', 0, L + width + 8, L + 50);
+  d.onclick = function() { params.yshift -= params.ysize / 8; plotfun(); };
+  d.style.color = '#ddd';
+  d = Jmat.Plot.makeCenteredText(parent, '↓', 0, L + width + 8, L + 110);
+  d.onclick = function() { params.yshift += params.ysize / 8; plotfun(); };
+  d.style.color = '#ddd';
+
+
   plotfun();
 };
 
@@ -574,19 +735,22 @@ Jmat.Plot.plotReal_ = function(fun, params, parent, label) {
 // For "Color wheel graphs of complex functions" (not for "Domain coloring" which has repeating pattern of lightness rather than black for 0, white for infinity)
 Jmat.Plot.plotColorPixel = function(y, maxval, p, px, py, div) {
   var rgb = Jmat.Plot.getComplexColor(y, maxval);
-  var d = Jmat.Plot.rect(div, px * p, py * p, p, p, rgb);
-  return d;
+  Jmat.Plot.rect(div, px, py, p, p, rgb);
 };
 
 ////////////////////////////////////////////////////////////////////////////////
 
 //p = pixel cell size
-Jmat.Plot.plot2DPixel_ = function(fun, size, steps, params, px, py, div) {
-  var x = -size + (px / steps * size * 2);
-  var y = size - (py / steps * size * 2);
+Jmat.Plot.plot2DPixel_ = function(fun, params, px, py, div) {
+  /*var x = -params.xsize * 0.5 + (px / steps * params.xsize);
+  var y = params.ysize * 0.5 - (py / steps * params.ysize);
 
   var sx = Jmat.Complex(x + params.xshift, params.xshift_im);
-  var sy = Jmat.Complex(y + params.yshift, params.yshift_im);
+  var sy = Jmat.Complex(y + params.yshift, params.yshift_im);*/
+
+  var xy = Jmat.Plot.fromPixel(params, px, py);
+  var sx = xy[0];
+  var sy = xy[1];
 
   var z;
   if(params.transpose) {
@@ -595,36 +759,36 @@ Jmat.Plot.plot2DPixel_ = function(fun, size, steps, params, px, py, div) {
     z = fun(sx, sy);
   }
 
-  var d = Jmat.Plot.plotColorPixel(z, params.v, params.p, px, py, div);
+  Jmat.Plot.plotColorPixel(z, params.v, params.p, px, py, div);
 };
 
 
-Jmat.Plot.plot2DLineTimeout_ = function(fun, size, steps, params, py, div) {
+Jmat.Plot.plot2DLineTimeout_ = function(fun, params, py, div) {
   var stopindex = Jmat.Plot.stopIndex_;
 
   // This is for first rendering fast, and only then at full resolution
   var stage = 1;
   var params1 = params;
-  var steps1 = steps;
 
   if(params.p <= 2) {
-    stage = 0;
-    params = JSON.parse(JSON.stringify(params));
+    stage = 2;
+    params = new Jmat.PlotParams(params);
     params.p *= 4;
-    steps /= 4;
   }
 
   var linefun = function(py) {
     window.setTimeout(function() {
       for(var i = 0; i < 4; i++) {
-        if(py == steps) { stage++; params = params1; steps = steps1; py = 0; }
-        if(stage == 2) return;
-        if(py == steps) return;
-        if(stage == 2) return;
-        for(var px = 0; px < steps; px++) {
-          Jmat.Plot.plot2DPixel_(fun, size, steps, params, px, py, div);
+        if(py >= params.h) {
+          stage--;
+          if(stage <= 0) return;
+          params = params1;
+          py = 0;
         }
-        py++;
+        for(var px = 0; px < params.w; px += params.p) {
+          Jmat.Plot.plot2DPixel_(fun, params, px, py, div);
+        }
+        py += params.p;
       }
       if(stopindex != Jmat.Plot.stopIndex_) return;
       linefun(py);
@@ -633,101 +797,103 @@ Jmat.Plot.plot2DLineTimeout_ = function(fun, size, steps, params, py, div) {
   linefun(py);
 };
 
-Jmat.Plot.plot2DNonBlocking_ = function(fun, size, steps, params, div) {
-  Jmat.Plot.plot2DLineTimeout_(fun, size, steps, params, 0, div);
+Jmat.Plot.plot2DNonBlocking_ = function(fun, params, div) {
+  Jmat.Plot.plot2DLineTimeout_(fun, params, 0, div);
 };
 
 Jmat.Plot.plot2D_ = function(fun, params, parent, label, xlabel, ylabel) {
   //parent.style.backgroundColor = 'white'; // TODO: make element inside it instead to alter style
   if(!xlabel) xlabel = 'x';
   if(!ylabel) ylabel = 'y';
+
+
+  var width = params.w;
+  var height = params.h;
+  var size = params.xsize / 2;
+  var p = params.p;
+  var maxval = params.v;
+
+  var L = 32;
+  var steps = Math.floor(width / p);
+  parent.innerHTML = '';
+  var div = Jmat.Plot.makeSizedDiv(parent, L, L, steps * p, steps * p);
+
+  var labeldiv = Jmat.Plot.makeSizedDiv(parent, 0, 0, 1, 1);
+
   var plotfun = function() {
-    var width = params.w;
-    var height = params.h;
-    var size = params.xsize / 2;
-    var p = params.p;
-    var maxval = params.v;
-
-    var L = 32;
-    var steps = Math.floor(width / p);
-    parent.innerHTML = '';
-    var div = Jmat.Plot.makeSizedDiv(parent, L, L, steps * p, steps * p);
-    div.style.backgroundColor = '#888888';
-    div.style.border = '1px solid black';
-
-    Jmat.Plot.addPlotLabels_(xlabel, ylabel, params, parent);
-    if(label) Jmat.Plot.makeAlignedText(parent, label, 0, L + width, L, 2, 2);
-
-    d = Jmat.Plot.makeCenteredText(parent, '←', 0, L + width / 2 - 35, L - 10);
-    d.onclick = function() { params.xshift -= params.xsize / 5; Jmat.stopPlotting(); plotfun(); };
-    d.style.color = '#ddd';
-    d = Jmat.Plot.makeCenteredText(parent, '→', 0, L + width / 2 - 15, L - 10);
-    d.onclick = function() { params.xshift += params.xsize / 5; Jmat.stopPlotting(); plotfun(); };
-    d.style.color = '#ddd';
-
-    d = Jmat.Plot.makeCenteredText(parent, '[+]', 0, L + width / 2 + 15, L - 10);
-    d.onclick = function() { params.xsize /= 2; params.ysize /= 2; Jmat.stopPlotting(); plotfun(); };
-    d.style.color = '#ddd';
-    d = Jmat.Plot.makeCenteredText(parent, '[-]', 0, L + width / 2 + 35, L - 10);
-    d.onclick = function() { params.xsize *= 2; params.ysize *= 2; Jmat.stopPlotting(); plotfun(); };
-    d.style.color = '#ddd';
-
-    d = Jmat.Plot.makeCenteredText(parent, '↑', 0, L + width + 8, L + 70);
-    d.onclick = function() { params.yshift += params.ysize / 5; Jmat.stopPlotting(); plotfun(); };
-    d.style.color = '#ddd';
-    d = Jmat.Plot.makeCenteredText(parent, '↓', 0, L + width + 8, L + 90);
-    d.onclick = function() { params.yshift -= params.ysize / 5; Jmat.stopPlotting(); plotfun(); };
-    d.style.color = '#ddd';
-
-    d = Jmat.Plot.makeCenteredText(parent, 'x_im+', 0, L + width + 30, L + 110);
-    d.onclick = function() { params.xshift_im += 0.1; Jmat.stopPlotting(); plotfun(); };
-    d.title = params.xshift_im;
-    d.style.color = '#ddd';
-    d = Jmat.Plot.makeCenteredText(parent, 'x_im-', 0, L + width + 30, L + 125);
-    d.onclick = function() { params.xshift_im -= 0.1; Jmat.stopPlotting(); plotfun(); };
-    d.title = params.xshift_im;
-    d.style.color = '#ddd';
-    d = Jmat.Plot.makeCenteredText(parent, 'y_im+', 0, L + width + 30, L + 140);
-    d.onclick = function() { params.yshift_im += 0.1; Jmat.stopPlotting(); plotfun(); };
-    d.title = params.yshift_im;
-    d.style.color = '#ddd';
-    d = Jmat.Plot.makeCenteredText(parent, 'y_im-', 0, L + width + 30, L + 155);
-    d.onclick = function() { params.yshift_im -= 0.1; Jmat.stopPlotting(); plotfun(); };
-    d.title = params.yshift_im;
-    d.style.color = '#ddd';
-
-    d = Jmat.Plot.makeCenteredText(parent, 't', 0, L + width + 30, L + 170);
-    d.onclick = function() { params.transpose = !params.transpose; Jmat.stopPlotting(); plotfun(); };
-    d.style.color = '#ddd';
-
-    d = Jmat.Plot.makeCenteredText(parent, 'r', 0, L + width / 2 - 70, L - 10);
-    d.onclick = function() {
-      // This button shifts by 1 half. Some functions have different value, or algorithm, for integers (e.g. negative bessel J). This reveals it when zoomed out.
-      var s = params.xshift;
-      params.xshift = Math.floor(params.xshift);
-      params.yshift = Math.floor(params.yshift);
-      if(s == Math.floor(s)) {
-        params.xshift += 0.5;
-        params.yshift += 0.5;
-      }
-      Jmat.stopPlotting();
-      plotfun();
-    };
-    d.style.color = '#ddd';
-
-
-    d = Jmat.Plot.makeCenteredText(parent, '        ', 0, L, L - 40);
-    d.style.fontSize = 'small';
-    Jmat.Plot.initCanvas_(div, width, height, function(e) {
-      var x = e.offsetX;
-      var y = e.offsetY;
-      var xy = Jmat.Plot.fromPixel(params, x, y);
-      var value = fun(xy[0], xy[1]);
-      var label = '' + Jmat.toString(xy[0], 4) + ', ' + Jmat.toString(xy[1], 4) + ': ' + value.toString(6);
-      d.innerText = label;
-    });
-    Jmat.Plot.plot2DNonBlocking_(fun, size, steps, params, div);
+    labeldiv.innerHTML = '';
+    Jmat.Plot.addPlotLabels_(xlabel, ylabel, params, labeldiv);
+    if(label) Jmat.Plot.makeAlignedText(labeldiv, label, 0, L + width, L, 2, 2);
+    Jmat.Plot.plot2DNonBlocking_(fun, params, div);
   };
+
+
+  div.style.backgroundColor = '#888888';
+  div.style.border = '1px solid black';
+
+  d = Jmat.Plot.makeCenteredText(parent, '←', 0, L + width / 2 - 35, L - 10);
+  d.onclick = function() { params.xshift -= params.xsize / 5; Jmat.stopPlotting(); plotfun(); };
+  d.style.color = '#ddd';
+  d = Jmat.Plot.makeCenteredText(parent, '→', 0, L + width / 2 - 15, L - 10);
+  d.onclick = function() { params.xshift += params.xsize / 5; Jmat.stopPlotting(); plotfun(); };
+  d.style.color = '#ddd';
+
+  d = Jmat.Plot.makeCenteredText(parent, '[+]', 0, L + width / 2 + 15, L - 10);
+  d.onclick = function() { params.xsize /= 2; params.ysize /= 2; Jmat.stopPlotting(); plotfun(); };
+  d.style.color = '#ddd';
+  d = Jmat.Plot.makeCenteredText(parent, '[-]', 0, L + width / 2 + 35, L - 10);
+  d.onclick = function() { params.xsize *= 2; params.ysize *= 2; Jmat.stopPlotting(); plotfun(); };
+  d.style.color = '#ddd';
+
+  d = Jmat.Plot.makeCenteredText(parent, '↑', 0, L + width + 8, L + 70);
+  d.onclick = function() { params.yshift += params.ysize / 5; Jmat.stopPlotting(); plotfun(); };
+  d.style.color = '#ddd';
+  d = Jmat.Plot.makeCenteredText(parent, '↓', 0, L + width + 8, L + 90);
+  d.onclick = function() { params.yshift -= params.ysize / 5; Jmat.stopPlotting(); plotfun(); };
+  d.style.color = '#ddd';
+
+  d = Jmat.Plot.makeCenteredText(parent, 'x_im+', 0, L + width + 30, L + 110);
+  d.onclick = function() { params.xshift_im += 0.1; Jmat.stopPlotting(); plotfun(); };
+  d.title = params.xshift_im;
+  d.style.color = '#ddd';
+  d = Jmat.Plot.makeCenteredText(parent, 'x_im-', 0, L + width + 30, L + 125);
+  d.onclick = function() { params.xshift_im -= 0.1; Jmat.stopPlotting(); plotfun(); };
+  d.title = params.xshift_im;
+  d.style.color = '#ddd';
+  d = Jmat.Plot.makeCenteredText(parent, 'y_im+', 0, L + width + 30, L + 140);
+  d.onclick = function() { params.yshift_im += 0.1; Jmat.stopPlotting(); plotfun(); };
+  d.title = params.yshift_im;
+  d.style.color = '#ddd';
+  d = Jmat.Plot.makeCenteredText(parent, 'y_im-', 0, L + width + 30, L + 155);
+  d.onclick = function() { params.yshift_im -= 0.1; Jmat.stopPlotting(); plotfun(); };
+  d.title = params.yshift_im;
+  d.style.color = '#ddd';
+
+  d = Jmat.Plot.makeCenteredText(parent, 't', 0, L + width + 30, L + 170);
+  d.onclick = function() { params.transpose = !params.transpose; Jmat.stopPlotting(); plotfun(); };
+  d.style.color = '#ddd';
+
+  d = Jmat.Plot.makeCenteredText(parent, 'r', 0, L + width / 2 - 70, L - 10);
+  d.onclick = function() {
+    params.twiddle = !params.twiddle;
+    Jmat.stopPlotting();
+    plotfun();
+  };
+  d.style.color = '#ddd';
+
+
+  d = Jmat.Plot.makeCenteredText(parent, '        ', 0, L, L - 40);
+  d.style.fontSize = 'small';
+  Jmat.Plot.initCanvas_(div, width, height, function(e) {
+    var x = e.offsetX;
+    var y = e.offsetY;
+    var xy = Jmat.Plot.fromPixel(params, x, y);
+    var value = fun(xy[0], xy[1]);
+    var label = '' + Jmat.toString(xy[0], 4) + ', ' + Jmat.toString(xy[1], 4) + ': ' + value.toString(6);
+    d.innerText = label;
+  });
+
+
   plotfun();
 };
 
