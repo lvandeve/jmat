@@ -72,6 +72,7 @@ Jmat.Complex.hypergeometric0F1 = function(a, z) {
   // Use this expansion into two 2F0 calls instead.
   // Some difficult cases that this handles: hypergeometric0F1(-23.5, -126.5625) = 692.923, hypergeometric0F1(6, -400) = 4.59650497414 * 10^-6
   // The values -80 and z.abssq() / 3 have been chosen to make it work for BesselJ in the zone where it uses 0F1. This may be need tweaking for other applications.
+  // TODO: actually, this works worse than the series itself, causing huge artefacts for example around 80,-220 and -80,-220. Use something better.
   if(z.re < -80 && a.abssq() < z.abssq() / 3) {
     var g = C.gamma(a).divr(2 * C.SQRTPI.re);
     var s = C.sqrt(z.neg());
@@ -230,6 +231,7 @@ Jmat.Complex.hypergeometric1F1_rational_ = function(a, b, z) {
 
 // Confluent hypergeometric function of the first kind 1F1(a; b; z), a.k.a. Kummer's function M (approximation)
 // Try similar online: http://keisan.casio.com/exec/system/1349143651
+// TODO: many problems with just moderately large values, make this better to also improve other functions that depend on this
 Jmat.Complex.hypergeometric1F1 = function(a, b, z) {
   var C = Jmat.Complex;
 
@@ -1669,9 +1671,11 @@ Jmat.Complex.besselj_hankelexpansion_ = function(nu, z) {
 };
 
 // Bessel function in terms of hypergeometrics. The Bessel function happens to exactly use the most difficult parameters for hypergeometric function, so this doesn't extend the range too much.
+// TODO: this implementation does not work for even just moderately big values, e.g. 50,-25, probably due to hypergeometric having problems there. Improve hypergeometric or find good way to do it without hypergeometric.
 Jmat.Complex.besselj_hypergeom_ = function(nu, z) {
   var C = Jmat.Complex;
 
+  // TOOD: algorithm "A" may work better than "B" below. Enable where it makes sense.
   /*// A: in terms of confluent hypergeometric limit function 0F1.
   // In terms of confluent hypergeometric. This is a last resort, it handles large nu better than the hankel expansion. TODO: use a better high-nu formula. E.g. J(110, 100) is wrong.
   var negnu = 1;
@@ -1679,9 +1683,11 @@ Jmat.Complex.besselj_hypergeom_ = function(nu, z) {
     if(C.isOdd(nu)) negnu = -1;
     nu = nu.neg(); // Formula does not work for negative nu, but J_-nu(z) = (-1)^nu*J_n(z) for integer nu
   }
+  // TODO: consider loggamma and working in log space if there is overflow.
   var a = z.mulr(0.5).pow(nu).div(C.gamma(nu.inc()));
   var b = C.hypergeometric0F1(nu.inc(), z.mul(z).mulr(-0.25));
-  result = a.mul(b).mulr(negnu);*/
+  result = a.mul(b).mulr(negnu);
+  return result;*/
 
   // B: in terms of confluent hypergeometric 1F1
   var negnu = 1;
