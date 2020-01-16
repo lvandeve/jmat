@@ -1,7 +1,7 @@
 /*
 Jmat.js
 
-Copyright (c) 2011-2019, Lode Vandevenne
+Copyright (c) 2011-2020, Lode Vandevenne
 All rights reserved.
 
 Redistribution and use in source and binary forms, with or without modification,
@@ -1062,6 +1062,7 @@ Jmat.Complex.calcCache_ = function(z, fun, cache, n) {
 Jmat.Complex.loggamma_ = function(z) {
   var C = Jmat.Complex;
 
+  if(C.isNaN(z)) return C(NaN);
   if(z.eqr(1) || z.eqr(2)) return C(0);
   if(z.re == Infinity) return C(Infinity);
   if(z.re == -Infinity) return C(NaN);
@@ -1135,6 +1136,7 @@ Jmat.Complex.loggamma_ = function(z) {
 //Inspired by Wikipedia, Lanczos approximation, precision is around 15 decimal places
 Jmat.Complex.gamma = function(z) {
   var C = Jmat.Complex;
+  if(C.isNaN(z)) return C(NaN);
   if(z.re == Infinity && z.im == 0) return C(Infinity, 0);
   if(z.re == -Infinity) return C(NaN);
   if(C.isNegativeIntOrZero(z)) return C(Infinity, Infinity); // Undirected infinity

@@ -1,7 +1,7 @@
 /*
 Jmat.js
 
-Copyright (c) 2011-2019, Lode Vandevenne
+Copyright (c) 2011-2020, Lode Vandevenne
 All rights reserved.
 
 Redistribution and use in source and binary forms, with or without modification,
@@ -47,7 +47,7 @@ Overview of some functionality, this lists function names in "Jmat.Complex.":
 -incomplete gamma: incgamma_lower, incgamma_upper, gamma_p, gamma_q
 -means: agm, ghm
 -bessel: besselj, bessely, besseli, besselk, hankelh1, hankelh2, struveh, struvek, struvel, struvem
--airy: airy, bairy, airy_deriv, airy_deriv
+-airy: airy, bairy, airy_deriv, bairy_deriv
 -zeta: zeta, eta, lambda, hurwitzzeta
 -beta: beta, incbeta, betai
 -hypergeometric: hypergeometric0F1, hypergeometric1F1, hypergeometric2F1, hypergeometric, regularized_hypergeometric
@@ -63,6 +63,7 @@ Overview of some functionality, this lists function names in "Jmat.Complex.":
 // Confluent hypergeometric limit function 0F1(; a; z) --> no "upper" term
 Jmat.Complex.hypergeometric0F1 = function(a, z) {
   var C = Jmat.Complex;
+  if(C.isNaN(a) || C.isNaN(z)) return C(NaN);
 
   // It's infinity for negative integer a. However, the loop fails to encounter that term if rather large negative integer due to not enough steps.
   // Even though it seems as if it should be a finite value because all non integers around it converge to the same apparently...
@@ -234,6 +235,7 @@ Jmat.Complex.hypergeometric1F1_rational_ = function(a, b, z) {
 // TODO: many problems with just moderately large values, make this better to also improve other functions that depend on this
 Jmat.Complex.hypergeometric1F1 = function(a, b, z) {
   var C = Jmat.Complex;
+  if(C.isNaN(a) || C.isNaN(b) || C.isNaN(z)) return C(NaN);
 
   // Kummer's transformation to make |a| a bit smaller if possible
   if(b.sub(a).abssq() < a.abssq()) return C.hypergeometric1F1(b.sub(a), b, z.neg()).mul(C.exp(z));
@@ -268,6 +270,7 @@ Jmat.Complex.hypergeometric1F1 = function(a, b, z) {
 // TODO: make more precise, e.g. hypergeometric2F1(1.1, -0.9, 2.1, 3) and hypergeometric2f1(6,6.5,7,0.4444444444444444)
 Jmat.Complex.hypergeometric2F1 = function(a, b, c, z) {
   var C = Jmat.Complex;
+  if(C.isNaN(a) || C.isNaN(b) || C.isNaN(c) || C.isNaN(z)) return C(NaN);
 
   if(z.abs() > 1.0001 /*not 1 to avoid infinite loop if abs 1/z is also > 1 due to numeric problems, e.g. for 0.9726962457337884+i0.23208191126279865*/) {
     // The series converges only for |z| < 1. But there are some linear transformations
@@ -380,12 +383,15 @@ Jmat.Complex.generalized_hypergeometric_ = function(a, b, z) {
 // So if the series diverges (a.length > b.length), it will only be correct for very small |z| (near zero), if a.length == b.length, it will only converge for |z| < 1
 // NOTE: This is the generalized hypergeometric! For the namesake 2F1, use hypergeometric2F1 instead.
 Jmat.Complex.hypergeometric = function(a, b, z) {
-  if(z.eqr(0)) return Jmat.Complex(1);
-  if(a.length == 0 && b.length == 0) return Jmat.Complex.exp(z);
-  if(a.length == 1 && b.length == 0) return Jmat.Complex.pow(z.rsub(1), a[0].neg());
-  if(a.length == 0 && b.length == 1) return Jmat.Complex.hypergeometric0F1(b[0], z);
-  if(a.length == 1 && b.length == 1) return Jmat.Complex.hypergeometric1F1(a[0], b[0], z);
-  if(a.length == 2 && b.length == 1) return Jmat.Complex.hypergeometric2F1(a[0], a[1], b[0], z);
+  var C = Jmat.Complex;
+  if(C.isNaN(a) || C.isNaN(b) || C.isNaN(z)) return C(NaN);
+
+  if(z.eqr(0)) return C(1);
+  if(a.length == 0 && b.length == 0) return C.exp(z);
+  if(a.length == 1 && b.length == 0) return C.pow(z.rsub(1), a[0].neg());
+  if(a.length == 0 && b.length == 1) return C.hypergeometric0F1(b[0], z);
+  if(a.length == 1 && b.length == 1) return C.hypergeometric1F1(a[0], b[0], z);
+  if(a.length == 2 && b.length == 1) return C.hypergeometric2F1(a[0], a[1], b[0], z);
 
   return Jmat.Complex.generalized_hypergeometric_(a, b, z);
 };
@@ -393,6 +399,8 @@ Jmat.Complex.hypergeometric = function(a, b, z) {
 // regularized hypergeometric is the hypergeometric divided through product of gammas of b's
 Jmat.Complex.regularized_hypergeometric = function(a, b, z) {
   var C = Jmat.Complex;
+  if(C.isNaN(a) || C.isNaN(b) || C.isNaN(z)) return C(NaN);
+
   var g = C(1);
   var twiddle = false; // twiddle negative integers a bit. TODO: handle this here and in other twiddle parts of the code more precise
   for (var i = 0; i < b.length; i++) {
@@ -420,6 +428,9 @@ Jmat.Complex.regularized_hypergeometric = function(a, b, z) {
 // NOTE: see inside the gaussian integration code for a recursive implementation of legendre polynomials
 Jmat.Complex.legendrep = function(nu, mu, z, opt_type) {
   var C = Jmat.Complex;
+  if(C.isNaN(nu) || C.isNaN(mu) || C.isNaN(z)) return C(NaN);
+
+
   if(mu.eqr(0) && C.isInt(nu) && nu.re >= 0) {
     if(nu.re == 0) return C(1);
     if(nu.re == 1) return z;
@@ -441,6 +452,7 @@ Jmat.Complex.legendrep = function(nu, mu, z, opt_type) {
 // NOTE: precision of this function is not high, could be less than 4 digits in some cases. TODO: improve
 Jmat.Complex.legendreq = function(nu, mu, z, opt_type) {
   var C = Jmat.Complex;
+  if(C.isNaN(nu) || C.isNaN(mu) || C.isNaN(z)) return C(NaN);
 
   opt_type = opt_type || 2;
   if(opt_type < 1 || opt_type > 3) return undefined;
@@ -1564,8 +1576,10 @@ Jmat.Complex.bessel_sqrt2piz_ = function(z) {
 // besselj for integer n >= 2
 // To avoid too many loops, do not call for large n. There are probably faster approximations in such zones.
 Jmat.Complex.besselj_miller_ = function(n, z) {
-  if(z.eqr(0)) return Jmat.Complex(0);
-  if(n.eqr(1)) return Jmat.Complex.besselj1_(z);
+  var C = Jmat.Complex;
+  if(C.isNaN(n) || C.isNaN(z)) return C(NaN); // otherwise loop below may never run
+  if(z.eqr(0)) return C(0);
+  if(n.eqr(1)) return C.besselj1_(z);
 
   // Miller's algorithm
 
@@ -1725,9 +1739,13 @@ Jmat.Complex.besselj_large_nu_ = function(nu, z) {
 Jmat.Complex.besselj = function(nu, z) {
   var C = Jmat.Complex;
 
-  // Infinities. If any of nu or z is any infinity, the answer is 0
-  if(C.isInf(nu)) return C(0);
-  if(C.isInf(z)) return C(0);
+  // Infinities.
+  if(nu.eqr(Infinity)) return C(0);
+  if(C.isInf(nu)) return C(NaN);
+  if(z.eqr(Infinity)) return C(0);
+  if(z.eqr(-Infinity)) return C(0);
+  if(C.isInf(z)) return C(NaN);
+
   // If z is 0, result is 1 for nu=0; NaN for nu strict imaginary; 0 for nu.re > 0; undirected infinity for nu.re < 0.
   if(z.eqr(0)) return (nu.re == 0) ? (nu.im == 0 ? C(1) : C(NaN)) : (nu.re < 0 ? C(Infinity, Infinity) : C(0));
 
@@ -2126,18 +2144,21 @@ Jmat.Complex.airyloop_ = function(z, pl, pr, s) {
 
 // Airy function Ai(x)
 Jmat.Complex.airy = function(z) {
+  var C = Jmat.Complex;
+  if(C.isNaN(z)) return C(NaN);
+
   if(z.abs() > 8) {
     // asymptotic expansion for large |z|
     // NOTE: only uses the first term. TODO use more?
     if(Math.abs(z.arg()) < 2 * Math.PI / 3) {
-      var d = z.powr(1/4).mul(Jmat.Complex.SQRTPI);
+      var d = z.powr(1/4).mul(C.SQRTPI);
       var zeta = z.powr(3/2).mulr(2/3);
-      return Jmat.Complex.exp(zeta.neg()).div(d.mulr(2));
+      return C.exp(zeta.neg()).div(d.mulr(2));
     } else {
       var zm = z.neg();
-      var d = zm.powr(1/4).mul(Jmat.Complex.SQRTPI);
+      var d = zm.powr(1/4).mul(C.SQRTPI);
       var zeta = zm.powr(3/2).mulr(2/3);
-      return Jmat.Complex.sin(zeta.addr(Math.PI / 4)).div(d);
+      return C.sin(zeta.addr(Math.PI / 4)).div(d);
     }
   }
 
@@ -2152,30 +2173,33 @@ Jmat.Complex.airy = function(z) {
   // This is basically the same as the hypergeometric definitions, but faster
   var pl = Math.pow(3, -2/3);
   var pr = Math.pow(3, -4/3);
-  return Jmat.Complex.airyloop_(z, pl, pr, -1);
+  return C.airyloop_(z, pl, pr, -1);
 };
 
 // Airy Bi function Bi(x)
 Jmat.Complex.bairy = function(z) {
+  var C = Jmat.Complex;
+  if(C.isNaN(z)) return C(NaN);
+
   if(z.abs() > 10) {
     // asymptotic expansion for large |z|
     // NOTE: only uses the first term. TODO use more?
     if(Math.abs(z.arg()) < Math.PI / 3) {
-      var d = z.powr(1/4).mul(Jmat.Complex.SQRTPI);
+      var d = z.powr(1/4).mul(C.SQRTPI);
       var zeta = z.powr(3/2).mulr(2/3);
-      return Jmat.Complex.exp(zeta).div(d);
+      return C.exp(zeta).div(d);
     } else {
       var zm = z.neg();
-      var d = zm.powr(1/4).mul(Jmat.Complex.SQRTPI);
+      var d = zm.powr(1/4).mul(C.SQRTPI);
       var zeta = zm.powr(3/2).mulr(2/3);
-      return Jmat.Complex.cos(zeta.addr(Math.PI / 4)).div(d);
+      return C.cos(zeta.addr(Math.PI / 4)).div(d);
     }
   }
 
   // SUM_k=0..oo 3^(-2k-1/6)/(k!*GAMMA(k+2/3))*x^(3k) + SUM_k=0..oo 3^(-2k-5/6)/(k!*GAMMA(k+4/3))*x^(3k+1)
   var pl = Math.pow(3, -1/6);
   var pr = Math.pow(3, -5/6);
-  return Jmat.Complex.airyloop_(z, pl, pr, +1);
+  return C.airyloop_(z, pl, pr, +1);
 };
 
 //pl = 3^(-1/3) for airy, 3^(+1/6) for bairy
@@ -2212,48 +2236,54 @@ Jmat.Complex.airy_deriv_loop_ = function(z, pl, pr, s) {
 
 // Derivative Airy function Ai'(x)
 Jmat.Complex.airy_deriv = function(z) {
+  var C = Jmat.Complex;
+  if(C.isNaN(z)) return C(NaN);
+
   if(z.abs() > 8) {
     // asymptotic expansion for large |z|
     // NOTE: only uses the first term. TODO use more?
     if(Math.abs(z.arg()) < 2 * Math.PI / 3) {
-      var d = z.powr(-1/4).mul(Jmat.Complex.SQRTPI);
+      var d = z.powr(-1/4).mul(C.SQRTPI);
       var zeta = z.powr(3/2).mulr(2/3);
-      return Jmat.Complex.exp(zeta.neg()).div(d.mulr(2)).neg();
+      return C.exp(zeta.neg()).div(d.mulr(2)).neg();
     } else {
       var zm = z.neg();
-      var d = zm.powr(-1/4).mul(Jmat.Complex.SQRTPI);
+      var d = zm.powr(-1/4).mul(C.SQRTPI);
       var zeta = zm.powr(3/2).mulr(2/3);
-      return Jmat.Complex.cos(zeta.addr(Math.PI / 4)).div(d).neg();
+      return C.cos(zeta.addr(Math.PI / 4)).div(d).neg();
     }
   }
 
   // -SUM_k=0..oo 3^(-2k-1/3)/(k!*GAMMA(k+1/3))*x^(3k) + SUM_k=0..oo 3^(-2k-5/3)/(k!*GAMMA(k+5/3))*x^(3k+2)
   var pl = Math.pow(3, -1/3);
   var pr = Math.pow(3, -5/3);
-  return Jmat.Complex.airy_deriv_loop_(z, pl, pr, -1);
+  return C.airy_deriv_loop_(z, pl, pr, -1);
 };
 
 // Derivative Airy Bi function Bi'(x)
 Jmat.Complex.bairy_deriv = function(z) {
+  var C = Jmat.Complex;
+  if(C.isNaN(z)) return C(NaN);
+
   if(z.abs() > 10) {
     // asymptotic expansion for large |z|
     // NOTE: only uses the first term. TODO use more?
     if(Math.abs(z.arg()) < Math.PI / 3) {
-      var d = z.powr(-1/4).mul(Jmat.Complex.SQRTPI);
+      var d = z.powr(-1/4).mul(C.SQRTPI);
       var zeta = z.powr(3/2).mulr(2/3);
-      return Jmat.Complex.exp(zeta).div(d);
+      return C.exp(zeta).div(d);
     } else {
       var zm = z.neg();
-      var d = zm.powr(-1/4).mul(Jmat.Complex.SQRTPI);
+      var d = zm.powr(-1/4).mul(C.SQRTPI);
       var zeta = zm.powr(3/2).mulr(2/3);
-      return Jmat.Complex.sin(zeta.addr(Math.PI / 4)).div(d);
+      return C.sin(zeta.addr(Math.PI / 4)).div(d);
     }
   }
 
   // SUM_k=0..oo 3^(-2k+1/6)/(k!*GAMMA(k+1/3))*x^(3k) + SUM_k=0..oo 3^(-2k-7/6)/(k!*GAMMA(k+5/3))*x^(3k+2)
   var pl = Math.pow(3, +1/6);
   var pr = Math.pow(3, -7/6);
-  return Jmat.Complex.airy_deriv_loop_(z, pl, pr, +1);
+  return C.airy_deriv_loop_(z, pl, pr, +1);
 };
 
 
@@ -2360,16 +2390,19 @@ Jmat.Complex.zeta = function(s) {
 
 // Dirichlet eta function
 Jmat.Complex.eta = function(s) {
+  var C = Jmat.Complex;
+  if(s.eqr(Infinity)) return C(1);
+
   //The calculation only works for s.re > 0.5, so use reflection formula if needed
   if(s.re < 0.5) {
     s = s.neg();
 
-    var a = (Jmat.Complex.ONE.sub(Jmat.Complex.TWO.pow(s.neg().subr(1))));
-    var b = (Jmat.Complex.ONE.sub(Jmat.Complex.TWO.pow(s.neg())));
-    var c = a.div(b).mulr(2).mul(Jmat.Complex.PI.pow(s.neg().subr(1)));
-    var d = Jmat.Complex.sin(Jmat.Complex.PI.mul(s).divr(2));
-    var e = Jmat.Complex.gamma(s);
-    var f = Jmat.Complex.eta(s.inc());
+    var a = (C.ONE.sub(C.TWO.pow(s.neg().subr(1))));
+    var b = (C.ONE.sub(C.TWO.pow(s.neg())));
+    var c = a.div(b).mulr(2).mul(C.PI.pow(s.neg().subr(1)));
+    var d = C.sin(C.PI.mul(s).divr(2));
+    var e = C.gamma(s);
+    var f = C.eta(s.inc());
     return c.mul(s).mul(d).mul(e).mul(f);
   }
 
@@ -2389,11 +2422,11 @@ Jmat.Complex.eta = function(s) {
 
   var dn = d(n, n);
 
-  var result = Jmat.Complex(0);
-  var sign = Jmat.Complex(1); //alternates
+  var result = C(0);
+  var sign = C(1); //alternates
   for(var k = 0; k < n; k++) {
     var a = sign.mulr(d(k, n) - dn);
-    var b = Jmat.Complex(k + 1).pow(s);
+    var b = C(k + 1).pow(s);
     result = result.add(a.div(b));
     sign = sign.neg();
   }
@@ -3107,6 +3140,7 @@ Jmat.Complex.polylog_series_ = function(s, z) {
 //Polylogarithm: Li_s(z)
 Jmat.Complex.polylog = function(s, z) {
   var C = Jmat.Complex;
+  if(C.isNaN(s) || C.isNaN(z)) return C(NaN);
 
   // test individual algorithms...
   //return C.polylog_series_(s, z);
