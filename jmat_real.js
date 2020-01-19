@@ -1,7 +1,7 @@
 /** @license
 Jmat.js
 
-Copyright (c) 2011-2019, Lode Vandevenne
+Copyright (c) 2011-2020, Lode Vandevenne
 All rights reserved.
 
 Redistribution and use in source and binary forms, with or without modification,
@@ -105,12 +105,12 @@ Jmat.Real.isNegativeIntOrZero = function(x) {
 
 // x is odd integer
 Jmat.Real.isOdd = function(x) {
-  return Math.abs(x % 2) == 1; //works for negative x too
+  return Jmat.Real.isInt(x) && (x & 1) == 1;
 };
 
 // x is even integer
 Jmat.Real.isEven = function(x) {
-  return x % 2 == 0; //works for negative x too
+  return Jmat.Real.isInt(x) && (x & 1) == 0;
 };
 
 // x is power of two
@@ -120,6 +120,10 @@ Jmat.Real.isPOT = function(x) {
 
 Jmat.Real.isInf = function(x) {
   return x == Infinity || x == -Infinity;
+};
+
+Jmat.Real.isNaN = function(x) {
+  return isNaN(x);
 };
 
 //isnanorinf isinfornan

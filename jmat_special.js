@@ -745,6 +745,9 @@ Jmat.Complex.incgamma_upper = function(s, z) {
 
   if(z.eqr(0) && s.re < 0) return C(Infinity, Infinity);
 
+  if(z.eqr(Infinity)) return C(0);
+  if(C.isInf(z)) return C(NaN); // non positive infinities not supported
+
 
   // The "twiddle" solution for negative integer s (further below) still does not work well if z.re > 0, so use the full integration formula in this quadrant
   if(s.re < 0 && z.re > 0) {
@@ -789,14 +792,24 @@ Jmat.Complex.gamma_p_cache_ = []; // cache used because a is often constant betw
 // P(a, x) = gamma(a, z) / GAMMA(a)
 // Note: the derivative of this function is: (e^(-z) * z^(a-1))/GAMMA(a)
 Jmat.Complex.gamma_p = function(a, z) {
-  if(Jmat.Complex.isNegativeIntOrZero(a)) return Jmat.Complex(1);
-  var g = Jmat.Complex.calcCache_(a, Jmat.Complex.gamma, Jmat.Complex.gamma_p_cache_); // gamma(a)
-  return Jmat.Complex.incgamma_lower(a, z).div(g);
+  var C = Jmat.Complex;
+
+  if(C.isNegativeIntOrZero(a)) return C(1);
+
+  if(z.eqr(Infinity)) return C(1);
+  if(C.isInf(z)) return C(NaN); // non positive infinities not supported
+
+  var g = C.calcCache_(a, C.gamma, C.gamma_p_cache_); // gamma(a)
+  return C.incgamma_lower(a, z).div(g);
 };
 
 Jmat.Real.gamma_p_cache_ = [];
 Jmat.Real.gamma_p = function(a, z) {
   if(Jmat.Real.isNegativeIntOrZero(a)) return 1;
+
+  if(z == Infinity) return 1;
+  if(z == -Infinity) return NaN; // non positive infinities not supported
+
   var g = Jmat.Real.calcCache_(a, Jmat.Real.gamma, Jmat.Real.gamma_p_cache_); // gamma(a)
   return Jmat.Real.incgamma_lower(a, z) / g;
 };
@@ -805,12 +818,10 @@ Jmat.Real.gamma_p = function(a, z) {
 // Q(a, x) = 1 - P(a, x) = GAMMA(a, z) / GAMMA(a)
 // Note: the derivative of this function is: -(e^(-z) * z^(a-1))/GAMMA(a)
 Jmat.Complex.gamma_q = function(a, z) {
-  if(Jmat.Complex.isNegativeIntOrZero(a)) return Jmat.Complex(0);
   return Jmat.Complex.ONE.sub(Jmat.Complex.gamma_p(a, z));
 };
 
 Jmat.Real.gamma_q = function(a, z) {
-  if(Jmat.Real.isNegativeIntOrZero(a)) return 0;
   return 1 - Jmat.Real.gamma_p(a, z);
 };
 
@@ -885,11 +896,15 @@ Jmat.Real.gamma_q_inva = function(q, z) {
 // It is also optimized to use for loops if x and y are nearby integers, ...
 Jmat.Complex.gammaDiv_ = function(x, y) {
   var C = Jmat.Complex;
-  if(x.eq(y)) return C.ONE; // For the "combined" function, this is considered correct even for negative integers...
 
-  if(C.isInfOrNaN(x) || C.isInfOrNaN(y)) {
+  if(C.isNaN(x) || C.isNaN(y)) return C(NaN);
+  if(C.isInf(x) || C.isInf(y)) {
+    if(x.eqr(Infinity) && !C.isInf(y) && !C.isNegativeIntOrZero(y)) return C(Infinity);
+    if(y.eqr(Infinity) && !C.isInf(x) && !C.isNegativeIntOrZero(x)) return C(0);
     return C(NaN);
   }
+
+  if(x.eq(y)) return C.ONE; // For the "combined" function, this is considered correct even for negative integers...
 
   if(C.isNegativeIntOrZero(y) && (x.re > 0 || !C.isInt(x))) return C.ZERO; // division of non-infinity through infinity
 
@@ -955,11 +970,15 @@ Jmat.Complex.gammaDiv22_ = function(a, b, c, d) {
 // Uses the formula gamma(a)/gamma(b) = (-1)^(a-b) * gamma(-b+1) / gamma(-a+1) if necessary
 Jmat.Complex.loggammaDiv_ = function(x, y) {
   var C = Jmat.Complex;
-  if(x.eq(y)) return C.ZERO; // For the "combined" function, this is correct even for negative integers...
 
-  if(C.isInfOrNaN(x) || C.isInfOrNaN(y)) {
+  if(C.isNaN(x) || C.isNaN(y)) return C(NaN);
+  if(C.isInf(x) || C.isInf(y)) {
+    if(x.eqr(Infinity) && !C.isInf(y) && !C.isNegativeIntOrZero(y)) return C(Infinity);
+    if(y.eqr(Infinity) && !C.isInf(x) && !C.isNegativeIntOrZero(x)) return C(-Infinity);
     return C(NaN);
   }
+
+  if(x.eq(y)) return C.ZERO; // For the "combined" function, this is correct even for negative integers...
 
   if(C.isNegativeIntOrZero(y) && (x.re > 0 || !C.isInt(x))) return C(-Infinity); // division of non-infinity through infinity ==> log(0)
 
@@ -1000,7 +1019,7 @@ Jmat.Complex.loggammaDiv21_ = function(a, b, c) {
 
 // Similar to Jmat.Complex.loggammaDiv_, but takes 4 arguments and cancels out more if possible. Returns (loggamma(a) + loggamma(b)) - (loggamma(c) + loggamma(d))
 // To have only 3 values, set a, b, c or d to 1 (it will be fast for that)
-Jmat.Complex.loggammaDiv2_ = function(a, b, c, d) {
+Jmat.Complex.loggammaDiv22_ = function(a, b, c, d) {
   var C = Jmat.Complex;
   // Try to combine two negative-integer-ones to have the errors cancel out
   if(C.isNegativeIntOrZero(a) == C.isNegativeIntOrZero(c)) {
@@ -1016,9 +1035,15 @@ Jmat.Complex.loggammaDiv2_ = function(a, b, c, d) {
 // It is also optimized to use for loops if x and y are nearby integers, ...
 Jmat.Real.gammaDiv_ = function(x, y) {
   var R = Jmat.Real;
-  if(x == y) return 1;
 
-  if(R.isInfOrNaN(x) || R.isInfOrNaN(y)) return NaN;
+  if(R.isNaN(x) || R.isNaN(y)) return NaN;
+  if(R.isInf(x) || R.isInf(y)) {
+    if(x == Infinity && !R.isInf(y) && !R.isNegativeIntOrZero(y)) return Infinity;
+    if(y == Infinity && !R.isInf(x) && !R.isNegativeIntOrZero(x)) return 0;
+    return NaN;
+  }
+
+  if(x == y) return 1; // For the "combined" function, this is correct even for negative integers...
 
   if(R.isNegativeIntOrZero(y) && (x.re > 0 || !R.isInt(x))) return 0; // division of non-infinity through infinity
 
@@ -1070,9 +1095,15 @@ Jmat.Real.gammaDiv22_ = function(a, b, c, d) {
 // Uses the formula gamma(a)/gamma(b) = (-1)^(a-b) * gamma(-b+1) / gamma(-a+1) if necessary
 Jmat.Real.loggammaDiv_ = function(x, y) {
   var R = Jmat.Real;
-  if(x == y) return 0; // For the "combined" function, this is correct even for negative integers...
 
-  if(R.isInfOrNaN(x) || R.isInfOrNaN(y)) return NaN;
+  if(R.isNaN(x) || R.isNaN(y)) return NaN;
+  if(R.isInf(x) || R.isInf(y)) {
+    if(x == Infinity && !R.isInf(y) && !R.isNegativeIntOrZero(y)) return Infinity;
+    if(y == Infinity && !R.isInf(x) && !R.isNegativeIntOrZero(x)) return -Infinity;
+    return NaN;
+  }
+
+  if(x == y) return 0; // For the "combined" function, this is correct even for negative integers...
 
   if(R.isNegativeIntOrZero(y) && (x > 0 || !R.isInt(x))) return -Infinity; // division of non-infinity through infinity ==> log(0)
 
@@ -1111,7 +1142,7 @@ Jmat.Real.loggammaDiv21_ = function(a, b, c) {
 
 // Similar to Jmat.Real.loggammaDiv_, but takes 4 arguments and cancels out more if possible. Returns (loggamma(a) + loggamma(b)) - (loggamma(c) + loggamma(d))
 // To have only 3 values, set a, b, c or d to 1 (it will be fast for that)
-Jmat.Real.loggammaDiv2_ = function(a, b, c, d) {
+Jmat.Real.loggammaDiv22_ = function(a, b, c, d) {
   var R = Jmat.Real;
   // Try to combine two negative-integer-ones to have the errors cancel out
   if(R.isNegativeIntOrZero(a) == R.isNegativeIntOrZero(c)) {
@@ -1132,24 +1163,46 @@ Jmat.Complex.permutation = function(n, p) {
 //    ( p )
 // n! / (p! * (n-p)!)
 Jmat.Complex.binomial = function(n, p) {
-  if(Jmat.Complex.isPositiveIntOrZero(n) && Jmat.Complex.isPositiveIntOrZero(p) && p.re <= n.re && n.re < 30) return Jmat.Complex(Jmat.Real.pascal_triangle(n.re, p.re));
+  var C = Jmat.Complex;
+
+  if(n.eqr(Infinity)) {
+    if(C.isNegativeInt(p)) return C(0);
+    if(p.eqr(0)) return C(1);
+    if(C.isPositiveInt(p)) return C(Infinity);
+    return C(NaN);
+  }
+  if(C.isInf(n)) return C(NaN);
+
+  if(C.isPositiveIntOrZero(n) && C.isPositiveIntOrZero(p) && p.re <= n.re && n.re < 30) {
+    return C(Jmat.Real.pascal_triangle(n.re, p.re));
+  }
 
   // gammaDiv_ is already optimized for integers near each other etc...
-  var result = Jmat.Complex.gammaDiv12_(n.inc(), p.inc(), n.sub(p).inc());
+  var result = C.gammaDiv12_(n.inc(), p.inc(), n.sub(p).inc());
   // Round to integer if large result, it sometimes gets numerically a bit off.
-  if(result.re > 100 && Jmat.Complex.isPositiveInt(n) && Jmat.Complex.isPositiveInt(p) && n.re > p.re) result = Jmat.Complex.round(result);
+  if(result.re > 100 && C.isPositiveInt(n) && C.isPositiveInt(p) && n.re > p.re) result = C.round(result);
   return result;
 };
 
 Jmat.Real.binomial = function(n, p) {
-  if(Jmat.Real.isPositiveIntOrZero(n) && Jmat.Real.isPositiveIntOrZero(p) && p <= n && n < 30) {
-    return Jmat.Real.pascal_triangle(n, p);
+  var R = Jmat.Real;
+
+  if(n == Infinity) {
+    if(R.isNegativeInt(p)) return 0;
+    if(p == 0) return 1;
+    if(R.isPositiveInt(p)) return Infinity;
+    return NaN;
+  }
+  if(n == -Infinity) return NaN;
+
+  if(R.isPositiveIntOrZero(n) && R.isPositiveIntOrZero(p) && p <= n && n < 30) {
+    return R.pascal_triangle(n, p);
   }
 
   // gammaDiv_ is already optimized for integers near each other etc...
-  var result = Jmat.Real.gammaDiv12_(n + 1, p + 1, n - p + 1);
+  var result = R.gammaDiv12_(n + 1, p + 1, n - p + 1);
   // Round to integer if large result, it sometimes gets numerically a bit off.
-  if(result > 100 && Jmat.Real.isPositiveInt(n) && Jmat.Real.isPositiveInt(p) && n > p) {
+  if(result > 100 && R.isPositiveInt(n) && R.isPositiveInt(p) && n > p) {
     result = Math.round(result);
   }
   return result;
@@ -1175,22 +1228,25 @@ Jmat.Complex.stirling2 = function(n, k) {
 ////////////////////////////////////////////////////////////////////////////////
 
 Jmat.Complex.beta = function(x, y) {
+  var C = Jmat.Complex;
   // definition: beta(x, y) = gamma(x)*gamma(y) / gamma(x+y)
-  //return Jmat.Complex.gamma(x).mul(Jmat.Complex.gamma(y)).div(Jmat.Complex.gamma(x.add(y)));
-  //return Jmat.Complex.exp(Jmat.Complex.loggamma(x).add(Jmat.Complex.loggamma(y)).sub(Jmat.Complex.loggamma(x.add(y))));
+  //return C.gamma(x).mul(C.gamma(y)).div(C.gamma(x.add(y)));
+  //return C.exp(C.loggamma(x).add(C.loggamma(y)).sub(C.loggamma(x.add(y))));
 
   // For the negative integers (which cause the gamma function to return indeterminate results) for which beta is still defined:
   // beta(x, y), with x < 0 and y > 0, is, by the formula: gamma(y)*gamma(x) / gamma(x + y), rewritten to: gamma(y) / (gamma(x + y) / gamma(x)), for example:
   // beta(x, 2) = 1 / x(x+1),  beta(x, 3) = 2 / x(x+1)(x+2),  beta(x, 4) = 6 / x(x+1)(x+2)(x+3),  beta(x, 5) = 24 / x(x+1)(x+2)(x+3)(x+4), etc...
   // When x is negative integer, x(x+1)(x+2)...(x+y-1) can be rewritten as (-1^y) * |x|(|x|-1)(|x|-2)...(|x|-y-1), which is (-1^y) * gamma(|x|+1) / gamma(|x|-y+1)
   // And those last gamma functions get positive argument, so it works without NaN again, so we get the right answers
-  // The Jmat.Complex.gammaDiv_ function is used to get similar effect. Use a negative input value as its numerator.
+  // The C.gammaDiv_ function is used to get similar effect. Use a negative input value as its numerator.
+
+  if(y.eqr(Infinity) && !C.isInfOrNaN(x)) return C(0); // TODO: verify that this is the correct limit in all cases
 
   if(x.re < 50 && x.re > -50 && y.re < 50 && y.re > -50) {
     // gamma rather than loggamma more precise here
-    return Jmat.Complex.gammaDiv21_(x, y, x.add(y));
+    return C.gammaDiv21_(x, y, x.add(y));
   } else {
-    return Jmat.Complex.exp(Jmat.Complex.loggammaDiv21_(x, y, x.add(y)));
+    return C.exp(C.loggammaDiv21_(x, y, x.add(y)));
   }
 };
 

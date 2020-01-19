@@ -13,8 +13,12 @@ This library includes:
  * Quaternions.
  * Big Integers.
 
-#Building
+# Building
 
 To build the minified version, use:
 
 `./minify.sh`
+
+# Screenshot
+
+![screenshot](screenshot.png)
