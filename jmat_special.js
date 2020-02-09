@@ -1631,6 +1631,7 @@ Jmat.Complex.bessel_sqrt2piz_ = function(z) {
 
 // besselj for integer n >= 2
 // To avoid too many loops, do not call for large n. There are probably faster approximations in such zones.
+// NOTE: for large enough |z|, is more precise than besselj_series_, but for smaller |z| with smaller nu this is imprecise, e.g. for nu=3, z=5, use besselj_series_ instead.
 Jmat.Complex.besselj_miller_ = function(n, z) {
   var C = Jmat.Complex;
   if(C.isNaN(n) || C.isNaN(z)) return C(NaN); // otherwise loop below may never run
@@ -1672,6 +1673,7 @@ Jmat.Complex.besselj_miller_ = function(n, z) {
   return jn.mul(p);
 };
 
+// NOTE: in case of integer nu: for small integer nu and small z, e.g. nu=3, z=5, is more precise than besselj_miller_. For larger nu and z, besselj_miller_ becomes more precise. For large |z| with small nu, like nu=3, z=50, besselj_series_ completely diverges to wrong values while miller works.
 Jmat.Complex.besselj_series_ = function(nu, z) {
   var C = Jmat.Complex;
 
@@ -1819,11 +1821,21 @@ Jmat.Complex.besselj = function(nu, z) {
   }
 
   if(C.isInt(nu) && Math.abs(nu.re) < 50) {
+    // Supports integer nu not equal to 0 or 1: besselj_miller_ only supports nu >= 2
     var result;
-    // Supports integer nu not equal to 0 or 1
-    //J_nu(z) = (-1)^nu * J_-nu(z), for integer nu, and besselj_miller_ only supports nu >= 2
-    if(nu.re < 0) result = C.besselj_miller_(nu.neg(), z).mulr(C.isOdd(nu) ? -1 : 1);
-    else result = C.besselj_miller_(nu, z);
+    var na = C.abs(nu);
+    var za = C.abs(z);
+    var use_series = false;
+    // miller is best in most areas except for low nu and low z where it gets only very few digits correct (but works for high nu with low z or low nu with high z or both high).
+    // series on the other hand is good for low nu and low z, or medium high z with higher nu
+    // For high z with low nu (relatively to z), series diverges and is not useable.
+    // the heuristic below roughly captures all that
+    if(za < 25 && na > za / 2) use_series = true;
+    if(za < 10 && na < 5) use_series = true; // for both very low nu and z, miller is always worse
+    var besselfun = use_series ? C.besselj_series_ : C.besselj_miller_;
+    //J_nu(z) = (-1)^nu * J_-nu(z), for integer nu
+    if(nu.re < 0) result = besselfun(nu.neg(), z).mulr(C.isOdd(nu) ? -1 : 1);
+    else result = besselfun(nu, z);
     return result;
   } else if(z.abs() < 25) {
     return C.besselj_series_(nu, z);

@@ -1,7 +1,7 @@
 /*
 Jmat.js
 
-Copyright (c) 2011-2016, Lode Vandevenne
+Copyright (c) 2011-2020, Lode Vandevenne
 All rights reserved.
 
 Redistribution and use in source and binary forms, with or without modification,
@@ -51,11 +51,15 @@ Overview of some functionality:
 -primes: BigInt.isPrime, BigInt.factorize, BigInt.nextPrime, BigInt.previousPrime, BigInt.nearestPrime
 -Euclidean Algorithm: BigInt.gcd, BigInt.egcd
 -factorial: BigInt.factorial, BigInt.primorial
+
+TODO: if supported by browser, add support for native JS BigInts in several computations to speed things up (e.g. pow)
 */
 
 /*
 Constructor, but also usable without new as factory function.
 All parameters are optional.
+TODO: make it such that if a starts with 0x, it parses string as decimal. Also, if a is string, b gives OUTPUT base instead of string base, that may be confusing, consider a different option where b is the base of the string.
+TODO: add support for native JS BigInts as input
 */
 Jmat.BigInt = function(a, b, minus) {
   if(this instanceof Jmat.BigInt) {
@@ -157,25 +161,16 @@ Jmat.BigInt.arrayToString = function(v, opt_abase, opt_sbase) {
   return result;
 };
 
-// This can be used by functions from within convertArrayBase to avoid recursive call if a binary BigInt is needed...
-Jmat.BigInt.getInBaseTwoWithoutConvert_ = function(v) {
-  var a = [];
-  while(v > 0) {
-    a.push(v & 1);
-    v = v >> 1;
-  }
-  Jmat.BigInt.mirror_(a);
-  return new Jmat.BigInt(a, 2);
-};
 
 //may return input object if bases are equal
 Jmat.BigInt.convertArrayBase = function(s, from, to, opt_powrcache_) {
   if(s.length > 8 && to == 10 && Jmat.Real.isPOT(from)) {
     // Using larger to-bases for the non-linear algos gives huge speedup.
     // TODO: do this for all such to-bases rather than hardcoded for 10.
-    // NOTE: does not work with correctly with 1000000000 (1,000,000,000), do not use (e.g. result of factorial(50) will go wrong).
-    var a = Jmat.BigInt.convertArrayBase(s, from, 100000000);
-    return Jmat.BigInt.convertArrayBase(a, 100000000, 10);
+    // NOTE: due to JS number multiplications in baseloop_, the large base can be max 10000000 (10 million),
+    // because unfortunately 100 million * 100 million is just a little bit bigger than 2 ** 53, the max JS number integer.
+    var a = Jmat.BigInt.convertArrayBase(s, from, 10000000);
+    return Jmat.BigInt.convertArrayBase(a, 10000000, 10);
   }
   var R = Jmat.Real;
   var B = Jmat.BigInt;
@@ -214,7 +209,8 @@ Jmat.BigInt.convertArrayBase = function(s, from, to, opt_powrcache_) {
           var a = fbits - bp;
           r[i] = s[pos] >> bp;
           pos--;
-          r[i] |= ((s[pos] & mask) << a);
+          r[i] |= (s[pos] << a);
+          r[i] &= mask;
           bp = tbits - a;
         } else {
           r[i] |= ((s[pos] >> bp) & mask);
@@ -262,35 +258,38 @@ Jmat.BigInt.convertArrayBase = function(s, from, to, opt_powrcache_) {
 
   if(s.length > 8) {
     // Divide and conquer radix conversion
-    var h = R.idiv(s.length, 2);
+    var h = R.idiv(s.length, 2); // half the digits amount, in the from base
     var high = [];
     var low = [];
     for(var i = 0; i < h; i++) high[i] = s[i];
     for(var i = h; i < s.length; i++) low[i - h] = s[i];
 
+    // cache for powers since the recursion will often compute the same powers
     var cache = opt_powrcache_ || [];
 
+    // Recursively call convertArrayBase on two half-sized numbers
     var high2 = B.convertArrayBase(high, from, to, cache);
     var low2 = B.convertArrayBase(low, from, to, cache);
 
     var e = s.length - h;
-    var p = cache[e];
-    if (!p) {
+
+    var p = cache[e]; // p should get the following value: B.powr(B(from, to), e);
+    if(!p) {
+      // instead of computing B.powr(B(from, to), e) directly, previous smaller powers from the cache can be used for more speed
       var eh = R.idiv(e, 2);
       var el = e - eh;
+      if(!cache[eh]) cache[eh] = B.powr(B(from, to), eh);
+      if(!cache[el]) cache[el] = B.powr(B(from, to), el);
       var ph = cache[eh];
       var pl = cache[el];
-      // getInBaseTwoWithoutConvert_ is used to make sure the pow function does not call us, use more primitive base convert
-      if(ph && pl) p = ph.mul(pl);
-      else if(ph) p = ph.mul(B.pow(B(from, to), B.getInBaseTwoWithoutConvert_(el)));
-      else if(pl) p = pl.mul(B.pow(B(from, to), B.getInBaseTwoWithoutConvert_(eh)));
-      else p = B.pow(B(from, to), B.getInBaseTwoWithoutConvert_(e));
+
+      p = ph.mul(pl);
+      cache[e] = p;
     }
-    cache[e] = p;
 
-    return B(low2, to).add(B(high2, to).mul(p)).a;
+    var res = B(low2, to).add(B(high2, to).mul(p));
+    return res.a;
   }
-
 
   for(var i = 0; i < s.length; i++) {
     r = B.baseloop_(r, 0, from, [], 0, 1, s[i], to, false);
@@ -315,12 +314,14 @@ Jmat.BigInt.convertStringBase = function(s, from, to) {
 // For example: to multiply a with 5, do: baseloop_(a, 0, 5, [], 0, 0, 0, radix, false)
 // For example: to calculate a - b, do: baseloop_(a, 0, 1, b, 0, -1, 0, radix, false)
 // For example: to calculate a << 5 + b, do: baseloop_(a, 5, 1, b, 0, 1, 0, radix, false)
+// NOTE: base * amul and base * bmul should be smaller than 2 ** 53, to avoid JavaScript number overflow giving inaccurate results
 Jmat.BigInt.baseloop_ = function(a, ashift, amul, b, bshift, bmul, overflow, base, keep_asize) {
   var result = [];
   var l = Math.max(a.length + ashift, b.length + bshift);
   var asize = a.length;
 
   if(!b.length && !ashift) {
+    // TODO: bmul is ignored here which is a bug, verify if nothing was trying to use it this way, and add "bmul == 1" to the if if needed
     for(var i = 0; i < l; i++) {
       overflow += amul * (a[a.length - i - 1]);
       result[i] = (overflow + base) % base; // to also support negative values
@@ -819,6 +820,7 @@ Jmat.BigInt.prototype.mulr = function(b) {
 };
 
 // Karatsuba multiplication. a and b are arrays with leading zeroes stripped.
+// NOTE: radix*radix should be < 2**53, so radix should be < 94906265
 Jmat.BigInt.karatsuba_ = function(a, b, radix) {
   if(a.length <= 1 || b.length <= 1) return Jmat.BigInt.schoolmul_(a, b, radix);
 
@@ -859,6 +861,7 @@ Jmat.BigInt.karatsuba_ = function(a, b, radix) {
 };
 
 // Schoolbook multiplication. a and b are arrays with leading zeroes stripped.
+// NOTE: radix*radix should be < 2**53, so radix should be < 94906265
 Jmat.BigInt.schoolmul_ = function(a, b, radix) {
   if(a.length == 1 && a[0] == 0) return [0];
   if(a.length == 1 && a[0] == 1) return b;
@@ -2061,10 +2064,15 @@ Jmat.BigInt.prototype.pow = function(b) {
 };
 
 Jmat.BigInt.powr = function(a, b) {
-  return Jmat.BigInt.pow(a, Jmat.BigInt.fromInt(b));
+  // fromInt is done with radix 2 on purpose: BigInt.pow will convert the argument
+  // to base 2 anyway if not in base 2 already, and, the function convertArrayBase
+  // itself wants to call powr, but there could be infinite recursion due to the
+  // base conversion pow will then do if we don't already put it in the correct
+  // base. Note that fromInt with radix 2 will not use convertArrayBase.
+  return Jmat.BigInt.pow(a, Jmat.BigInt.fromInt(b, 2));
 };
 Jmat.BigInt.prototype.powr = function(b) {
-  return Jmat.BigInt.pow(this, Jmat.BigInt.fromInt(b));
+  return Jmat.BigInt.powr(this, b);
 };
 
 //greatest common divisor
@@ -2353,9 +2361,10 @@ Numbers to test that are not prime (each one has 2 large prime factors):
 88357 (149*593), strong pseudoprime
 */
 
-Jmat.BigInt.d_ = ['0', '1', '2', '3', '4', '5', '6', '7', '8', '9', 'A', 'B', 'C', 'D', 'E', 'F',
-                  'G', 'H', 'I', 'J', 'K', 'L', 'M', 'N', 'O', 'P', 'Q', 'R', 'S', 'T', 'U', 'V',
-                  'W', 'X', 'Y', 'Z'];
+// Small case letters used, similar to what JS outputs by default for integer conversions to bases
+Jmat.BigInt.d_ = ['0', '1', '2', '3', '4', '5', '6', '7', '8', '9', 'a', 'b', 'c', 'd', 'e', 'f',
+                  'g', 'h', 'i', 'j', 'k', 'l', 'm', 'n', 'o', 'p', 'q', 'r', 's', 't', 'u', 'v',
+                  'w', 'x', 'y', 'z'];
 
 Jmat.BigInt.di_ = function(c) {
   var i = c.charCodeAt(0);
