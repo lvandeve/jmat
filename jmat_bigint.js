@@ -1039,6 +1039,7 @@ Jmat.BigInt.rootr = function(a, n) {
   if(n > B.log2(a.abs()).toInt()) return B(a.minus ? -1 : 1);
 
   var low = B([0], a.radix);
+  // TODO: optimization: high can be (2 ** ceil((log2(a) + 1) / n)) + 1. Note that high must be initialized to something larger than the solution, not equal, to make the loop below work correctly.
   var high = Jmat.BigInt.copystrip_(a);
   if(high.a.length == 1 && high.a[0] == 1) low = B([1], a.radix); //the algorithm below fails on [1]
   high.a = high.a.slice(0, Math.ceil(high.a.length / n) + 1); // initial estimate for max of sqrt: half amount of digits
@@ -1051,13 +1052,13 @@ Jmat.BigInt.rootr = function(a, n) {
     var mid = low.add(high).divr(2);
     var rr = B.powr(mid, n);
     var c = B.compare(rr, a);
-    if(c == 0) {
+    if(c == 0) { // rr == a
       result = mid;
       break;
     }
-    else if(c < 0) low = mid;
-    else high = mid;
-    if(B.compare(high.sub(low), one) <= 0) {
+    else if(c < 0) low = mid; // rr < a
+    else high = mid; // rr > a
+    if(B.compare(high.sub(low), one) <= 0) { // tests high <= low + 1
       result = low;
       break;
     }

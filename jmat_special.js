@@ -2460,6 +2460,9 @@ Jmat.Complex.zeta = function(s) {
 Jmat.Complex.eta = function(s) {
   var C = Jmat.Complex;
   if(s.eqr(Infinity)) return C(1);
+  if(s.eqr(0)) return C(0.5);
+
+  if(s.re < 0 && C.isEven(s)) return C(0);
 
   //The calculation only works for s.re > 0.5, so use reflection formula if needed
   if(s.re < 0.5) {
