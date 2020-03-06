@@ -827,8 +827,10 @@ Jmat.Real.gamma_q = function(a, z) {
 
 // Inverse regularized gamma P
 // Finds z such that p == gamma_p(a, z)
-// This is an *approximation* of inverse of incomplete regularized gamma (P) - it works for real values with p in range 0-1 and positive a. Good enough for qf of chi square distribution
+// This is an *approximation* of inverse of incomplete regularized gamma (P) - it works for real values with p in range 0-1 and positive a.
+// Good enough for qf of chi square distribution
 Jmat.Complex.gamma_p_inv = function(a, p) {
+  // Not supported for complex or certain negative inputs
   // Return NaN for unsupported values to prevent bogus results
   if(!Jmat.Complex.isReal(p) || !Jmat.Complex.isReal(a) || p.re < 0 || p.re > 1 || a.re < 0) return Jmat.Complex(NaN);
 
@@ -839,6 +841,8 @@ Jmat.Complex.gamma_p_inv = function(a, p) {
 Jmat.Real.gamma_p_inv = function(a, p) {
   // Return NaN for unsupported values to prevent bogus results
   if(p < 0 || p > 1 || a < 0) return NaN;
+
+  if(p == 0) return 0;
 
   // One possible approximation series for inverse gamma P. Valid for real values
   // with p in range 0-1 and positive a
@@ -4479,18 +4483,24 @@ Jmat.Complex.newtonStartValueAround_ = function(f, z0, dist) {
 
 //Like Jmat.Real.rootfind_newton, but fdf returns both f(x) and f'(x) in an array
 Jmat.Real.rootfind_newton2 = function(fdf, z0, maxiter) {
-  if (!z0) z0 = 0;
-  if (!maxiter) maxiter = 30;
+  if(!z0) z0 = 0;
+  if(!maxiter) maxiter = 30;
   var z = z0;
   var prevz = z;
   var bestdist = Infinity;
   var best = NaN;
-  for (var i = 0; i < maxiter; i++) {
+  for(var i = 0; i < maxiter; i++) {
     var prevz = z;
     var v = fdf(z);
     z -= v[0] / v[1];
     var dist = Infinity;
-    if(Jmat.Real.isInfOrNaN(z)) z = prevz - 0.1; // get out of singularity. TODO: improve this to choose correct direction
+    if(Jmat.Real.isInfOrNaN(z)) {
+      // get out of singularity.
+      // TODO: improve the method to escape it
+      z = prevz - 0.1;
+      var test = fdf(z);
+      if(Jmat.Real.isInfOrNaN(test[0]) || Jmat.Real.isInfOrNaN(test[1])) z = prevz + 0.07;
+    }
     else dist = Math.abs(z - prevz);
     if(dist < bestdist) {
       i = 0;
@@ -4515,13 +4525,13 @@ Jmat.Real.finvert_newton = function(z, f, df, z0, maxiter) {
 
 //Newton-Raphson. Finds a complex root (zero) given function f, its derivative df, and an initial value z0
 Jmat.Complex.rootfind_newton = function(f, df, z0, maxiter) {
-  if (!z0) z0 = Jmat.Complex.ZERO;//Jmat.Complex.newtonStartValue_(f);//Jmat.Complex.ZERO;
-  if (!maxiter) maxiter = 30;
+  if(!z0) z0 = Jmat.Complex.ZERO;//Jmat.Complex.newtonStartValue_(f);//Jmat.Complex.ZERO;
+  if(!maxiter) maxiter = 30;
   var z = z0;
   var prevz = z;
   var bestdist = Infinity;
   var best = Jmat.Complex(NaN);
-  for (var i = 0; i < maxiter; i++) {
+  for(var i = 0; i < maxiter; i++) {
     var fz = f(z);
     var m = Jmat.Complex.manhattan(fz, Jmat.Complex.ZERO);
     if(Jmat.Real.near(m, 0, 1e-15)) return z; // Near enough, stop iterations
