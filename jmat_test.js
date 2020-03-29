@@ -59,6 +59,7 @@ Jmat.Test.expectNear = function(e, a, precision) {
     if(Jmat.isNaN(e) && Jmat.isNaN(a)) return; //both NaN is ok for test
     if(!Jmat.relnear(e, a, precision)) throw errorText;
   } else {
+    if(Jmat.isNaN(e) && Jmat.isNaN(a)) return; //both NaN is ok for test
     if(!Jmat.relnear(e, a, precision)) throw errorText;
   }
 };
@@ -74,8 +75,10 @@ Jmat.Test.testFunction = function(expected, epsilon, f, var_arg) {
   var result = f.apply(this, a);
   if(!Jmat.bigIntIn_(result)) {
     var e = Jmat.cheb(expected, result);
-    if(epsilon != Infinity && e > 0) {
-      if(e > Jmat.Test.accworst && epsilon <= 1e-9) Jmat.Test.accworst = e;
+    if(epsilon != Infinity && e > 0 && !isNaN(e) && Jmat.abs(expected).re > 0) {
+      var acc = Math.abs(e / Jmat.abs(expected).re);
+      if(acc > Jmat.Test.accworst) Jmat.Test.accworst = acc;
+
       Jmat.Test.accrep += (f.testName ? f.testName : 'unk') + '(' + var_arg + ') = ' + expected + ', got: ' + result + ', eps: ' + e + '\n';
     }
   }
@@ -342,6 +345,85 @@ Jmat.Test.doUnitTestLogGamma = function() {
   Jmat.Test.testFunction(-4.16245710210e+02, eps, R.loggamma, -111.5);
 };
 
+Jmat.Test.doUnitTestIncompleteGamma = function() {
+  var R = Jmat.Real;
+  var C = Jmat.Complex;
+  var eps = 1e-10;  // TODO: some below use lower precision, improve those
+
+
+  //Jmat.Test.testFunction(C('-1.90685709243181e-65-6.7170417392119e-65i'), eps, C.incgamma_upper, C('-50.1'), C('-50.1'));  // TODO: broken
+  Jmat.Test.testFunction(C('3.00748852494218e-35-9.77192257948091e-36i'), eps, C.incgamma_upper, C('-50.1'), C('-5'));
+  Jmat.Test.testFunction(C('2.64657068433559e48-8.59922942813169e47i'), eps, C.incgamma_upper, C('-50.1'), C('-0.1'));
+  Jmat.Test.testFunction(C(Infinity, Infinity), eps, C.incgamma_upper, C('-50.1'), C('0'));
+  Jmat.Test.testFunction(C('2.26907709869162e48+2.77881800593125e32i'), eps, C.incgamma_upper, C('-50.1'), C('0.1'));
+  Jmat.Test.testFunction(C('1.17018205654661e-39+1.43305970996947e-55i'), eps, C.incgamma_upper, C('-50.1'), C('5'));
+  Jmat.Test.testFunction(C('1.19384247102197e-109'), eps, C.incgamma_upper, C('-50.1'), C('50.1'));
+  Jmat.Test.testFunction(C('-0.0076488019694078+0.0184317271973917i'), eps, C.incgamma_upper, C('-50.1'), C('i'));
+
+  //Jmat.Test.testFunction(C('4.12994316189668e11+0.0261799387799149i'), eps, C.incgamma_upper, C('-5'), C('-50.1'));  // TODO: broken
+  Jmat.Test.testFunction(C('-0.00310893969790797+0.0261799387799149i'), 1e-3, C.incgamma_upper, C('-5'), C('-5'));  // TODO: this one is very imprecise
+  //Jmat.Test.testFunction(C('-22675.4499326337+0.0261799387799149i'), eps, C.incgamma_upper, C('-5'), C('-0.1'));  // TODO: broken
+  Jmat.Test.testFunction(C(Infinity, Infinity), eps, C.incgamma_upper, C('-5'), C('0'));
+  //Jmat.Test.testFunction(C('17658.7164562386'), eps, C.incgamma_upper, C('-5'), C('0.1'));  // TODO: broken
+  Jmat.Test.testFunction(C('2.05385186045294e-7'), eps, C.incgamma_upper, C('-5'), C('5'));
+  Jmat.Test.testFunction(C('9.87412015742219e-33'), eps, C.incgamma_upper, C('-5'), C('50.1'));
+  Jmat.Test.testFunction(C('-0.180982835475178-0.0632907071208335i'), 1e-3, C.incgamma_upper, C('-5'), C('i'));
+
+  //Jmat.Test.testFunction(C('-7.52294551224164e19+2.44435317061426e19i'), eps, C.incgamma_upper, C('-0.1'), C('-50.1')); // TODO: broken
+  Jmat.Test.testFunction(C('-34.5841903970137+7.76489950547495i'), eps, C.incgamma_upper, C('-0.1'), C('-5'));
+  Jmat.Test.testFunction(C('1.15054986116506-3.8460214441743i'), eps, C.incgamma_upper, C('-0.1'), C('-0.1'));
+  Jmat.Test.testFunction(C(Infinity, Infinity), eps, C.incgamma_upper, C('-0.1'), C('0'));
+  Jmat.Test.testFunction(C('2.03960576459586+1.5584723866409e-15i'), eps, C.incgamma_upper, C('-0.1'), C('0.1'));
+  Jmat.Test.testFunction(C('0.000963090674009237+1.30881066411854e-15i'), eps, C.incgamma_upper, C('-0.1'), C('5'));
+  Jmat.Test.testFunction(C('2.30551736024357e-24'), eps, C.incgamma_upper, C('-0.1'), C('50.1'));
+  Jmat.Test.testFunction(C('-0.39472124302039-0.561557209131272i'), eps, C.incgamma_upper, C('-0.1'), C('i'));
+
+  //Jmat.Test.testFunction(C('-1.16750901327627e20-3.14159265358979i'), eps, C.incgamma_upper, C('0'), C('-50.1')); // TODO: broken
+  Jmat.Test.testFunction(C('-40.1852753558032-3.14159265358979i'), 1e-6, C.incgamma_upper, C('0'), C('-5'));
+  Jmat.Test.testFunction(C('1.62281281396928-3.14159265358979i'), 1e-6, C.incgamma_upper, C('0'), C('-0.1'));
+  Jmat.Test.testFunction(C(Infinity), eps, C.incgamma_upper, C('0'), C('0'));
+  Jmat.Test.testFunction(C('1.82292395841939'), 1e-6, C.incgamma_upper, C('0'), C('0.1'));
+  Jmat.Test.testFunction(C('0.00114829559127533'), eps, C.incgamma_upper, C('0'), C('5'));
+  Jmat.Test.testFunction(C('3.41653489450219e-24'), eps, C.incgamma_upper, C('0'), C('50.1'));
+  Jmat.Test.testFunction(C('-0.337403922900968-0.624713256427714i'), 1e-6, C.incgamma_upper, C('0'), C('i'));
+
+  //Jmat.Test.testFunction(C('3.33833893881105e28-1.63531443835357e13i'), eps, C.incgamma_upper, C('5'), C('-50.1')); // TODO: broken
+  Jmat.Test.testFunction(C('48827.9293447477-2.98837879289294e-11i'), eps, C.incgamma_upper, C('5'), C('-5'));
+  Jmat.Test.testFunction(C('24.0000021740226-1.33120489166048e-21i'), eps, C.incgamma_upper, C('5'), C('-0.1'));
+  Jmat.Test.testFunction(C('24'), eps, C.incgamma_upper, C('5'), C('0'));
+  Jmat.Test.testFunction(C('23.9999981597276'), eps, C.incgamma_upper, C('5'), C('0.1'));
+  Jmat.Test.testFunction(C('10.5718388415651'), eps, C.incgamma_upper, C('5'), C('5'));
+  Jmat.Test.testFunction(C('1.19276085485219e-15'), eps, C.incgamma_upper, C('5'), C('50.1'));
+  Jmat.Test.testFunction(C('23.8533496724437-0.13307668513986i'), eps, C.incgamma_upper, C('5'), C('i'));
+
+  //Jmat.Test.testFunction(C('-6.63310309384856e104-2.15522584233474e104i'), eps, C.incgamma_upper, C('50.1'), C('-50.1')); // TODO: broken
+  Jmat.Test.testFunction(C('8.9869011264868e62-8.69772483121489e34i'), eps, C.incgamma_upper, C('50.1'), C('-5'));
+  Jmat.Test.testFunction(C('8.9869011264868e62-5.40412012041521e-53i'), eps, C.incgamma_upper, C('50.1'), C('-0.1'));
+  Jmat.Test.testFunction(C('8.9869011264868e62'), eps, C.incgamma_upper, C('50.1'), C('0'));
+  Jmat.Test.testFunction(C('8.9869011264868e62'), eps, C.incgamma_upper, C('50.1'), C('0.1'));
+  Jmat.Test.testFunction(C('8.9869011264868e62'), eps, C.incgamma_upper, C('50.1'), C('5'));
+  //Jmat.Test.testFunction(C('4.32459090118131e62'), eps, C.incgamma_upper, C('50.1'), C('50.1')); // TODO: broken
+  Jmat.Test.testFunction(C('8.9869011264868e62-0.0146366121478805i'), eps, C.incgamma_upper, C('50.1'), C('i'));
+
+  //Jmat.Test.testFunction(C('3.68517556349629e18+3.44421829484857e18i'), eps, C.incgamma_upper, C('i'), C('-50.1')); // TODO: broken
+  Jmat.Test.testFunction(C('-0.608436312119478-1.93397705764733i'), eps, C.incgamma_upper, C('i'), C('-5'));
+  Jmat.Test.testFunction(C('-0.119656309386812-0.52669096243i'), eps, C.incgamma_upper, C('i'), C('-0.1'));
+  Jmat.Test.testFunction(C(NaN), eps, C.incgamma_upper, C('i'), C('0'));
+  Jmat.Test.testFunction(C('0.520456814438865-1.1692118668311i'), eps, C.incgamma_upper, C('i'), C('0.1'));
+  Jmat.Test.testFunction(C('-0.000213097144507013+0.00111783077033051i'), eps, C.incgamma_upper, C('i'), C('5'));
+  Jmat.Test.testFunction(C('-2.40030031601736e-24-2.43045574253757e-24i'), eps, C.incgamma_upper, C('i'), C('50.1'));
+  Jmat.Test.testFunction(C('-0.0148248186228857-0.216549027489796i'), eps, C.incgamma_upper, C('i'), C('i'));
+
+  // lower incomplete gamma
+  Jmat.Test.testFunction(C('8.36636538982759'), eps, C.incgamma_lower, C('0.1'), C('0.2'));
+  Jmat.Test.testFunction(C('9.51350769866873'), eps, C.incgamma_lower, C('0.1'), C('50.2'));
+  Jmat.Test.testFunction(C('1.57256697035077e-37'), eps, C.incgamma_lower, C('50.1'), C('0.2'));
+  Jmat.Test.testFunction(C('4.71282649850796e62'), eps, C.incgamma_lower, C('50.1'), C('50.2'));
+  Jmat.Test.testFunction(C('-0.118073221396763+0.633160817390336i'), eps, C.incgamma_lower, C('1.5'), C('i'));
+  Jmat.Test.testFunction(C('0.00896240250752899+0.0275834386509602i'), eps, C.incgamma_lower, C('-0.6'), C('-0.6'));
+  Jmat.Test.testFunction(C('0.995075707908449'), eps, C.incgamma_lower, C('0.6'), C('0.6'));
+};
+
 Jmat.Test.doUnitTestRealDistributions = function() {
   var R = Jmat.Real;
   var C = Jmat.Complex;
@@ -504,6 +586,7 @@ Jmat.doUnitTest = function(opt_verbose) {
   Jmat.Test.testFunction('359.134205369575', eps, Jmat.loggamma, '100');
   Jmat.Test.testFunction('315.0780445994933-473.32107821888i', eps, Jmat.loggamma, '100-100i');
   Jmat.Test.doUnitTestLogGamma();
+  Jmat.Test.doUnitTestIncompleteGamma();
 
   //other
   Jmat.Test.testFunction(3581, 0, Real.smallestPrimeFactor, 12830723);

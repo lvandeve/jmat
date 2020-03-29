@@ -666,44 +666,44 @@ Jmat.Plot.addControls_ = function(params, parent, plotfun, type) {
     plotfun();
   };
 
-  makeButton(parent, '←', 'shift left', xstart + s2 * 2, ystart + s2 * 0, function() {
+  makeButton(parent, '←', 'shift left', xstart + s2 * 2, ystart + s2 * 1, function() {
     params.xshift -= params.xsize / 5; updatefun();
   });
-  makeButton(parent, '→', 'shift right', xstart + s2 * 3, ystart + s2 * 0, function() {
+  makeButton(parent, '→', 'shift right', xstart + s2 * 4, ystart + s2 * 1, function() {
     params.xshift += params.xsize / 5; updatefun();
   });
-  var xfield = makeField(parent, 'x', 'center horizontal coordinate. Supports complex values for 2D plots.', xstart + s2 * 4, ystart + s2 * 0, Jmat.Complex(params.xshift, params.xshift_im).toString(), function(value) {
+  var xfield = makeField(parent, 'x', 'center horizontal coordinate. Supports complex values for 2D plots.', xstart + s2 * 5, ystart + s2 * 0, Jmat.Complex(params.xshift, params.xshift_im).toString(), function(value) {
     var v = Jmat.Complex(value);
     params.xshift = v.re;
     params.xshift_im = v.im;
     updatefun();
   });
 
-  makeButton(parent, '↑', 'shift up', xstart + s2 * 2, ystart + s2 * 1, function() {
+  makeButton(parent, '↑', 'shift up', xstart + s2 * 3, ystart + s2 * 0, function() {
     params.yshift += params.ysize / 5; updatefun();
   });
   makeButton(parent, '↓', 'shift down', xstart + s2 * 3, ystart + s2 * 1, function() {
     params.yshift -= params.ysize / 5; updatefun();
   });
-  var yfield = makeField(parent, 'y', 'center vertical coordinate. Supports complex values for 2D plots.', xstart + s2 * 4, ystart + s2 * 1, Jmat.Complex(params.yshift, params.yshift_im).toString(), function(value) {
+  var yfield = makeField(parent, 'y', 'center vertical coordinate. Supports complex values for 2D plots.', xstart + s2 * 5, ystart + s2 * 1, Jmat.Complex(params.yshift, params.yshift_im).toString(), function(value) {
     var v = Jmat.Complex(value);
     params.yshift = v.re;
     params.yshift_im = v.im;
     updatefun();
   });
 
-  makeButton(parent, '+', 'zoom in', xstart + s2 * 10, ystart + s2 * 0, function() {
+  makeButton(parent, '+', 'zoom in', xstart + s2 * 11, ystart + s2 * 0, function() {
     params.xsize /= 2; params.ysize /= 2; updatefun();
   });
-  var xsizefield = makeField(parent, 'x', 'area size in horizontal direction', xstart + s2 * 11, ystart + s2 * 0, params.xsize, function(value) {
+  var xsizefield = makeField(parent, 'x', 'area size in horizontal direction', xstart + s2 * 12, ystart + s2 * 0, params.xsize, function(value) {
     var v = Jmat.Complex(value);
     params.xsize = v.re;
     updatefun();
   });
-  makeButton(parent, '-', 'zoom out', xstart + s2 * 10, ystart + s2 * 1, function() {
+  makeButton(parent, '-', 'zoom out', xstart + s2 * 11, ystart + s2 * 1, function() {
     params.xsize *= 2; params.ysize *= 2; updatefun();
   });
-  var ysizefield = makeField(parent, 'y', 'area size in vertical direction', xstart + s2 * 11, ystart + s2 * 1, params.ysize, function(value) {
+  var ysizefield = makeField(parent, 'y', 'area size in vertical direction', xstart + s2 * 12, ystart + s2 * 1, params.ysize, function(value) {
     var v = Jmat.Complex(value);
     params.ysize = v.re;
     updatefun();
@@ -733,8 +733,8 @@ Jmat.Plot.makeRealPixel_ = function(div, params, px, y, prevy, rgb) {
   var width = params.w;
   var height = params.h;
 
-  var py = Math.floor(height / 2 - ((y+params.yshift) / ysize * height) - 1);
-  var prevpy = Math.floor(height / 2 - ((prevy+params.yshift) / ysize * height) - 1);
+  var py = Math.floor(height / 2 - ((y-params.yshift) / ysize * height) - 1);
+  var prevpy = Math.floor(height / 2 - ((prevy-params.yshift) / ysize * height) - 1);
 
   if(py < 0 && prevpy < 0) return;
   if(py > height && prevpy > height) return;

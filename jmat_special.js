@@ -688,18 +688,14 @@ Jmat.Complex.polygamma = function(n, z) {
   return Jmat.Complex(-1).pow(n.inc()).mul(Jmat.Complex.factorial(n)).mul(h);
 };
 
-// lower incomplete gamma function
-// lowercase gamma(s, x)
-Jmat.Complex.incgamma_lower = function(s, z) {
-  // METHOD A: in terms of hypergeometric1F1 function
-  // Has some noise here and there, but works better than series representation for large values
-  if(z.re > 0) {
-    var result = z.pow(s).div(s).mul(Jmat.Complex.hypergeometric1F1(s, s.inc(), z.neg()));
-    if (!Jmat.Complex.isNaN(result)) return result;
-  }
 
+// continued fraction solution
+Jmat.Complex.incgamma_lower_cf_ = function(s, z) {
+  return Jmat.Complex.gamma(s).sub(Jmat.Complex.incgamma_upper_cf_(s, z));
+};
 
-  // METHOD B: series expansion - has some problems with division through zero
+Jmat.Complex.incgamma_lower_series_ = function(s, z) {
+  // series expansion - has some problems with division through zero
   // sum_k=0.oo ((-1)^k / k!) * (z^(s+k) / (s + k))
   var result = Jmat.Complex(0);
   var kk = Jmat.Complex(1);
@@ -719,7 +715,23 @@ Jmat.Complex.incgamma_lower = function(s, z) {
 
 // lower incomplete gamma function
 // lowercase gamma(s, x)
-Jmat.Real.incgamma_lower = function(s, z) {
+Jmat.Complex.incgamma_lower = function(s, z) {
+  var C = Jmat.Complex;
+
+  if(C.isNaN(s) || C.isNaN(z)) return C(NaN);
+
+  if((z.re > 2 && z.re > s.re) || z.re > 14) return C.incgamma_lower_cf_(s, z);
+
+  return C.incgamma_lower_series_(s, z);
+};
+
+
+// continued fraction solution
+Jmat.Real.incgamma_lower_cf_ = function(s, z) {
+  return Jmat.Real.gamma(s) - Jmat.Real.incgamma_upper_cf_(s, z);
+};
+
+Jmat.Real.incgamma_lower_series_ = function(s, z) {
   // series expansion - has some problems with division through zero
   // sum_k=0.oo ((-1)^k / k!) * (z^(s+k) / (s + k))
   var result = 0;
@@ -738,30 +750,116 @@ Jmat.Real.incgamma_lower = function(s, z) {
   return result;
 };
 
+// lower incomplete gamma function
+// lowercase gamma(s, x)
+Jmat.Real.incgamma_lower = function(s, z) {
+  if(isNaN(s) || isNaN(z)) return NaN;
+
+  if((z > 2 && z > s) || z > 14) return Jmat.Real.incgamma_lower_cf_(s, z);
+
+  return Jmat.Real.incgamma_lower_series_(s, z);
+};
+
+Jmat.Complex.incgamma_upper_series_ = function(s, z) {
+  return Jmat.Complex.gamma(s).sub(Jmat.Complex.incgamma_lower_series_(s, z));
+};
+
+// continued fraction solution
+// works well for large positive z. Imprecise for low z (< 2). z <= 0 not supported. Any finite value of s supported, including negative integers.
+Jmat.Complex.incgamma_upper_cf_ = function(s, z) {
+  var C = Jmat.Complex;
+
+  // Using modified Lentz's algorithm to evaluate the continued fraction
+  var tiny = C(1e-30);
+  var c = z.sub(s).addr(1);
+  if(c.eqr(0)) c = tiny;
+  var d = C(0);
+  var a, b;
+  var result = c;
+  for(var i = 1; i < 30; i++) {
+    a = s.subr(i).mulr(i);
+    b = z.sub(s).addr(2 * i + 1);
+    d = b.add(a.mul(d));
+    if(d.eqr(0)) d = tiny;
+    d = d.inv();
+    c = b.add(a.div(c));
+    if(c.eqr(0)) c = tiny;
+    result = result.mul(c).mul(d);
+
+    if(c.mul(d).rsub(1).abs() < 1e-15) break; // close enough to convergence
+  }
+
+  return C.pow(z, s).mul(C.exp(z.neg())).div(result);
+};
+
 // upper incomplete gamma function
 // uppercase GAMMA(s, x)
 Jmat.Complex.incgamma_upper = function(s, z) {
   var C = Jmat.Complex;
 
-  if(z.eqr(0) && s.re < 0) return C(Infinity, Infinity);
+  if(C.isNaN(s) || C.isNaN(z)) return C(NaN);
+
+  if(z.eqr(0)) {
+    // For z == 0, the upper incomplete gamma function is equal to the gamma function for positive s only. For negative s it is an infinity.
+    if(s.re < 0) return C(Infinity, Infinity);
+    if(s.eqr(0)) return C(Infinity);
+    if(s.re == 0) return C(NaN); // s pure imaginary
+    return C.gamma(s);
+  }
 
   if(z.eqr(Infinity)) return C(0);
   if(C.isInf(z)) return C(NaN); // non positive infinities not supported
 
-
-  // The "twiddle" solution for negative integer s (further below) still does not work well if z.re > 0, so use the full integration formula in this quadrant
-  if(s.re < 0 && z.re > 0) {
-    return C.integrate(z, C(Infinity), function(t) {
-      return t.pow(s.dec()).mul(C.exp(t.neg()));
-    });
-  }
+  // For large z, the continued fraction representation is most precise
+  // TODO: for large s, e.g. s == 50, there is a zone in between where neither series nor continued fraction work well (e.g. series works for z=0..17, continued fraction works well for z=37..large, so z=17..37 works bad). The s.re/2 cutoff point is also quite arbitrary.
+  if((z.re > 2 && z.re > s.re) /*|| z.re > 14*/) return C.incgamma_upper_cf_(s, z);
 
   // For negative integer s, gamma, and lower incomplete gamma, are not defined. But the upper is.
   if(C.isNegativeIntOrZero(s)) {
+    // The "twiddle" solution for negative integer s (further below) still does not work well if z.re > 0, so use the full integration formula in this quadrant
+    if(s.re < 0 && z.re > 0) {
+      return C.integrate(z, C(Infinity), function(t) {
+        return t.pow(s.dec()).mul(C.exp(t.neg()));
+      });
+    }
+
+    // TODO: find better solution for negative integer s
     s = s.addr(1e-7); //twiddle it a bit for negative integers, so that formula in terms of lower gamma sort of works... TODO: use better approximation
   }
 
-  return C.gamma(s).sub(C.incgamma_lower(s, z));
+  return C.incgamma_upper_series_(s, z);
+};
+
+
+// series solution
+Jmat.Real.incgamma_upper_series_ = function(s, z) {
+  return Jmat.Real.gamma(s) - Jmat.Real.incgamma_lower_series_(s, z);
+};
+
+// continued fraction solution
+// works well for large positive z. Imprecise for low z (< 2). z <= 0 not supported. Any finite value of s supported, including negative integers.
+Jmat.Real.incgamma_upper_cf_ = function(s, z) {
+  // Using modified Lentz's algorithm to evaluate the continued fraction
+  var tiny = 1e-30;
+  var c = z - s + 1;
+  if(c == 0) c = tiny;
+  var d = 0;
+  var a, b;
+  var result = c;
+  for(var i = 1; i < 30; i++) {
+    a = (s - i) * i;
+    b = z - s + 2 * i + 1;
+    d = b + a * d;
+    if(d == 0) d = tiny;
+    d = 1 / d;
+    c = b + a / c;
+    if(c == 0) c = tiny;
+    result *= c * d;
+
+    if(Math.abs(1 - c * d) < 1e-15) break; // close enough to convergence
+  }
+
+  return Math.pow(z, s) * Math.exp(-z) / result;
 };
 
 // upper incomplete gamma function
@@ -769,21 +867,35 @@ Jmat.Complex.incgamma_upper = function(s, z) {
 Jmat.Real.incgamma_upper = function(s, z) {
   var R = Jmat.Real;
 
-  if(z == 0 && s < 0) return Infinity;
+  if(isNaN(s) || isNaN(z)) return NaN;
 
-  // The "twiddle" solution for negative integer s (further below) still does not work well if z.re > 0, so use the full integration formula in this quadrant
-  if(s < 0 && z > 0) {
-    return R.integrate(z, Infinity, function(t) {
-      return Math.pow(t, s - 1) * Math.exp(-t);
-    });
+  if(z == Infinity) return 0;
+
+  if(z == 0) {
+    // For z == 0, the upper incomplete gamma function is equal to the gamma function for positive s only. For negative s it is an infinity.
+    if(s > 0) return R.gamma(s);
+    return Infinity;
   }
+
+  if(s == 1) return Math.exp(-z);
+
+  // For large z, the continued fraction representation is most precise
+  if((z > 2 && z > s) /*|| z > 14*/) return R.incgamma_upper_cf_(s, z);
 
   // For negative integer s, gamma, and lower incomplete gamma, are not defined. But the upper is.
   if(R.isNegativeIntOrZero(s)) {
-    s += 1e-7; //twiddle it a bit for negative integers, so that formula in terms of lower gamma sort of works... TODO: use better approximation
+    // The "twiddle" solution for negative integer s (further below) still does not work well if z.re > 0, so use the full integration formula in this quadrant
+    if(s < 0 && z > 0) {
+      return R.integrate(z, Infinity, function(t) {
+        return Math.pow(t, s - 1) * Math.exp(-t);
+      });
+    }
+
+    // TODO: find better approach for negative integer s
+    s += 1e-7; //twiddle it a bit for negative integers, so that formula in terms of lower gamma sort of works...
   }
 
-  return R.gamma(s) - R.incgamma_lower(s, z);
+  return R.incgamma_upper_series_(s, z);
 };
 
 Jmat.Complex.gamma_p_cache_ = []; // cache used because a is often constant between gamma_p calls

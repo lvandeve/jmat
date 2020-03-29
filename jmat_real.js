@@ -1320,6 +1320,12 @@ Jmat.Real.expm1 = function(x) {
   else return Math.exp(x) - 1;
 };
 
+//log(x + 1), with better precision for x around 0
+Jmat.Real.log1p = function(x) {
+  if(Math.abs(x) < 1e-5) return x - 0.5 * x * x;
+  else return Math.log(x + 1);
+};
+
 ////////////////////////////////////////////////////////////////////////////////
 
 // Automatically cache last value. Useful for parameters of statistical distributions that are often the same in repeated calls.
