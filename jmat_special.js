@@ -1362,7 +1362,14 @@ Jmat.Complex.beta = function(x, y) {
     // gamma rather than loggamma more precise here
     return C.gammaDiv21_(x, y, x.add(y));
   } else {
-    return C.exp(C.loggammaDiv21_(x, y, x.add(y)));
+    var result = C.exp(C.loggammaDiv21_(x, y, x.add(y)));
+    if(C.isReal(x) && C.isReal(y)) {
+      // For real input, the output is also real, but the computation can introduce a stray imaginary part, because the imaginary part is very numerically
+      // unstable in this region, e.g. for beta(-50.1, -50.2) but should be exactly 0. The real part is correct, so fix by zeroing the imaginary part.
+      // The numerical instability is due to complex branch of loggamma; the imaginary parts should subtract to exactly some multiple of pi to make the exponent here zero.
+      result.im = 0;
+    }
+    return result;
   }
 };
 

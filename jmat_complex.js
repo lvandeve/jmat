@@ -1077,7 +1077,8 @@ Jmat.Complex.loggamma_ = function(z) {
       var l = C.log(C.newi(2 * Math.PI)).sub(C.newi(-Math.PI).mul(z.im > 0 ? z : z.neg()));
       return l.sub(C.loggamma_(C.ONE.sub(z)));
     } else {
-      // formula for loggamma(-z) with the special branch: loggamma(-z) = log(pi)-log(-z)-log(sin(pi*z))+2*i*pi*((2*z.re+1)/4)*(z.im == 0 ? -sign(z.re) : sign(z.im))
+      // formula for loggamma(-z) with the special branch:
+      // loggamma(-z) = log(pi)-log(-z)-log(sin(pi*z))+2*i*pi*((2*z.re+1)/4)*(z.im == 0 ? -sign(z.re) : sign(z.im))
       // the last part with the signs is only needed for z.re < 0.5
       // it doesn't work if (2*z.re+1)/4 is integer
       if(z.re < -0.5 && Jmat.Real.isInt((2 * z.re + 1) / 4)) {

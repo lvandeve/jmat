@@ -585,6 +585,9 @@ Jmat.doUnitTest = function(opt_verbose) {
   Jmat.Test.testFunction('1.0160888092144-6.283185307179586i', eps, Jmat.loggamma, '-1.75');
   Jmat.Test.testFunction('359.134205369575', eps, Jmat.loggamma, '100');
   Jmat.Test.testFunction('315.0780445994933-473.32107821888i', eps, Jmat.loggamma, '100-100i');
+  Jmat.Test.testFunction('-1.735404510127e30', eps, Jmat.beta, '-50.1', '-50.2');
+  Jmat.Test.testFunction('-0.061274167452252+0.19751975615002i', eps, Jmat.beta, '1+2i', '3+4i');
+  Jmat.Test.testFunction('0.013222309230789-0.011098132584289i', eps, Jmat.beta, '-1+2i', '3-4i');
   Jmat.Test.doUnitTestLogGamma();
   Jmat.Test.doUnitTestIncompleteGamma();
 
