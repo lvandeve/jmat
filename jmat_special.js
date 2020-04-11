@@ -235,16 +235,28 @@ Jmat.Complex.hypergeometric1F1_ = function(a, b, z) {
   var C = Jmat.Complex;
   if(C.isNaN(a) || C.isNaN(b) || C.isNaN(z)) return C(NaN);
 
-  // Kummer's transformation to make |a| a bit smaller if possible
-  if(b.sub(a).abssq() < a.abssq()) return C.hypergeometric1F1(b.sub(a), b, z.neg()).mul(C.exp(z));
+  // if b is a negative integer, it requires its own special handling
+  if(C.isNegativeInt(b)) {
+    if(a.eqr(0)) return C(1);
+    if(z.eqr(0)) return C(1);
+    if(C.isNegativeInt(a) && a.re >= b.re) {
+      // if b is negative int, after the above checks, then only in the special case where a is also negative
+      // int but larger (smaller in magnitude) than or equal to b, the result will be finite
+      // the series is able to compute this case
+      return Jmat.Complex.hypergeometric1F1_series_(a, b, z);
+    }
+    return C(Infinity, Infinity);
+  }
 
   // Special values
-  if(a.eq(b)) return C.exp(z); // if a and b are equal, they cancel out and this becomes 0F0, which is the same as exp(z)
-  if(C.isNegativeInt(b) && !(C.isNegativeInt(a) && a.re >= b.re)) return C(Infinity);
   if(a.eqr(0)) return C(1);
-  if(b.eqr(0)) return z.eqr(0) ? C(NaN) : C(Infinity, Infinity);
+  if(b.eqr(0)) return z.eqr(0) ? C(NaN) : C(Infinity, Infinity); // it's only NaN (indeterminate) if a!=0, b==0, z==0.
   if(z.eqr(0)) return C(1);
+  if(a.eq(b)) return C.exp(z); // if a and b are equal (and not nonpositive integers), they cancel out and this becomes 0F0, which is the same as exp(z)
   if(z.eqr(Infinity)) return C(Infinity, Infinity); // not for neg or complex infinite z
+
+  // Kummer's transformation to make |a| a bit smaller if possible
+  if(b.sub(a).abssq() < a.abssq()) return C.hypergeometric1F1(b.sub(a), b, z.neg()).mul(C.exp(z));
 
   var r1 = z.mul(a).div(b).abs(); // |z*a/b| dictates how difficult the calculation will be. The lower the easier. If low, the regular series works.
 
