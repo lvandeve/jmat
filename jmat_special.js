@@ -221,19 +221,17 @@ Jmat.Complex.hypergeometric1F1_rational_ = function(a, b, z) {
     var test = a1.div(b1);
     var result = an.div(bn);
 
-    if(test.sub(result).abs() > 1e-10) return C(NaN); // no good convergence
+    if(C.near(test, result, 1e-10)) return result;
+    if(C.relnear(test, result, 1e-8)) return result;
 
-    return result;
+    return C(NaN); // no good convergence
   };
 
   return e(a, b, z.neg());
 };
 
 
-// Confluent hypergeometric function of the first kind 1F1(a; b; z), a.k.a. Kummer's function M (approximation)
-// Try similar online: http://keisan.casio.com/exec/system/1349143651
-// TODO: many problems with just moderately large values, make this better to also improve other functions that depend on this
-Jmat.Complex.hypergeometric1F1 = function(a, b, z) {
+Jmat.Complex.hypergeometric1F1_ = function(a, b, z) {
   var C = Jmat.Complex;
   if(C.isNaN(a) || C.isNaN(b) || C.isNaN(z)) return C(NaN);
 
@@ -244,6 +242,7 @@ Jmat.Complex.hypergeometric1F1 = function(a, b, z) {
   if(a.eq(b)) return C.exp(z); // if a and b are equal, they cancel out and this becomes 0F0, which is the same as exp(z)
   if(C.isNegativeInt(b) && !(C.isNegativeInt(a) && a.re >= b.re)) return C(Infinity);
   if(a.eqr(0)) return C(1);
+  if(b.eqr(0)) return z.eqr(0) ? C(NaN) : C(Infinity, Infinity);
   if(z.eqr(0)) return C(1);
   if(z.eqr(Infinity)) return C(Infinity, Infinity); // not for neg or complex infinite z
 
@@ -255,6 +254,25 @@ Jmat.Complex.hypergeometric1F1 = function(a, b, z) {
 
   var result = C.hypergeometric1F1_asymp_(a, b, z); // returns NaN if it didn't converge
   if(C.isNaN(result)) result = C.hypergeometric1F1_rational_(a, b, z);
+
+  return result;
+};
+
+
+// Confluent hypergeometric function of the first kind 1F1(a; b; z), a.k.a. Kummer's function M (approximation)
+// Try similar online: http://keisan.casio.com/exec/system/1349143651
+// TODO: many problems with just moderately large values, make this better to also improve other functions that depend on this
+Jmat.Complex.hypergeometric1F1 = function(a, b, z) {
+  var C = Jmat.Complex;
+  var result = C.hypergeometric1F1_(a, b, z);
+
+  // The result should be real if all inputs are real, however some numerical
+  // imprecisions in some internal formulas (e.g. exponential of value with
+  // imaginary integer multiple of pi which should be real) may introduce a
+  // stray imaginary part. Remove it here.
+  if(C.isReal(a) && C.isReal(b) && C.isReal(z) && result.im != 0 && !C.isInfOrNaN(result)) {
+    result = C(result.re);
+  }
 
   return result;
 };

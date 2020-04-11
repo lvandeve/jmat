@@ -927,6 +927,12 @@ Jmat.Complex.lerp = function(a, b, x) {
   return x.rsub(1).mul(a).add(x.mul(b));
 };
 
+// Numerical note: if x.im is of the form n*pi with n a positive or negative
+// integer, then the result should be real, but due to numerical imprecision
+// since pi is not exactly represented may get a small (small compared to the
+// magnitude of the result, that is) stray imaginary part. The caller must fix
+// this on the call site if desired since the implementation here cannot know
+// how near to an integer multiple of pi the caller would consider to be exact.
 Jmat.Complex.exp = function(x) {
   if(x.im == 0) {
     return Jmat.Complex(Math.exp(x.re));
