@@ -115,6 +115,8 @@ Jmat.Quaternion.toString = function(value, opt_precision) {
   if(value.y != 0) result += ((result.length == 0 || value.y < 0) ? (y) : ('+' + y)) + 'j';
   if(value.z != 0) result += ((result.length == 0 || value.z < 0) ? (z) : ('+' + z)) + 'k';
 
+  if(result == '') result = '0';
+
   return result;
 };
 Jmat.Quaternion.prototype.toString = function(opt_precision) {
@@ -415,6 +417,7 @@ Jmat.Quaternion.prototype.qvector = function() {
 Jmat.Quaternion.exp = function(q) {
   var w = Math.exp(q.w);
   var v = q.absv();
+  if(v == 0) return new Jmat.Quaternion(w, 0, 0, 0);
   var cv = Math.cos(v);
   var sv = Math.sin(v);
   var sva = w * sv / v;
@@ -423,9 +426,12 @@ Jmat.Quaternion.exp = function(q) {
 
 //natural logarithm (ln)
 Jmat.Quaternion.log = function(q) {
-  var n = q.abs();
   var v = q.absv();
-  if (v == 0) return new Jmat.Quaternion(Math.log(q.w), 0, 0, 0);
+  if(v == 0) {
+    if(q.w < 0) return new Jmat.Quaternion(Math.log(-q.w), Math.PI, 0, 0);
+    else return new Jmat.Quaternion(Math.log(q.w), 0, 0, 0);
+  }
+  var n = q.abs();
   var a = Math.acos(q.w / n);
   var av = a / v;
   return new Jmat.Quaternion(Math.log(n), av * q.x, av * q.y, av * q.z);
