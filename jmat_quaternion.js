@@ -507,13 +507,18 @@ Jmat.Quaternion.relnear = function(x, y, precision) {
   return x.sub(y).abs() < (Math.max(x.abs(), y.abs()) * precision);
 };
 
+Jmat.Quaternion.ZERO = new Jmat.Quaternion(0, 0, 0, 0);
 Jmat.Quaternion.ONE = new Jmat.Quaternion(1, 0, 0, 0);
+Jmat.Quaternion.TWO = new Jmat.Quaternion(2, 0, 0, 0);
 Jmat.Quaternion.I = new Jmat.Quaternion(0, 1, 0, 0);
 Jmat.Quaternion.J = new Jmat.Quaternion(0, 0, 1, 0);
 Jmat.Quaternion.K = new Jmat.Quaternion(0, 0, 0, 1);
+Jmat.Quaternion.PI = new Jmat.Quaternion(Math.PI, 0, 0, 0);
+Jmat.Quaternion.E = new Jmat.Quaternion(Math.E, 0, 0, 0);
 
 Jmat.Quaternion.sin = function(q) {
   var v = q.absv();
+  if(v == 0) return Jmat.Quaternion(Math.sin(q.w), 0, 0, 0);
   var sc = Math.sin(q.w) * Jmat.Real.cosh(v);
   var cs = Math.cos(q.w) * Jmat.Real.sinh(v);
   return new Jmat.Quaternion(sc, cs * q.x / v, cs * q.y / v, cs * q.z / v);
@@ -550,13 +555,13 @@ Jmat.Quaternion.atan = function(q) {
 Jmat.Quaternion.sinh = function(z) {
   var e = Jmat.Quaternion.exp(z);
   var ei = Jmat.Quaternion.inv(e);
-  return e.sub(ei).divr(2);
+  return e.sub(ei).mulr(0.5);
 };
 
 Jmat.Quaternion.cosh = function(z) {
   var e = Jmat.Quaternion.exp(z);
   var ei = Jmat.Quaternion.inv(e);
-  return e.add(ei).divr(2);
+  return e.add(ei).mulr(0.5);
 };
 
 Jmat.Quaternion.tanh = function(z) {
@@ -597,11 +602,77 @@ Jmat.Quaternion.isInfOrNaN = function(z) {
   return !z || Jmat.Quaternion.isNaN(z) || Jmat.Quaternion.isInf(z);
 };
 
-// Lambertw for branch (0 = principal branch Wp, -1 is also common (Wm))
-// Branch is real integer, z is Jmat.Quaternion object
-Jmat.Quaternion.lambertwb = function(branch, z) {
-  // We can use the generic algorithm from Jmat.Complex, because Jmat.Quaternion also has all the operators it needs (mul, isReal, ...)
-  return Jmat.Complex.lambertwb_generic_(Jmat.Quaternion, branch, z);
+// Apply arbitrary complex function to quaternion q, e.g. gamma or lambertw.
+// f must be a function that takes a Jmat.Complex as input and returns a Jmat.Complex result.
+// Uses the matrix decomposition of q
+Jmat.Quaternion.fun = function(q, f) {
+  var Q = Jmat.Quaternion;
+  var C = Jmat.Complex;
+  // We compute what can be done with the following 1 line if Jmat.Matrix is available (ignoring some edge cases like real input):
+  // return Q.from2x2(M.fun(M(Q.to2x2(q)), f).e);
+  // However, to make Jmat.Quaternion independent from Jmat.Matrix, this is implemented separately here instead.
+  // Fortunately, it's only a 2x2 matrix so the eigendecomposition and inverse have simple formulas.
+
+  // Return directly if some components are 0, otherwise implementation below gives NaNs.
+  if(q.y == 0 && q.z == 0) {
+    var c = f(C(q.w, q.x));
+    return Q(c.re, c.im, 0, 0);
+  }
+  if(q.x == 0 && q.z == 0) {
+    var c = f(C(q.w, q.y));
+    return Q(c.re, 0, c.im, 0);
+  }
+  if(q.y == 0 && q.z == 0) {
+    var c = f(C(q.w, q.z));
+    return Q(c.re, 0, 0, c.im);
+  }
+
+  var m = Q.to2x2(q);
+
+  // eigenvalues
+  var t0 = m[0][0].neg().sub(m[1][1]);
+  var t1 = m[0][0].mul(m[1][1]).sub(m[0][1].mul(m[1][0]));
+  var t2 = Jmat.Complex.sqrt(t0.mul(t0).sub(t1.mulr(4)));
+  var l0 = t0.neg().add(t2).mulr(0.5);
+  var l1 = t0.neg().sub(t2).mulr(0.5);
+
+  // eigenvectors
+  var v00 = m[0][1];
+  var v10 = l0.sub(m[0][0]);
+  var v01 = m[0][1];
+  var v11 = l1.sub(m[0][0]);
+
+  // apply function to eigenvalues
+  l0 = f(l0);
+  l1 = f(l1);
+
+  // inverse matrix of [[v00, v01], [v10, v11]]
+  var idet = v00.mul(v11).sub(v01.mul(v10)).inv();
+  var w00 = v11.mul(idet);
+  var w01 = v01.mul(idet).neg();
+  var w10 = v10.mul(idet).neg();
+  var w11 = v00.mul(idet);
+
+  // reconstruct
+  // [v00 v01] * [l0 0] * [w00 w01] = [l0*v00*w00+l1*v01*w10 l0*v00*w01+l1*v01*w11]
+  // [v10 v11]   [0 l1]   [w10 w11]   [l0*v10*w00+l1*v11*w10 l0*v10*w01+l1*v11*w11]
+  m[0][0] = l0.mul(v00).mul(w00).add(l1.mul(v01).mul(w10));
+  m[0][1] = l0.mul(v00).mul(w01).add(l1.mul(v01).mul(w11));
+  m[1][0] = l0.mul(v10).mul(w00).add(l1.mul(v11).mul(w10));
+  m[1][1] = l0.mul(v10).mul(w01).add(l1.mul(v11).mul(w11));
+
+  return Q.from2x2(m);
+};
+
+
+// A few special functions. Only those existing in jmat_complex.js are referenced here, not those from jmat_special.js,
+// since jmat_quaternion.js has jmat_complex.js as dependency but not jmat_special.js.
+// To use functions from jmat_special.js, use Jmat.Quaternion.fun with the desired function.
+
+// Lambertw for given branch (0 for principal branch Wp, -1 for Wm, other integers for other branches)
+// Branch is real integer as regular JS Number, q is Jmat.Quaternion object
+Jmat.Quaternion.lambertwb = function(branch, q) {
+  return Jmat.Quaternion.fun(q, function(z) { return Jmat.Complex.lambertwb(branch, z); });
 };
 
 // Principal branch of Lambert's W function: Wp, inverse (not reciprocal) of exp(x) * x
@@ -611,8 +682,33 @@ Jmat.Quaternion.lambertw = function(z) {
 
 // Negative branch of Lambert's W function: Wm, inverse (not reciprocal) of exp(x) * x
 Jmat.Quaternion.lambertwm = function(z) {
-  // TODO: wrong. Look at the real plot. Fix this! Jmat.plotReal(Jmat.Quaternion.lambertwm)
   return Jmat.Quaternion.lambertwb(-1, z);
 };
 
-// TODO: quaternion gamma function
+Jmat.Quaternion.loggamma = function(q) {
+  return Jmat.Quaternion.fun(q, Jmat.Complex.loggamma);
+};
+
+Jmat.Quaternion.gamma = function(q) {
+  return Jmat.Quaternion.fun(q, Jmat.Complex.gamma);
+};
+
+Jmat.Quaternion.factorial = function(q) {
+  return Jmat.Quaternion.fun(q, Jmat.Complex.factorial);
+};
+
+Jmat.Quaternion.faddeeva = function(q) {
+  return Jmat.Quaternion.fun(q, Jmat.Complex.faddeeva);
+};
+
+Jmat.Quaternion.erf = function(q) {
+  return Jmat.Quaternion.fun(q, Jmat.Complex.erf);
+};
+
+Jmat.Quaternion.erfc = function(q) {
+  return Jmat.Quaternion.fun(q, Jmat.Complex.erfc);
+};
+
+
+
+

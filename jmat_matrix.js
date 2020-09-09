@@ -2394,12 +2394,35 @@ Jmat.Matrix.eig22 = function(m, opt_normalize) {
   var l2 = l[1];
 
   // TODO: make numerically more precise (see numerical improvements of quadratic function solution)
-  var v11 = m.e[0][1].div(l1.sub(m.e[0][0]));
-  var v12 = Jmat.Complex(1);
-  var v21 = m.e[0][1].div(l2.sub(m.e[0][0]));
-  var v22 = Jmat.Complex(1);
+  var v11 = m.e[0][1];
+  var v12 = l1.sub(m.e[0][0]);
+  var v21 = m.e[0][1];
+  var v22 = l2.sub(m.e[0][0]);
+  if(v11.eqr(0)) {
+    if(v21.eqr(0)) {
+      v11 = new Jmat.Complex(1, 0);
+      v12 = new Jmat.Complex(0, 0);
+      v21 = new Jmat.Complex(0, 0);
+      v22 = new Jmat.Complex(1, 0);
+    } else {
+      v11 = l1.sub(m.e[1][1]);
+      v12 = m.e[1][0];
+      v21 = l2.sub(m.e[1][1]);
+      v22 = m.e[1][0];
+    }
+  }
 
-  if(opt_normalize == 2) {
+  if(opt_normalize == 1) {
+    // make last element 1 if possible
+    if(!v12.eqr(0)) {
+      v11 = v11.div(v12);
+      v12 = new Jmat.Complex(1, 0);
+    }
+    if(!v22.eqr(0)) {
+      v21 = v21.div(v22);
+      v22 = new Jmat.Complex(1, 0);
+    }
+  } else if(opt_normalize == 2) {
     var n1 = Jmat.Complex.sqrt(v11.mul(v11).add(v12.mul(v12)));
     v11 = v11.div(n1);
     v12 = v12.div(n1);
@@ -2518,7 +2541,7 @@ Jmat.Matrix.eigval = function(m) {
 
 // Returns the eigenvector matching the given eigenvalue lambda of m as a column vector
 // m must be a square matrix, and lambda a correct eigenvalue of it
-// opt_normalize is how to normalize the eigenvector: 0: don't (length unspecified), 1: last element equals 1, 2: length 1. The default is "1".
+// opt_normalize is how to normalize the eigenvector: 0: don't (length unspecified), 1: last element equals 1 if possible, 2: length 1. The default is "1".
 Jmat.Matrix.eigenVectorFor = function(m, lambda, opt_normalize) {
   var M = Jmat.Matrix;
   if(m.w != m.h || m.w < 1) return null;
@@ -2601,12 +2624,13 @@ Jmat.Matrix.jacobi_ = function(m, opt_epsilon, opt_normalize) {
 // *) To extract an eigenvector, use Jmat.Matrix.col(v, i) with i zero indexed.
 Jmat.Matrix.eig = function(m, opt_normalize) {
   var M = Jmat.Matrix;
+  if(opt_normalize == undefined) opt_normalize = 1;
   if(m.w != m.h || m.w < 1) return null;
   var n = m.w;
   if(n == 1) return M.eig11(m);
   if(n == 2) return M.eig22(m, opt_normalize);
 
-  if(M.isReal(m) && M.isSymmetric(m)) return Jmat.Matrix.jacobi_(m, opt_normalize);
+  if(M.isReal(m) && M.isSymmetric(m)) return Jmat.Matrix.jacobi_(m, undefined, opt_normalize);
 
   var l = M.eigval(m);
   for(var i = 0; i < l.length; i++) {

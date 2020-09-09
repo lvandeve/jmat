@@ -39,7 +39,7 @@ NOTE: treat Complex numbers as immutable unless you know nothing else refers to 
 Overview of some functionality:
 -elementary arithmetic: Complex.add, Complex.sub, Complex.mul, Complex.div
 -mathematical functions: Complex.pow, Complex.exp, Complex.sqrt, Complex.log, Complex.cos, Complex.cosh, Complex.acos, ...
--special functions: Complex.erf, Complex.lambertw, Complex.gamma (more are in jmat_special.js)
+-special functions: Complex.erf, Complex.lambertw, Complex.gamma, Complex.loggamma (more are in jmat_special.js)
 -fft
 */
 
@@ -1061,11 +1061,14 @@ Jmat.Complex.calcCache_ = function(z, fun, cache, n) {
   }
 };
 
-// Private here, only publically exposed in jmat_special.js, see documentation there.
-// It is only here for use by gamma (which arguably could also be moved to jmat_special.js)
+
+// natural logarithm of the gamma function, principal branch
+// for real input, the result matches log(gamma(z))
+// but for complex input, it uses a principle branch different than log, so loggamma(z) is not same as log(gamma(z)).
+// The real part of the output is exactly the same as log(gamma(z)) however, only the imaginary part differs.
 // Even though the result of loggamma(x) is different than log(gamma(x)), the exp of both is the same
 // so can be used by gamma.
-Jmat.Complex.loggamma_ = function(z) {
+Jmat.Complex.loggamma = function(z) {
   var C = Jmat.Complex;
 
   if(C.isNaN(z)) return C(NaN);
@@ -1081,7 +1084,7 @@ Jmat.Complex.loggamma_ = function(z) {
     if(z.im > 110 || z.im < -110) {
       // the complex sine goes out of bounds for example for (-4+120i), log(pi / sin(pi*z)) is very roughly approximated by log(2*pi*i) - i*z*pi*sign(z.im)
       var l = C.log(C.newi(2 * Math.PI)).sub(C.newi(-Math.PI).mul(z.im > 0 ? z : z.neg()));
-      return l.sub(C.loggamma_(C.ONE.sub(z)));
+      return l.sub(C.loggamma(C.ONE.sub(z)));
     } else {
       // formula for loggamma(-z) with the special branch:
       // loggamma(-z) = log(pi)-log(-z)-log(sin(pi*z))+2*i*pi*((2*z.re+1)/4)*(z.im == 0 ? -sign(z.re) : sign(z.im))
@@ -1094,12 +1097,12 @@ Jmat.Complex.loggamma_ = function(z) {
         // Out of floating point precision, all floating point values are integer here, avoid infinite recursion
         if(Jmat.Real.isInt((2 * (z.re + 1) + 1) / 4)) return C(NaN);
 
-        return C.loggamma_(z.addr(1)).sub(C.log(z));
+        return C.loggamma(z.addr(1)).sub(C.log(z));
       }
 
       var a = C.log(z.neg());
       var b = C.log(C.sin(z.mulr(Math.PI)));
-      var g = C.loggamma_(z.neg());
+      var g = C.loggamma(z.neg());
       var result = C.LOGPI.sub(a).sub(b).sub(g);
       if(z.re < -0.5) {
         var f = Math.floor((2 * z.re + 1) / 4);
@@ -1123,7 +1126,7 @@ Jmat.Complex.loggamma_ = function(z) {
   // for real negative z: loggamma(z) = log(gamma(z)) + 2*pi*i*ceil(x / 2 - 1)
   // for complex z: loggamma(z) = ????
   if(z.re < 10) {
-    var a = C.loggamma_(z.addr(1));
+    var a = C.loggamma(z.addr(1));
     a = a.sub(C.log(z));
     return a;
   }
@@ -1158,7 +1161,7 @@ Jmat.Complex.gamma = function(z) {
     return result;
   }
 
-  if(z.re > 50) return C.exp(C.loggamma_(z));
+  if(z.re > 50) return C.exp(C.loggamma(z));
 
   var g = 7;
   var p = [0.99999999999980993, 676.5203681218851, -1259.1392167224028,
@@ -1255,55 +1258,51 @@ Jmat.Complex.relnear = function(x, y, precision) {
   return x.sub(y).abs() < (Math.max(x.abs(), y.abs()) * precision);
 };
 
-// This works for quaternions as well.. set M to Jmat.Complex for complex number, or Jmat.Quaternion for quaternions.
-Jmat.Complex.lambertwb_generic_ = function(M, branch, z) {
-  if(M.isReal(z) && z.re > -0.36 /*~ -1/e*/ && branch == 0) return M(Jmat.Real.lambertw(z));
+// Lambertw for given branch (0 for principal branch Wp, -1 for Wm, other integers for other branches)
+// Branch is real integer as regular JS Number, q, z is Jmat.Complex object
+Jmat.Complex.lambertwb = function(branch, z) {
+  var C = Jmat.Complex;
+  if(C.isReal(z) && z.re > -0.36 /*~ -1/e*/ && branch == 0) return C(Jmat.Real.lambertw(z));
 
-  if(!Jmat.Real.isInt(branch)) return M(NaN);
+  if(!Jmat.Real.isInt(branch)) return C(NaN);
 
 
   // Known special values
-  if(M.isNaN(z)) return NaN;
-  if(M.isInf(z)) return M(Infinity); // any complex infinity gives positive infinity
-  if(branch == 0 && z.eqr(0)) return M(0);
-  if(branch != 0 && z.eqr(0)) return M(-Infinity); //at all other branch than the principal one, it's -infinity at 0
+  if(C.isNaN(z)) return NaN;
+  if(C.isInf(z)) return C(Infinity); // any complex infinity gives positive infinity
+  if(branch == 0 && z.eqr(0)) return C(0);
+  if(branch != 0 && z.eqr(0)) return C(-Infinity); //at all other branch than the principal one, it's -infinity at 0
 
   /*
-  Choosing a good starting value is important. M(0) as starting value works
+  Choosing a good starting value is important. C(0) as starting value works
   most of the time, but does not work at some regions in the negative complex domain,
   e.g. around 5.4+0.1i, 5.5+0.1i, ... and that can be seen as mandelbrot-fractal-like
   circles around those regions in the complex domain plot.
   */
-  var w = M.log(z).add(M(0, branch * Math.PI * 2));
+  var w = C.log(z).add(C(0, branch * Math.PI * 2));
   if(branch == 0 && z.abs() < 1.2 /*supposed to be 1/Math.E, but I still see problems beyond that in the complex domain plot...*/) {
-    w = M.sqrt(z.mulr(5.43656365691809047).addr(2)).add(M(-1, branch * Math.PI * 2)); //TODO: verify if this where ctor gets two arguments works correctly for quaternions?
+    w = C.sqrt(z.mulr(5.43656365691809047).addr(2)).add(C(-1, branch * Math.PI * 2)); //TODO: verify if this where ctor gets two arguments works correctly for quaternions?
   }
   if(branch != 0 && z.im == 0) z.im += 1e-14; // Give it small imaginary part, otherwise it never gets there // TODO: this does not work correctly for quaternions
 
   var num = 36;
   for(var i = 0; i < num; i++) {
-    var ew = M.exp(w);
+    var ew = C.exp(w);
     var wew = w.mul(ew);
     var t = wew.sub(z);
     var a = ew.mul(w.addr(1));
     var b = w.addr(2).mul(t).div(w.mulr(2).addr(2));
     w = w.sub(t.div(a.sub(b)));
 
-    var ltest = M.log(z.div(w)); //for testing if near (z = w*exp(w) OR ln(z/w) = w)
-    if(M.near(ltest, w, 1e-16) || M.near(wew, z, 1e-16)) break;
-    if(i + 1 == num && !(M.near(ltest, w, 1) || M.near(wew, z, 1))) return M(NaN); // iteration could not finish and too far from result
+    var ltest = C.log(z.div(w)); //for testing if near (z = w*exp(w) OR ln(z/w) = w)
+    if(C.near(ltest, w, 1e-16) || C.near(wew, z, 1e-16)) break;
+    if(i + 1 == num && !(C.near(ltest, w, 1) || C.near(wew, z, 1))) return C(NaN); // iteration could not finish and too far from result
   }
 
   // Remove numeric tiny imaginary part that appeared in error
   if(z.im == 0 && z.re >= 0) w.im = 0;
 
   return w;
-};
-
-// Lambertw for branch (0 = principal branch Wp, -1 is also common (Wm))
-// Branch is real integer, z is Jmat.Complex object (complex)
-Jmat.Complex.lambertwb = function(branch, z) {
-  return Jmat.Complex.lambertwb_generic_(Jmat.Complex, branch, z);
 };
 
 // Principal branch of Lambert's W function: Wp, inverse (not reciprocal) of exp(x) * x

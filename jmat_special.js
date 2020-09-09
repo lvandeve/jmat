@@ -38,12 +38,12 @@ There are three main categories of functions:
 IMPORTANT NOTE: Admittedly, this file contains the least numerically stable functions of Jmat.js.
                 Some only work well for a certain input range. So verify for your usecase before trusting these.
 
-Some more basic special functions are in jmat_complex.js and jmat_real.js, that includes erf, gamma and lambertw.
+Some more basic special functions are in jmat_complex.js and jmat_real.js, that includes erf, gamma, loggamma and lambertw.
 
 Overview of some functionality, this lists function names in "Jmat.Complex.":
 -Tetration: tetration, tetrational
 -Minkowski question mark: minkowski
--gamma function related: loggamma, gamma_inv, digamma, trigamma, polygamma
+-gamma function related: gamma_inv, digamma, trigamma, polygamma
 -incomplete gamma: incgamma_lower, incgamma_upper, gamma_p, gamma_q
 -means: agm, ghm
 -bessel: besselj, bessely, besseli, besselk, hankelh1, hankelh2, struveh, struvek, struvel, struvem
@@ -532,79 +532,6 @@ Jmat.Complex.legendreq = function(nu, mu, z, opt_type) {
 
 
 ////////////////////////////////////////////////////////////////////////////////
-
-// natural logarithm of the gamma function, principle branch
-// for real input, the result matches log(gamma(z))
-// but for complex input, it uses a principle branch different than log, so loggamma(z) is not same as log(gamma(z)).
-// The real part of the output is exactly the same as log(gamma(z)) however, only the imaginary part differs.
-Jmat.Complex.loggamma = function(z) {
-  return Jmat.Complex.loggamma_(z); // the actual implementation is currently in jmat_complex.js
-};
-
-//natural logarithm of the absolute value of the gamma function
-//NOTE: differs from Jmat.Complex.loggamma for negative real numbers whose truncated integer part is even, such as -4.5 or -22.5 (values where the gamma function is negative): the imaginary part is removed, log of absolute value is taken instead.
-//to use this for log2 of the factorial, use e.g.: function log2fac(n) { return Jmat.Real.loggamma(n + 1) / Math.log(2); }
-Jmat.Real.loggamma = function(z) {
-  //the result is way too imprecise if z is < 0, use the log of the reflection formula
-  // loggamma(z) = log(pi/sin(pi*z)) - loggamma(1 - z)
-  if(z < 0) {
-    if(z == Math.floor(z)) return Infinity;
-    var l = Math.log(Math.PI / Math.abs((Math.sin(Math.PI * z))));
-    return l - Jmat.Real.loggamma(1 - z);
-  }
-
-  if(z == 1 || z == 2) return 0;
-  if(z == Infinity) return Infinity;
-  if(z == -Infinity) return NaN;
-
-  // The series below has a weird artefact for values near 0 and > 0. Use actual log(gamma) for that
-  if(z < 1 && z >= 0) return Math.log(Math.abs(Jmat.Real.gamma(z)));
-
-  // We also get more precision still from the real formula for roughly |z| < 20
-  if(z > -20 && z < 20) return Math.log(Math.abs(Real.gamma(z)));
-
-  // stirling series
-  var result = 0.918938533204672669540968854562; //0.5 * ln(2pi)
-  result += (z - 0.5) * Math.log(z);
-  result -= z;
-  result += 1.0 / (z * 12);
-  var z3 = z * z * z;
-  var z5 = z3 * z * z;
-  var z7 = z5 * z * z;
-  var z9 = z7 * z * z;
-  result -= 1.0 / (z3 * 360);
-  result += 1.0 / (z5 * 1260);
-  result -= 1.0 / (z7 * 1680);
-  result += 1.0 / (z9 * 1188);
-  return result;
-
-  // Some other approximations for illustration only. They work worse.
-
-  // Should approximate it in theory, but does not work well numerically
-  /*var result = z * Math.log(z) - z + 0.5 * Math.log(2 * Math.PI / z);
-  for(var i = 1; i < 8; i++) {
-    result += Jmat.Real.bernoulli[2 * i] / (2 * i * (2 * i - 1) * Math.pow(z, (i * 2 - 1)));
-  }*/
-
-  /*var result = z * Math.log(z) - z + 0.5 * Math.log(2 * Math.PI / z);
-  var a = [1, 1, 59, 29, 533, 1577, 280361, 69311, 36226519, 7178335, 64766889203, 32128227179, 459253205417, 325788932161, 2311165698322609];
-  var b = [12, 12, 360, 60, 280, 168, 5040, 180, 11880, 264, 240240, 10920, 13104, 720, 367200];
-  var zz = 1;
-  for(var i = 0; i < a.length; i++) {
-    zz *= (z + i + 1);
-    result += a[i] / (b[i] * zz);
-  }
-  return result;*/
-
-  /*var ln2pi = 1.83787706640934533908193770912;
-  var result = 0.5 * (ln2pi - Math.log(z)) + z * (Math.log(z + 1 / (12 * z - 0.1 / z)) - 1);
-  return result;*/
-
-  /*var ln2pi = 1.83787706640934533908193770912;
-  var result = ln2pi - Math.log(z) + z * (2 * Math.log(z) + Math.log(z * Jmat.Real.sinh(1 / z) + 1 / (810 * z * z * z * z * z * z)) - 2);
-  return result / 2;*/
-
-};
 
 //Inverse of the gamma function (not the reciproke, the inverse or "arc" function)
 //Inverse gamma has multiple results, this function attempts to keep the results in the main branch

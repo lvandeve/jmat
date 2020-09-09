@@ -235,6 +235,70 @@ Jmat.Real.gamma = function(z) {
   return gamma_(z);
 };
 
+//natural logarithm of the absolute value of the gamma function
+//NOTE: differs from Jmat.Complex.loggamma for negative real numbers whose truncated integer part is even, such as -4.5 or -22.5 (values where the gamma function is negative): the imaginary part is removed, log of absolute value is taken instead.
+//to use this for log2 of the factorial, use e.g.: function log2fac(n) { return Jmat.Real.loggamma(n + 1) / Math.log(2); }
+Jmat.Real.loggamma = function(z) {
+  //the result is way too imprecise if z is < 0, use the log of the reflection formula
+  // loggamma(z) = log(pi/sin(pi*z)) - loggamma(1 - z)
+  if(z < 0) {
+    if(z == Math.floor(z)) return Infinity;
+    var l = Math.log(Math.PI / Math.abs((Math.sin(Math.PI * z))));
+    return l - Jmat.Real.loggamma(1 - z);
+  }
+
+  if(z == 1 || z == 2) return 0;
+  if(z == Infinity) return Infinity;
+  if(z == -Infinity) return NaN;
+
+  // The series below has a weird artefact for values near 0 and > 0. Use actual log(gamma) for that
+  if(z < 1 && z >= 0) return Math.log(Math.abs(Jmat.Real.gamma(z)));
+
+  // We also get more precision still from the real formula for roughly |z| < 20
+  if(z > -20 && z < 20) return Math.log(Math.abs(Real.gamma(z)));
+
+  // stirling series
+  var result = 0.918938533204672669540968854562; //0.5 * ln(2pi)
+  result += (z - 0.5) * Math.log(z);
+  result -= z;
+  result += 1.0 / (z * 12);
+  var z3 = z * z * z;
+  var z5 = z3 * z * z;
+  var z7 = z5 * z * z;
+  var z9 = z7 * z * z;
+  result -= 1.0 / (z3 * 360);
+  result += 1.0 / (z5 * 1260);
+  result -= 1.0 / (z7 * 1680);
+  result += 1.0 / (z9 * 1188);
+  return result;
+
+  // Some other approximations for illustration only. They work worse.
+
+  // Should approximate it in theory, but does not work well numerically
+  /*var result = z * Math.log(z) - z + 0.5 * Math.log(2 * Math.PI / z);
+  for(var i = 1; i < 8; i++) {
+    result += Jmat.Real.bernoulli[2 * i] / (2 * i * (2 * i - 1) * Math.pow(z, (i * 2 - 1)));
+  }*/
+
+  /*var result = z * Math.log(z) - z + 0.5 * Math.log(2 * Math.PI / z);
+  var a = [1, 1, 59, 29, 533, 1577, 280361, 69311, 36226519, 7178335, 64766889203, 32128227179, 459253205417, 325788932161, 2311165698322609];
+  var b = [12, 12, 360, 60, 280, 168, 5040, 180, 11880, 264, 240240, 10920, 13104, 720, 367200];
+  var zz = 1;
+  for(var i = 0; i < a.length; i++) {
+    zz *= (z + i + 1);
+    result += a[i] / (b[i] * zz);
+  }
+  return result;*/
+
+  /*var ln2pi = 1.83787706640934533908193770912;
+  var result = 0.5 * (ln2pi - Math.log(z)) + z * (Math.log(z + 1 / (12 * z - 0.1 / z)) - 1);
+  return result;*/
+
+  /*var ln2pi = 1.83787706640934533908193770912;
+  var result = ln2pi - Math.log(z) + z * (2 * Math.log(z) + Math.log(z * Jmat.Real.sinh(1 / z) + 1 / (810 * z * z * z * z * z * z)) - 2);
+  return result / 2;*/
+};
+
 Jmat.Real.factorialmem_ = [1]; //memoization for factorial of small integers
 
 Jmat.Real.useFactorialLoop_ = function(x) {
