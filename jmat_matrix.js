@@ -1684,6 +1684,9 @@ Jmat.Matrix.inv = function(a, opt_epsilon) {
   //Cramer's rule
   return Jmat.Matrix.mulc(Jmat.Matrix.adj(a), Jmat.Complex.inv(det));
 };
+Jmat.Matrix.prototype.inv = function() {
+  return Jmat.Matrix.inv(this);
+};
 
 //forced pseudoinverse (does not try regular inverse first)
 Jmat.Matrix.pseudoinverse_ = function(a) {
@@ -1716,6 +1719,9 @@ Jmat.Matrix.pseudoinverse = function(a) {
   }
 
   return Jmat.Matrix.pseudoinverse_(a);
+};
+Jmat.Matrix.prototype.pseudoinverse = function() {
+  return Jmat.Matrix.pseudoinverse(this);
 };
 
 Jmat.Matrix.getFirstNonZeroDigit_ = function(v) {
@@ -3689,12 +3695,12 @@ Jmat.Matrix.powc = function(m, s) {
   return Jmat.Matrix.fun(m, function(z) { return z.pow(s); });
 };
 
-// Apply any complex function to a matrix using its eigenvalue decomposition
-// Function f must get 1 complex value as input and give 1 complex value as output
+// Apply any holomorphic complex function to a diagonalizable matrix using its eigenvalue decomposition
+// Function f must get 1 Jmat.Complex value as input and give 1 Jmat.Complex value as output
 Jmat.Matrix.fun = function(m, f) {
   if(m.h != m.w) return null; //must be square
 
-  // With eigen decomposition: only the log of the diagonals of D needs to be taken
+  // With eigen decomposition: f needs to be taken only of the diagonals of D
   // TODO: this will only work for diagonizable matrix. Implement a way for non-diagonizable one as well (with Jordan normal form)
   var e = Jmat.Matrix.evd(m);
   var v = e.v;
@@ -3703,6 +3709,7 @@ Jmat.Matrix.fun = function(m, f) {
   return v.mul(d).mul(Jmat.Matrix.inv(v));
 };
 
+// Apply convolution
 Jmat.Matrix.convolve = function(a, b, opt_grow) {
   var C = Jmat.Complex;
   // shift of b. TODO: optional configurable

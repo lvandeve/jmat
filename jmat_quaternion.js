@@ -347,7 +347,7 @@ Jmat.Quaternion.to2x2 = function(q) {
           [C(-q.y, q.z), C(q.w, -q.x)]];
 };
 
-// Convert from 2x2 matrix to quaternion (matrix as 2D array or object with array in e field (Jmat.Matrix))
+// Convert from 2x2 matrix to quaternion (matrix can be given either as a Jmat.Matrix, or as as 2D array of Jmat.Complex values)
 Jmat.Quaternion.from2x2 = function(m) {
   var e = m.e ? m.e : m;
   var e0 = e[0][0];
@@ -363,10 +363,15 @@ Jmat.Quaternion.to4x4 = function(q) {
           [-q.z, -q.y, q.x, q.w]];
 };
 
-// Convert from 4x4 matrix to quaternion (matrix as 2D array or object with array in e field (Jmat.Matrix))
+// Convert from 4x4 matrix to quaternion (matrix can be given either as a Jmat.Matrix, or as as 2D array of all real JS Number values or all Jmat.Complex values)
 Jmat.Quaternion.from4x4 = function(m) {
-  var e = m.e ? m.e : m;
-  return new Jmat.Quaternion(e[0][0].re, e[0][1].re, e[0][2].re, e[0][3].re);
+  if(m.e) {
+    return new Jmat.Quaternion(m.e[0][0].re, m.e[0][1].re, m.e[0][2].re, m.e[0][3].re);
+  } else if(m[0][0].re != undefined) {
+    return new Jmat.Quaternion(m[0][0].re, m[0][1].re, m[0][2].re, m[0][3].re);
+  } else {
+    return new Jmat.Quaternion(m[0][0], m[0][1], m[0][2], m[0][3]);
+  }
 };
 
 // Convert to 3x3 rotation matrix (with column vectors) (as 2D array, can be given to Jmat.Matrix ctor). q must be unary quaternion.
@@ -602,7 +607,7 @@ Jmat.Quaternion.isInfOrNaN = function(z) {
   return !z || Jmat.Quaternion.isNaN(z) || Jmat.Quaternion.isInf(z);
 };
 
-// Apply arbitrary complex function to quaternion q, e.g. gamma or lambertw.
+// Apply arbitrary holomorphic complex function to quaternion q, e.g. gamma or lambertw.
 // f must be a function that takes a Jmat.Complex as input and returns a Jmat.Complex result.
 // Uses the matrix decomposition of q
 Jmat.Quaternion.fun = function(q, f) {
@@ -632,7 +637,7 @@ Jmat.Quaternion.fun = function(q, f) {
   // eigenvalues
   var t0 = m[0][0].neg().sub(m[1][1]);
   var t1 = m[0][0].mul(m[1][1]).sub(m[0][1].mul(m[1][0]));
-  var t2 = Jmat.Complex.sqrt(t0.mul(t0).sub(t1.mulr(4)));
+  var t2 = C.sqrt(t0.mul(t0).sub(t1.mulr(4)));
   var l0 = t0.neg().add(t2).mulr(0.5);
   var l1 = t0.neg().sub(t2).mulr(0.5);
 
@@ -662,6 +667,118 @@ Jmat.Quaternion.fun = function(q, f) {
   m[1][1] = l0.mul(v10).mul(w01).add(l1.mul(v11).mul(w11));
 
   return Q.from2x2(m);
+};
+
+
+// Apply arbitrary 2-argument holomorphic complex function to commutative quaternions a and b
+// f must be a function that takes 2 Jmat.Complex values as input and returns a Jmat.Complex result.
+// Uses the matrix decomposition of a and b
+// NOTE: only works correctly if a and b commute, or for some f in more cases
+Jmat.Quaternion.fun2 = function(a, b, f) {
+  var Q = Jmat.Quaternion;
+  var C = Jmat.Complex;
+
+  // Return directly if some components are 0, otherwise implementation below gives NaNs.
+  if(a.y == 0 && a.z == 0) {
+    return Q.fun(b, function(z) { return f(C(a.w, a.x), z); });
+  }
+  if(b.y == 0 && b.z == 0) {
+    return Q.fun(a, function(z) { return f(z, C(b.w, b.x)); });
+  }
+  if(a.x == 0 && a.z == 0) {
+    var q = Q.fun(new Quaternion(b.w, b.y, b.x, b.z), function(z) { return f(C(a.w, a.y), z); });
+    return new Quaternion(q.w, q.y, q.x, q.z);
+  }
+  if(b.x == 0 && b.z == 0) {
+    var q = Q.fun(new Quaternion(a.w, a.y, a.x, a.z), function(z) { return f(z, C(b.w, b.y)); });
+    return new Quaternion(q.w, q.y, q.x, q.z);
+  }
+  if(a.y == 0 && a.z == 0) {
+    var q = Q.fun(new Quaternion(b.w, b.z, b.y, b.x), function(z) { return f(C(a.w, a.z), z); });
+    return new Quaternion(q.w, q.z, q.y, q.x);
+  }
+  if(b.y == 0 && b.z == 0) {
+    var q = Q.fun(new Quaternion(a.w, a.z, a.y, a.x), function(z) { return f(z, C(b.w, b.z)); });
+    return new Quaternion(q.w, q.z, q.y, q.x);
+  }
+
+  var am = Q.to2x2(a);
+  var bm = Q.to2x2(b);
+
+  /*
+  method:
+  f is assumed to have a power series with terms such as a^k*b^l with k and l integer powers (TODO: handle non-commutative a and b)
+  a is turned to 2x2 matrix notation and eigen-decomponsed into AV*AD*AW with AW the inverse of AV and AD diagonal. similarly, b --> BV*BD*BW
+  then a term of the power series of f is of the form AV*AD^k*AW*BV*BD^l*BW.
+  with AW*BV=C, given that AD^k and BD^l are diagonal, C is elementwise-multiplied with 2x2 matrix [[ad00^k*bd00^l, ad01^k*bd10^l],[ad10^k*bd01^l, ad11^k*bd11^l]]
+  So for the entire function f, C is elementwise-multiplied with L=[[f(ad00,bd00), f(ad01,bd10)],[f(ad10,bd01), f(ad11,bd11)]]
+  Then reconstruct result quaternion with AV*(C elwise-multiply L)*BW.
+  */
+
+  // eigenvalues (al and bl)
+  var at0 = am[0][0].neg().sub(am[1][1]);
+  var at1 = am[0][0].mul(am[1][1]).sub(am[0][1].mul(am[1][0]));
+  var at2 = C.sqrt(at0.mul(at0).sub(at1.mulr(4)));
+  var al0 = at0.neg().add(at2).mulr(0.5);
+  var al1 = at0.neg().sub(at2).mulr(0.5);
+
+  var bt0 = bm[0][0].neg().sub(bm[1][1]);
+  var bt1 = bm[0][0].mul(bm[1][1]).sub(bm[0][1].mul(bm[1][0]));
+  var bt2 = C.sqrt(bt0.mul(bt0).sub(bt1.mulr(4)));
+  var bl0 = bt0.neg().add(bt2).mulr(0.5);
+  var bl1 = bt0.neg().sub(bt2).mulr(0.5);
+
+  // eigenvectors (av and bv)
+  var av00 = am[0][1];
+  var av10 = al0.sub(am[0][0]);
+  var av01 = am[0][1];
+  var av11 = al1.sub(am[0][0]);
+
+  var bv00 = bm[0][1];
+  var bv10 = bl0.sub(bm[0][0]);
+  var bv01 = bm[0][1];
+  var bv11 = bl1.sub(bm[0][0]);
+
+  // apply function to eigenvalues
+  var l00 = f(al0, bl0);
+  var l01 = f(al0, bl1);
+  var l10 = f(al1, bl0);
+  var l11 = f(al1, bl1);
+
+  // inverse matrix of av and of bv
+  var aidet = av00.mul(av11).sub(av01.mul(av10)).inv();
+  var aw00 = av11.mul(aidet);
+  var aw01 = av01.mul(aidet).neg();
+  var aw10 = av10.mul(aidet).neg();
+  var aw11 = av00.mul(aidet);
+
+  var bidet = bv00.mul(bv11).sub(bv01.mul(bv10)).inv();
+  var bw00 = bv11.mul(bidet);
+  var bw01 = bv01.mul(bidet).neg();
+  var bw10 = bv10.mul(bidet).neg();
+  var bw11 = bv00.mul(bidet);
+
+  // compute c = aw*bv
+  var c00 = aw00.mul(bv00).add(aw01.mul(bv10));
+  var c01 = aw00.mul(bv01).add(aw01.mul(bv11));
+  var c10 = aw10.mul(bv00).add(aw11.mul(bv10));
+  var c11 = aw10.mul(bv01).add(aw11.mul(bv11));
+
+  // element-wise multiply with l
+  c00 = c00.mul(l00);
+  c01 = c01.mul(l01);
+  c10 = c10.mul(l10);
+  c11 = c11.mul(l11);
+
+  // reconstruct
+  // [av00 av01] * [c00 c01] * [bw00 bw01] = [bw00(av00*c00+av01*c10)+bw10(av00*c01+av01*c11)  bw01(av00*c00+av01*c10)+bw11(av00*c01+av01*c11)]
+  // [av10 av11]   [c10 c11]   [bw10 bw11]   [bw00(av10*c00+av11*c10)+bw10(av10*c01+av11*c11)  bw01(av10*c00+av11*c10)+bw11(av10*c01+av11*c11)]
+  am[0][0] = bw00.mul(av00.mul(c00).add(av01.mul(c10))).add(bw10.mul(av00.mul(c01).add(av01.mul(c11))));
+  am[0][1] = bw01.mul(av00.mul(c00).add(av01.mul(c10))).add(bw11.mul(av00.mul(c01).add(av01.mul(c11))));
+  am[1][0] = bw00.mul(av10.mul(c00).add(av11.mul(c10))).add(bw10.mul(av10.mul(c01).add(av11.mul(c11))));
+  am[1][1] = bw01.mul(av10.mul(c00).add(av11.mul(c10))).add(bw11.mul(av10.mul(c01).add(av11.mul(c11))));
+
+  return Q.from2x2(am);
 };
 
 
